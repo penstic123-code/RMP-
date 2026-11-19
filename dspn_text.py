@@ -455,7 +455,24 @@ def param_groups(model, wd=0.01):
             {'params': [p for k, p in ps if no(k, p)], 'weight_decay': 0.0}]
 
 
-def train(kind, size, data, iters, b, T, lr, seed, tag, extra, init=None):
+def stream_batch(data, pos, T):
+    """每行一条连续流：取 pos 处的 T+1 字节，pos 前移 T（到尾回绕）。配合跨批次延续状态。"""
+    pos[pos + T + 1 >= len(data)] = 0
+    xy = torch.from_numpy(np.stack([data[i:i + T + 1] for i in pos]).astype(np.int64))
+    pos += T
+    return xy[:, :-1].to(DEV), xy[:, 1:].to(DEV)
+
+
+def copy_state_(dst, src):
+    """把新状态原地拷进固定地址的旧状态（CUDA Graph 回放时地址不能变）；整数位置不变（T 是工作空间块长的整数倍）。"""
+    for d, s in zip(dst, src):
+        if torch.is_tensor(d):
+            d.copy_(s.detach())
+        elif isinstance(d, (tuple, list)):
+            copy_state_(d, s)
+
+
+def train(kind, size, data, iters, b, T, lr, seed, tag, extra, init=None, stateful=False):
     torch.manual_seed(seed)
     tr, va = load_bytes(data)
     model = build(kind, size, **extra).to(DEV)
@@ -470,18 +487,23 @@ def train(kind, size, data, iters, b, T, lr, seed, tag, extra, init=None):
     name = f'{kind}-{size}{tag}'
     print(f'{name}: {nparam:,} 参数，{DEV}，批 {b} × {T} 字节，{iters} 步', flush=True)
     sx, sy = batch(tr, b, T)                               # 固定地址的输入，每步原地拷入新批
+    # stateful：每行是一条连续流，状态跨批次延续（截断反传），模型才练得到“记住 T 字节以前的事”（持久头、跨会话记忆）
+    pos = np.random.default_rng(seed).integers(0, len(tr) - T - 1, b) if stateful else None
+    st = model.init_state(b) if stateful else None
 
     def step():
-        lg, _ = model(sx)
+        lg, new = model(sx, st)
         loss = F.cross_entropy(lg.reshape(-1, 256), sy.reshape(-1))
-        (loss + getattr(model, 'aux', 0.0)).backward()      # 工作空间的负载均衡 / 预测编码辅助损失
+        (loss + getattr(model, 'aux', 0.0)).backward()      # 预测学习等辅助损失
         nn.utils.clip_grad_norm_(params, 1.0); opt.step(); opt.zero_grad(set_to_none=False)
+        if stateful:
+            copy_state_(st, new)
         return loss.detach()                               # 不留计算图引用，否则会干扰 CUDA Graph 录制
 
     log, t0, eval_secs, graph = [], time.time(), 0.0, None
     for it in range(1, iters + 1):
         lr_t.fill_(lr * sched(it))
-        x, y = batch(tr, b, T)
+        x, y = stream_batch(tr, pos, T) if stateful else batch(tr, b, T)
         sx.copy_(x); sy.copy_(y)
         if not cuda or it <= 3:                            # 前 3 步在旁路流上热身（cuDNN/cuBLAS 选算法、分配梯度）
             if cuda:
@@ -515,7 +537,7 @@ def train(kind, size, data, iters, b, T, lr, seed, tag, extra, init=None):
     torch.save(model.state_dict(), ROOT / f'runs/{name}.pt')   # 每个名字只留最新一份检查点
     out = ROOT / f'runs/{time.strftime("%Y%m%d-%H%M%S")}_{name}.json'
     json.dump({'name': name, 'kind': kind, 'size': size, 'extra': extra, 'params': nparam, 'data': data,
-               'device': DEV, 'batch': b, 'T': T, 'iters': iters, 'lr': lr, 'seed': seed,
+               'device': DEV, 'batch': b, 'T': T, 'iters': iters, 'lr': lr, 'seed': seed, 'stateful': stateful, 'init': init,
                'code_sha': hashlib.sha256((ROOT / 'dspn_text.py').read_bytes()).hexdigest()[:12],
                'seconds': round(secs), 'train_bytes_per_sec': round(iters * b * T / (secs - eval_secs)),
                'peak_gpu_mb': round(torch.cuda.max_memory_allocated() / 2**20) if DEV == 'cuda' else None,
@@ -558,10 +580,11 @@ if __name__ == '__main__':
     ap.add_argument('--extra', default='{}', help='覆盖 dspn 配置的 JSON，如 {"hub_after": 2}')
     ap.add_argument('--prompt', default='Once upon a time')
     ap.add_argument('--init', default=None, help='从该权重文件继续训练，如 runs/dspn-L_xxx.pt')
+    ap.add_argument('--stateful', action='store_true', help='每行一条连续流，状态跨批次延续')
     a = ap.parse_args()
     extra = json.loads(a.extra)
     if a.cmd == 'train':
         lr = a.lr or (1e-3 if a.kind == 'tf' else 3e-3)
-        train(a.kind, a.size, a.data, a.iters, a.batch, a.T, lr, a.seed, a.tag, extra, a.init)
+        train(a.kind, a.size, a.data, a.iters, a.batch, a.T, lr, a.seed, a.tag, extra, a.init, a.stateful)
     else:
         print(sample(a.kind, a.size, a.tag, a.prompt, extra))
