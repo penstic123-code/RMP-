@@ -523,6 +523,15 @@ def bot_mask(y):
     return (isbot.gather(1, last.clamp(min=0)) & (last >= 0)).float()
 
 
+def scale_state_(st, keep):
+    """各行状态乘 keep（(b,) 的 0/1）：0 的行整行清零，模拟冷启动。"""
+    for s in st:
+        if torch.is_tensor(s):
+            s.mul_(keep.view(-1, *([1] * (s.dim() - 1))))
+        elif isinstance(s, (tuple, list)):
+            scale_state_(s, keep)
+
+
 def copy_state_(dst, src):
     """把新状态原地拷进固定地址的旧状态（CUDA Graph 回放时地址不能变）；整数位置不变（T 是工作空间块长的整数倍）。"""
     for d, s in zip(dst, src):
@@ -551,8 +560,11 @@ def train(kind, size, data, iters, b, T, lr, seed, tag, extra, init=None, statef
     pos = np.random.default_rng(seed).integers(0, len(tr) - T - 1, b) if stateful else None
     st = model.init_state(b) if stateful else None
     smask = torch.ones(b, T, device=DEV)                   # bot_loss：只在 Bot 轮次的字节上算损失
+    skeep = torch.ones(b, device=DEV)                      # stateful：每步约 2% 的行整行清零，免得模型只会“热”状态（E45）
 
     def step():
+        if stateful:
+            scale_state_(st, skeep)
         lg, new = model(sx, st)
         ce = F.cross_entropy(lg.reshape(-1, 256), sy.reshape(-1), reduction='none')
         loss = (ce * smask.reshape(-1)).sum() / smask.sum().clamp(min=1)
@@ -569,6 +581,8 @@ def train(kind, size, data, iters, b, T, lr, seed, tag, extra, init=None, statef
         sx.copy_(x); sy.copy_(y)
         if bot_loss:
             smask.copy_(bot_mask(y))
+        if stateful:
+            skeep.copy_((torch.rand(b, device=DEV) > 0.02).float())
         if not cuda or it <= 3:                            # 前 3 步在旁路流上热身（cuDNN/cuBLAS 选算法、分配梯度）
             if cuda:
                 s = torch.cuda.Stream(); s.wait_stream(torch.cuda.current_stream())
