@@ -1,5 +1,5 @@
 """跨会话记忆是否用上持久头：chat2 验证集的跨会话样例，最后一段问答里 Bot 回答字节的 bpc，比较 持久头保留 / 会话边界时持久头也清零。
-用法：python tools/persist_probe.py（检查点写在下面的列表里）"""
+用法：python tools/persist_probe.py runs/dspn-L_chat2.pt [更多检查点]"""
 import json, sys, re, torch, torch.nn.functional as F
 sys.path.insert(0, '.')
 import dspn_text as D
@@ -16,7 +16,7 @@ for m in re.finditer(rb'Bot: Hello! Nice to see you again\.\n((?:User: [^\n]*\nB
         samples.append((seg, qa))
     if len(samples) >= 40: break
 print('samples', len(samples), 'avg len', sum(len(s) for s, _ in samples) // len(samples))
-for ck in ['runs/dspn-L_chat.pt', 'runs/dspn-L_chat2.pt']:
+for ck in sys.argv[1:]:
     model = D.build('dspn', 'L', **extra).to(D.DEV); model.load_state_dict(torch.load(ck, map_location=D.DEV)); model.eval()
     res = {}
     for mode in ('keep', 'wipe'):
