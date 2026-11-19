@@ -12,11 +12,13 @@ import dspn_text as D
 
 @torch.no_grad()
 def layer_stats(model, x):
-    inputs = []
-    hooks = [l.register_forward_pre_hook(lambda m, args: inputs.append(args[0])) for l in model.layers]
+    got = {}                                           # 有工作空间时每层按 64 拍一块多次调用，按时间拼回
+    hooks = [l.register_forward_pre_hook(lambda m, args, k=k: got.setdefault(k, []).append(args[0]))
+             for k, l in enumerate(model.layers)]
     model(x)
     for h in hooks:
         h.remove()
+    inputs = [torch.cat(got[k], 1) for k in range(len(model.layers))]
     L, M, d = len(model.layers), model.M, model.d
     w = model.readout.weight.reshape(model.readout.weight.shape[0], L, M * d)
     out = []
@@ -46,7 +48,8 @@ def context_swap(model, x, x_other, prefix):
         h.remove()
     out = []
     for k in range(len(model.layers)):
-        h1, h2 = (t[:, prefix:].flatten(2) for t in hs[k])           # (b, N, M*d)
+        half_n = len(hs[k]) // 2                                   # 前一半是原文、后一半是替换后（每段可能分块）
+        h1, h2 = (torch.cat(c, 1)[:, prefix:].flatten(2) for c in (hs[k][:half_n], hs[k][half_n:]))   # (b, N, M*d)
         diff = ((h1 - h2).norm(dim=-1) / (h1.norm(dim=-1) + h2.norm(dim=-1) + 1e-8)).mean(0)
         half = (diff < diff[0] / 2).nonzero()
         out.append({'layer': k + 1, **{f'diff@{t}': round(diff[t].item(), 3) for t in (0, 4, 16, 64, 256) if t < len(diff)},
