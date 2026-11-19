@@ -10,7 +10,7 @@
 | demo 之后的研究线 | [plan/research-lines.md](plan/research-lines.md) |
 | 验收项编号是什么意思 | [plan/acceptance.md](plan/acceptance.md) |
 | 架构现在长什么样、为什么 | [design/README.md](design/README.md) → current/ |
-| 有哪些候选新方案（TSPH、Tide、Firefly、可用模型路线、统一块涌现层级） | [design/README.md](design/README.md) → candidates/ |
+| 有哪些候选新方案（第 9–19 章，均未实验；可借鉴的机制见 plan/v2.md） | [design/README.md](design/README.md) → candidates/ |
 | 某个问题做过什么实验、结论 | [experiments/README.md](experiments/README.md) 的“按问题查” |
 | 查过哪些文献、对项目的结论 | [literature/README.md](literature/README.md) |
 | 某个方法具体怎么实现、代码在哪 | [literature/README.md](literature/README.md) → cards/ |
