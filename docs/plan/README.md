@@ -10,8 +10,9 @@
 | [research-lines.md](research-lines.md) | demo 之后的研究线：形状扫描、模块粒度、与 GRU 对比、层级 |
 | [acceptance.md](acceptance.md) | 验收项定义 1–10（原设计第 6 节，编号不变） |
 | [v2.md](v2.md) | demo 之后：删什么、加什么、改什么，放大到 3000 万参数的路线与过关条件 |
+| [fast-clean.md](fast-clean.md) | **现行**：训练提速与部件去重（重复部件清单、阶段 A / B、执行顺序） |
 
-## 当前状态（2026-11-20 晚，交接用；新窗口先读第 20 章 v2 设计再实施）
+## 当前状态（2026-11-20 晚，交接用；新窗口先读 fast-clean.md 和第 20 章再实施）
 
 - 工作方式：用户授权全自动推进（git 存档、结果为先、只和自己的上一版比，见 [v2.md](v2.md)“用户定的方向”）。仓库已是 git，每步本地提交。
 - 环境：conda 环境 `dspn`（Python 3.11，PyTorch 2.11 + CUDA 12.8，RTX 5060 Laptop 8 GB，Rtxpt.exe 已关，可用约 7 GB）。已装 triton-windows 3.6、fla-core 0.6、einops（均 --no-deps）。
@@ -23,12 +24,12 @@
 - **正在跑**：无（GPU 空闲）。
 - **已采纳进下次预训练**（[v2.md](v2.md)“已确认采纳”）：pred_self=0.01（E51）、nb_count（E53）、--sched wsd（E53）。不采纳：out_gate、conv、pred_nb、local、surprise（E45、E49、E53）。
 - **v2 架构已选定**（2026-11-20，[design/candidates/20-dspn-v2.md](../design/candidates/20-dspn-v2.md)）：删持久头与网格代码，工作空间并入中枢块末广播，新奇信号管海马写入与在线可塑，睡眠加事实蒸馏（海马教皮层）。
-- **下一步（按顺序）**：
-  0. 实施 v2：先打 git 标签 v0.16；改代码与测试；S 档验证中枢广播 vs 工作空间（第 20.7 节）；新奇门控与事实蒸馏在现有 chat3 检查点上先试（不依赖预训练的部分）。
-  1. fla 融合内核的长基准：L 档 2000 步 DSPN_FLA=1 vs 不开，比字节/秒（E53 的 500 步试跑含编译开销、不能下结论）。快就默认打开。
-  2. v2 预训练：v2 结构（第 20 章）+ L 档 overnight 配置 + pred_self 0.01 + nb_count + WSD，TinyStories，从零训（约 8 小时级；若 fla 快则加大到约 1000 万参数），每 500 步存检查点。
-  3. 对话微调：新底座在 chat3 上 `--stateful --bot_loss`，再跑 `tools/chat.py … --script tools/chat_scripts/memory.txt --episodic`，与 E50/E52 比；登记进 docs/experiments/e41-.md。
-  4. 其余见 [v2.md](v2.md) 任务队列与放大路线（持久头 9b、来源门、TSPH 对照等）。
+- **下一步（2026-11-20 用户定：先提速、再让部件配合好并去重）**：按 [fast-clean.md](fast-clean.md) 的执行顺序做。
+  1. A0：打 git 标签 v0.16，用现行代码跑 L 档 1500 步基准，作为提速起点。
+  2. A1 / B1：删死代码与重复部件（持久头、网络内惊讶门控、pred_nb、词级、td、卷积、输出门、网格邻接、GRU / Transformer 对照）。
+  3. A2：删工作空间，去掉每窗 16 段的块串行；广播改为窗口级（下层读中枢上一窗口末的读出）。
+  4. A3–A6：全部换 fla 融合内核（含慢通道扫描）→ bf16 → torch.compile → 激活检查点加大批。
+  5. B6 S 档确认 → v2 预训练 → B3–B5（新奇信号、在线通道去重、事实蒸馏）→ 对话微调。
 - 已定：不复现 E13 的莎士比亚结果。不在用户的话上做睡眠交叉熵（E44）。
 
 ## 快速路线（2026-11-19 用户决定：少跑实验，尽快做出能对话、有记忆、会学习的 demo；优先于下表的逐阶段验收）

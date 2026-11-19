@@ -9,6 +9,7 @@
 | 某篇文献 / 某个想法决定采不采纳、排在什么时候 | [plan/adoption.md](plan/adoption.md) |
 | demo 之后的研究线 | [plan/research-lines.md](plan/research-lines.md) |
 | 验收项编号是什么意思 | [plan/acceptance.md](plan/acceptance.md) |
+| 训练怎么提速、哪些部件重复要删 | [plan/fast-clean.md](plan/fast-clean.md) |
 | 架构现在长什么样、为什么 | [design/README.md](design/README.md) → current/ |
 | 有哪些候选新方案（第 9–19 章，均未实验；可借鉴的机制见 plan/v2.md） | [design/README.md](design/README.md) → candidates/ |
 | 某个问题做过什么实验、结论 | [experiments/README.md](experiments/README.md) 的“按问题查” |
@@ -20,7 +21,7 @@
 
 ```
 docs/
-  plan/          排期（唯一施工入口）：README=当前状态与下一步；stages / adoption / research-lines / acceptance
+  plan/          排期（唯一施工入口）：README=当前状态与下一步；stages / adoption / research-lines / acceptance / v2 / fast-clean
   design/        设计：current/ 现行架构，basis/ 依据与讨论，candidates/ 候选方案，changelog.md 版本改动
   experiments/   实验记录：按编号分段，README 有“按问题查”
   literature/    文献：topics/ 按主题，cards/ 实现卡
