@@ -21,7 +21,8 @@ DATASETS = {
     'shakespeare': ('data/input.txt', None),
     'tiny': ('data/TinyStoriesV2-GPT4-train.txt', 'data/TinyStoriesV2-GPT4-valid.txt'),
     'chat': ('data/chat-train.txt', 'data/chat-valid.txt'),             # 旧版：换行是 \r\n（Windows 写文本时转换），跨会话间隔短
-    'chat2': ('data/chat2-train.txt', 'data/chat2-valid.txt'),          # tools/make_chat_data.py 现版生成
+    'chat2': ('data/chat2-train.txt', 'data/chat2-valid.txt'),          # make_chat_data.py --memory_frac 0.25 --out chat2（无重现行）
+    'chat3': ('data/chat3-train.txt', 'data/chat3-valid.txt'),          # make_chat_data.py 现版：记忆对话 40%，跨会话一半带重现行
 }
 SEP = 30   # 会话边界字节（ASCII 记录分隔符）：清空 c、快记忆与中枢的短时头，保留中枢持久头（τ ≥ 1e5）
 

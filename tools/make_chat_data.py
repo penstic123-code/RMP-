@@ -2,7 +2,9 @@
 
 格式：每轮一行 "User: …" / "Bot: …"，对话之间是会话边界字节 \\x1e（单独一行）。SODA 的第一个说话人当 User。
 记忆对话：User 先说出几件自己的事，中间插几轮闲聊，最后提问，Bot 按前文回答；名字由随机音节拼成，逼模型从上下文复制而不是背常见名。
-用法：python tools/make_chat_data.py [--memory_frac 0.25]
+跨会话提问前按一半概率插入“重现”行（User: 事实 / Bot: OK.，有时多带一条别的事实作干扰），与聊天时情景记忆的读回格式一致（episodic.py）。
+输出 data/<out>-train.txt、data/<out>-valid.txt（默认 chat3）。
+用法：python tools/make_chat_data.py [--memory_frac 0.4] [--out chat3]
 """
 import argparse, random
 from pathlib import Path
@@ -52,7 +54,14 @@ def memory_dialogue(rng, soda):
         for _ in range(rng.randint(1, 3)):                 # 间隔常超过 1024 字节：配合 --stateful，持久头才学得到跨会话保持
             lines += [rng.choice(soda), SEP]
         lines += ['User: Hi again!', 'Bot: Hello! Nice to see you again.']
+        recall = rng.random() < 0.5                        # 情景记忆读回：把要问的事实（偶尔加一条干扰）先读进来
+    else:
+        recall = False
     for i in rng.sample(range(len(facts)), len(facts)):
+        if recall:
+            others = [j for j in range(len(facts)) if j != i]
+            for j in ([rng.choice(others)] if others and rng.random() < 0.3 else []) + [i]:
+                lines += [f'User: {facts[j][0].format(v=vals[j])}', 'Bot: OK.']
         lines += [f'User: {facts[i][2]}', f'Bot: {facts[i][3].format(v=vals[i])}']
     return '\n'.join(lines)
 
@@ -68,21 +77,22 @@ def soda_dialogues(path):
     return out
 
 
-def build(split, memory_frac, seed):
+def build(split, memory_frac, seed, name):
     rng = random.Random(seed)
     dl = soda_dialogues(ROOT / f'data/soda/{split}.parquet')
     n_mem = int(len(dl) * memory_frac / (1 - memory_frac))
     soda = list(dl)
     dl += [memory_dialogue(rng, soda) for _ in range(n_mem)]
     rng.shuffle(dl)
-    out = ROOT / f'data/chat2-{split}.txt'
+    out = ROOT / f'data/{name}-{split}.txt'
     out.write_bytes((f'\n{SEP}\n'.join(dl) + '\n').encode('utf-8'))   # 对话之间是会话边界；写字节，免得 Windows 把 \n 换成 \r\n
     print(out.name, len(dl), '段对话，其中记忆对话', n_mem, '，', out.stat().st_size, '字节')
 
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
-    ap.add_argument('--memory_frac', type=float, default=0.25)
+    ap.add_argument('--memory_frac', type=float, default=0.4)
+    ap.add_argument('--out', default='chat3')
     a = ap.parse_args()
-    build('valid', a.memory_frac, 1)
-    build('train', a.memory_frac, 0)
+    build('valid', a.memory_frac, 1, a.out)
+    build('train', a.memory_frac, 0, a.out)
