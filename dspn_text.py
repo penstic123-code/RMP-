@@ -48,7 +48,7 @@ def batch(data, b, T, gen=None):
     return xy[:, :-1].to(DEV), xy[:, 1:].to(DEV)
 
 
-def grid_adjacency(rows, cols):
+def grid_adjacency(rows, cols, count=False):
     M = rows * cols
     A = torch.zeros(M, M)
     for r in range(rows):
@@ -57,7 +57,9 @@ def grid_adjacency(rows, cols):
                 rr, cc = r + dr, c + dc
                 if 0 <= rr < rows and 0 <= cc < cols:      # 边界不环绕
                     A[r * cols + c, rr * cols + cc] = 1.0
-    return A / 4.0                                         # 邻居消息之和除以 4
+    if count:                                              # 按实际邻居数平均（1×2 网格每个模块只有 1 个邻居）
+        return A / A.sum(1, keepdim=True).clamp(min=1)
+    return A / 4.0                                         # 旧约定：邻居消息之和除以 4
 
 
 def scan(a, b, c0, chunk=8):
@@ -123,11 +125,11 @@ def delta_chunk(q, k, v, beta, g, S, C=64):
 class Layer(nn.Module):
     """一层模块，同层参数堆叠成 [M, …] 张量。所有时间步一起算门、投影和扫描，快记忆分块并行。
     lora_a / lora_b 是 MLP 第一层的秩 2 在线偏移（设计第 3 节），离线训练时冻结，在线阶段打开。"""
-    def __init__(self, rows, cols, U, d, m, hidden, q, rank=2, beta_max=1.0, conv=0, out_gate=False):
+    def __init__(self, rows, cols, U, d, m, hidden, q, rank=2, beta_max=1.0, conv=0, out_gate=False, nb_count=False):
         super().__init__()
         M = rows * cols
         self.M, self.d, self.m, self.beta_max = M, d, m, beta_max
-        self.register_buffer('adj', grid_adjacency(rows, cols))
+        self.register_buffer('adj', grid_adjacency(rows, cols, nb_count))
         p = lambda *s: nn.Parameter(torch.randn(*s) / math.sqrt(s[-2]))
         self.B = p(M, U, d); self.G = nn.Parameter(torch.zeros(M, U, d))
         tau = torch.logspace(math.log10(1.5), 3, d); a0 = 1 - 1 / tau       # 时间常数 1.5–1000 步
@@ -211,7 +213,7 @@ class DSPNLayered(nn.Module):
                  word_layers=0, word_d=256, word_hidden=512, word_m=32, word_q=32, word_mods=1,
                  td_layers=0, td_pc=0.1, td_target=1,
                  pred_self=0.0, pred_nb=0.0, pred_down=0.0, local=False, surprise=False, pred_detach=False,
-                 conv=0, out_gate=False):
+                 conv=0, out_gate=False, nb_count=False):
         super().__init__()
         M = rows * cols
         self.M, self.d, self.m, self.hub_after = M, d, m, hub_after
@@ -244,7 +246,7 @@ class DSPNLayered(nn.Module):
         W = 4 if ws_slots else 0
         hub_byte = hub_after and not word_layers
         U = lambda i: (emb if i == 0 else 2 * q + (hub_out if hub_byte and i == hub_after else 0)) + W
-        self.layers = nn.ModuleList([Layer(rows, cols, U(i), d, m, hidden, q, beta_max=beta_max, conv=conv, out_gate=out_gate)
+        self.layers = nn.ModuleList([Layer(rows, cols, U(i), d, m, hidden, q, beta_max=beta_max, conv=conv, out_gate=out_gate, nb_count=nb_count)
                                      for i in range(layers)])
         # 自上而下（第二扫，TSPH 式，设计 10.1）：上层用上一拍的输出预测下层本拍的消息 z，误差 e = z − 预测；
         # 再用 [预测, 误差] 跑 td_layers 层字节级“自上而下层”，其输出也进读出。两扫各自整段并行；
@@ -555,7 +557,7 @@ def copy_state_(dst, src):
             copy_state_(d, s)
 
 
-def train(kind, size, data, iters, b, T, lr, seed, tag, extra, init=None, stateful=False, bot_loss=False):
+def train(kind, size, data, iters, b, T, lr, seed, tag, extra, init=None, stateful=False, bot_loss=False, sched='cos'):
     torch.manual_seed(seed)
     tr, va = load_bytes(data)
     model = build(kind, size, **extra).to(DEV)
@@ -566,7 +568,10 @@ def train(kind, size, data, iters, b, T, lr, seed, tag, extra, init=None, statef
     cuda = DEV == 'cuda'
     lr_t = torch.tensor(lr, device=DEV)                    # 张量学习率：CUDA Graph 回放时原地改
     opt = torch.optim.AdamW(param_groups(model), lr=lr_t, capturable=cuda)
-    sched = lambda it: min(1, it / 200) * 0.5 * (1 + math.cos(math.pi * it / iters))   # 预热 200 步后余弦衰减
+    if sched == 'wsd':                                     # 恒定 + 最后 20% 线性降到 0：中途停下也能随时补一段衰减
+        lrf = lambda it: min(1, it / 200) * min(1.0, (iters - it) / (0.2 * iters))
+    else:                                                  # 预热 200 步后余弦衰减
+        lrf = lambda it: min(1, it / 200) * 0.5 * (1 + math.cos(math.pi * it / iters))
     name = f'{kind}-{size}{tag}'
     print(f'{name}: {nparam:,} 参数，{DEV}，批 {b} × {T} 字节，{iters} 步', flush=True)
     sx, sy = batch(tr, b, T)                               # 固定地址的输入，每步原地拷入新批
@@ -590,7 +595,7 @@ def train(kind, size, data, iters, b, T, lr, seed, tag, extra, init=None, statef
 
     log, t0, eval_secs, graph = [], time.time(), 0.0, None
     for it in range(1, iters + 1):
-        lr_t.fill_(lr * sched(it))
+        lr_t.fill_(lr * lrf(it))
         x, y = stream_batch(tr, pos, T) if stateful else batch(tr, b, T)
         sx.copy_(x); sy.copy_(y)
         if bot_loss:
@@ -629,7 +634,7 @@ def train(kind, size, data, iters, b, T, lr, seed, tag, extra, init=None, statef
     torch.save(model.state_dict(), ROOT / f'runs/{name}.pt')   # 每个名字只留最新一份检查点
     out = ROOT / f'runs/{time.strftime("%Y%m%d-%H%M%S")}_{name}.json'
     json.dump({'name': name, 'kind': kind, 'size': size, 'extra': extra, 'params': nparam, 'data': data,
-               'device': DEV, 'batch': b, 'T': T, 'iters': iters, 'lr': lr, 'seed': seed, 'stateful': stateful, 'bot_loss': bot_loss, 'init': init,
+               'device': DEV, 'batch': b, 'T': T, 'iters': iters, 'lr': lr, 'seed': seed, 'stateful': stateful, 'bot_loss': bot_loss, 'sched': sched, 'init': init,
                'code_sha': hashlib.sha256((ROOT / 'dspn_text.py').read_bytes()).hexdigest()[:12],
                'seconds': round(secs), 'train_bytes_per_sec': round(iters * b * T / (secs - eval_secs)),
                'peak_gpu_mb': round(torch.cuda.max_memory_allocated() / 2**20) if DEV == 'cuda' else None,
@@ -675,10 +680,11 @@ if __name__ == '__main__':
     ap.add_argument('--init', default=None, help='从该权重文件继续训练，如 runs/dspn-L_xxx.pt')
     ap.add_argument('--stateful', action='store_true', help='每行一条连续流，状态跨批次延续')
     ap.add_argument('--bot_loss', action='store_true', help='对话数据只在 Bot 轮次的字节上算损失')
+    ap.add_argument('--sched', default='cos', choices=['cos', 'wsd'], help='学习率调度：余弦 / 恒定 + 末段线性衰减')
     a = ap.parse_args()
     extra = json.loads(a.extra)
     if a.cmd == 'train':
         lr = a.lr or (1e-3 if a.kind == 'tf' else 3e-3)
-        train(a.kind, a.size, a.data, a.iters, a.batch, a.T, lr, a.seed, a.tag, extra, a.init, a.stateful, a.bot_loss)
+        train(a.kind, a.size, a.data, a.iters, a.batch, a.T, lr, a.seed, a.tag, extra, a.init, a.stateful, a.bot_loss, a.sched)
     else:
         print(sample(a.kind, a.size, a.tag, a.prompt, extra))
