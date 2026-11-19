@@ -8,7 +8,7 @@
   python dspn_text.py train tf   --size S --data tiny --iters 3000
   python dspn_text.py sample dspn --size S --prompt "Once upon a time"
 """
-import argparse, hashlib, json, math, time
+import argparse, hashlib, json, math, os, time
 from pathlib import Path
 import numpy as np
 import torch, torch.nn as nn, torch.nn.functional as F
@@ -87,7 +87,21 @@ def scan(a, b, c0, chunk=8):
     return c, ends[:, -1]
 
 
+# 融合内核：flash-linear-attention 的门控 delta（triton-windows）。DSPN_FLA=1 时训练用它（前向 + 反向约快 6–10 倍，
+# 数值差 ~7e-3，TF32 量级）；短序列（逐字节聊天）仍走下面的实现。fla 的状态是本文件 S 的转置。
+USE_FLA = os.environ.get('DSPN_FLA') == '1'
+
+
 def delta_chunk(q, k, v, beta, g, S, C=64):
+    if USE_FLA and q.is_cuda and q.shape[1] >= 64:
+        from fla.ops.gated_delta_rule import chunk_gated_delta_rule
+        r, Sf = chunk_gated_delta_rule(q.contiguous(), k.contiguous(), v.contiguous(), g.contiguous(), beta.contiguous(),
+                                       scale=1.0, initial_state=S.transpose(-1, -2).contiguous(), output_final_state=True)
+        return r, Sf.transpose(-1, -2)
+    return _delta_chunk(q, k, v, beta, g, S, C)
+
+
+def _delta_chunk(q, k, v, beta, g, S, C=64):
     """分块并行的门控 delta 规则，逐拍等价于 S ← αS；S ← S + β(v − Sk)kᵀ；r = Sq，log α = g。
     q, k, v: (b, T, M, m)；beta, g: (b, T, M)；S: (b, M, m, m)。
     块内用三角求解一次算完 C 拍的写入，块间顺序传状态（Gated DeltaNet 分块算法，Yang 等 2024；

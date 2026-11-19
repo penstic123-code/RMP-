@@ -1,0 +1,83 @@
+{
+ "name": "dspn-S_nbc",
+ "kind": "dspn",
+ "size": "S",
+ "extra": {
+  "layers": 3,
+  "rows": 1,
+  "cols": 2,
+  "d": 90,
+  "hidden": 180,
+  "q": 16,
+  "hub_after": 2,
+  "hub_heads": 4,
+  "hub_dk": 32,
+  "hub_out": 16,
+  "hub_taus": [
+   300,
+   3000,
+   30000,
+   1000000
+  ],
+  "beta_max": 2,
+  "ws_slots": 4,
+  "pred_self": 0.01,
+  "nb_count": true
+ },
+ "params": 360572,
+ "data": "tiny",
+ "device": "cuda",
+ "batch": 16,
+ "T": 1024,
+ "iters": 3000,
+ "lr": 0.003,
+ "seed": 0,
+ "stateful": false,
+ "bot_loss": false,
+ "sched": "cos",
+ "init": null,
+ "code_sha": "1d0e4ede6201",
+ "seconds": 219,
+ "train_bytes_per_sec": 229041,
+ "peak_gpu_mb": 1381,
+ "val_bpc": 1.2275,
+ "val_bpc_stream": 1.144,
+ "log": [
+  [
+   500,
+   44,
+   1.649,
+   1.741
+  ],
+  [
+   1000,
+   77,
+   1.403,
+   1.426
+  ],
+  [
+   1500,
+   112,
+   1.331,
+   1.313
+  ],
+  [
+   2000,
+   147,
+   1.18,
+   1.247
+  ],
+  [
+   2500,
+   183,
+   1.246,
+   1.208
+  ],
+  [
+   3000,
+   219,
+   1.153,
+   1.198
+  ]
+ ]
+}
