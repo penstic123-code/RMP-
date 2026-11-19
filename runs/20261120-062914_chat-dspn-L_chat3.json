@@ -1,0 +1,148 @@
+{
+ "ckpt": "runs/dspn-L_chat3.pt",
+ "extra": {
+  "layers": 4,
+  "rows": 1,
+  "cols": 2,
+  "d": 320,
+  "hidden": 640,
+  "m": 48,
+  "q": 32,
+  "emb": 64,
+  "hub_after": 2,
+  "hub_heads": 4,
+  "hub_dk": 64,
+  "hub_out": 32,
+  "hub_taus": [
+   300,
+   3000,
+   30000,
+   1000000
+  ],
+  "beta_max": 2,
+  "ws_slots": 4
+ },
+ "learner": {
+  "lr": 0.003,
+  "replay": 0.25
+ },
+ "episodic": false,
+ "log": [
+  [
+   "My name is Tovaku.",
+   "Nice to meet you, Tovoka!"
+  ],
+  [
+   "I have a cat named Mirafe.",
+   "I like the name Mirafe."
+  ],
+  [
+   "My favorite color is purple.",
+   "purple is a nice color."
+  ],
+  [
+   "How are you today?",
+   "I am good, thank you. How about you?"
+  ],
+  [
+   "What is my name?",
+   "Your name is Mirafe."
+  ],
+  [
+   "What is my cat's name?",
+   "Your cat is called Mirafe."
+  ],
+  [
+   "What is my favorite color?",
+   "Your favorite color is purple."
+  ],
+  [
+   "/new",
+   "（新会话：短时记忆已清空，持久记忆与权重保留）"
+  ],
+  [
+   "Hi again!",
+   "Hello! Nice to see you again."
+  ],
+  [
+   "What is my name?",
+   "Your name is Vonuko."
+  ],
+  [
+   "What is my cat's name?",
+   "Your cat is called Povogi."
+  ],
+  [
+   "What is my favorite color?",
+   "Your favorite color is pink."
+  ],
+  [
+   "/new",
+   "（新会话：短时记忆已清空，持久记忆与权重保留）"
+  ],
+  [
+   "My best friend is Zulino.",
+   "It is good to have a friend like Zulino."
+  ],
+  [
+   "I like to eat noodles.",
+   "Yum, noodles is tasty."
+  ],
+  [
+   "It is sunny outside.",
+   "That sounds like a nice day."
+  ],
+  [
+   "/sleep",
+   "（睡眠：已巩固，旧对话 bpc 1.382→1.316）"
+  ],
+  [
+   "/new",
+   "（新会话：短时记忆已清空，持久记忆与权重保留）"
+  ],
+  [
+   "Hi again!",
+   "Hello! Nice to see you again."
+  ],
+  [
+   "Who is my best friend?",
+   "Your best friend is Femira."
+  ],
+  [
+   "What do I like to eat?",
+   "You like to eat cookies."
+  ],
+  [
+   "What is my name?",
+   "Your name is Tirafe."
+  ],
+  [
+   "/new",
+   "（新会话：短时记忆已清空，持久记忆与权重保留）"
+  ],
+  [
+   "My brother is called Kesaro.",
+   "Kesa is a natural to meet you."
+  ],
+  [
+   "I went to the park.",
+   "Did you have fun at the park?"
+  ],
+  [
+   "What is my brother called?",
+   "Your brother is called Kesaro."
+  ],
+  [
+   "/new",
+   "（新会话：短时记忆已清空，持久记忆与权重保留）"
+  ],
+  [
+   "Hi again!",
+   "Hello! Nice to see you again."
+  ],
+  [
+   "What is my brother called?",
+   "Your best friend is Tone."
+  ]
+ ]
+}
