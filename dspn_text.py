@@ -168,6 +168,16 @@ class Layer(nn.Module):
         return h, torch.einsum('btmd,mdq->btmq', h, self.P), (cT, S)
 
 
+class PredHead(nn.Module):
+    """每个模块一个线性预测头：h (b, T, M, d) → (b, T, M, q)。"""
+    def __init__(self, M, d, q):
+        super().__init__()
+        self.W = nn.Parameter(torch.zeros(M, d, q)); self.b = nn.Parameter(torch.zeros(M, q))
+
+    def forward(self, h):
+        return torch.einsum('btmd,mdq->btmq', h, self.W) + self.b
+
+
 class DSPNLayered(nn.Module):
     """分层网格：消息同一拍内由下层传给上层（正下方模块 + 其四邻居），时间记忆只在 c、S（和中枢）中。
     hub_after=k 时在第 k、k+1 层之间插入全局记忆中枢（hub.py，设计第 1.2 节），读第 k 层全部消息与本拍嵌入，
@@ -176,7 +186,8 @@ class DSPNLayered(nn.Module):
                  hub_after=0, hub_heads=2, hub_dk=32, beta_max=1.0, hub_out=4, hub_taus=None,
                  ws_slots=0, ws_dim=16, ws_block=64,
                  word_layers=0, word_d=256, word_hidden=512, word_m=32, word_q=32, word_mods=1,
-                 td_layers=0, td_pc=0.1, td_target=1):
+                 td_layers=0, td_pc=0.1, td_target=1,
+                 pred_self=0.0, pred_nb=0.0, pred_down=0.0, local=False):
         super().__init__()
         M = rows * cols
         self.M, self.d, self.m, self.hub_after = M, d, m, hub_after
@@ -214,6 +225,14 @@ class DSPNLayered(nn.Module):
         # 再用 [预测, 误差] 跑 td_layers 层字节级“自上而下层”，其输出也进读出。两扫各自整段并行；
         # 预测头以 MSE（目标停梯度）训练，权重 td_pc。有词级时：词级预测字节顶层；没有时：字节顶层预测第 td_target 层。
         self.td_pc, self.td_target = td_pc, td_target
+        # 预测学习（可插拔，权重为 0 即关）：每个模块用本拍的 h 预测下一拍的消息 z——自己的（pred_self）、
+        # 邻居的（pred_nb）、正下方下层模块的（pred_down，自上而下）。目标停梯度，误差按目标方差归一化以防坍缩。
+        # local=True：层间消息（含进中枢的）停梯度，每层只由自己的读出路径与自己的预测损失训练（SOLO 式局部学习），
+        # 模块内部（时间扫描、快记忆、MLP）仍用反传。
+        self.pred_w = {'self': pred_self, 'nb': pred_nb, 'down': pred_down}
+        self.local = local
+        self.pred = nn.ModuleDict({k: nn.ModuleList([PredHead(M, d, q) for _ in range(layers)])
+                                   for k, w in self.pred_w.items() if w})
         if td_layers:
             src = word_layers * Mw * word_d if word_layers else M * d
             self.td_pred = nn.Linear(src, M * q)
@@ -245,7 +264,7 @@ class DSPNLayered(nn.Module):
 
     def forward(self, idx, state=None):
         state = state or self.init_state(idx.shape[0])
-        self.aux = 0.0
+        self.aux, self.pred_err = 0.0, {}
         if not self.ws_slots:
             lg, new, _ = self._run(idx, state, None)
             return lg, new
@@ -263,6 +282,7 @@ class DSPNLayered(nn.Module):
         """各层各模块本块末拍的消息软竞争每个槽位，写入内容与旧槽位按保留门混合；再算下一块各模块读到的内容。"""
         b, L = slots.shape[0], len(self.layers)
         tok = torch.stack([z[:, -1] for z in zs], 1).flatten(1, 2)                         # (b, L·M, q)
+        tok = tok.detach() if self.local else tok
         # 先归一化再写：槽位 → 下一块输入 → 消息 → 槽位是跨块的非线性环路，不归一化时增益过 1 会逐块指数爆炸（E43）
         tok = F.rms_norm(tok, tok.shape[-1:]) + self.ws_id
         sc = torch.einsum('sk,bnk->bsn', self.ws_q, self.ws_k(tok)) / 4.0
@@ -284,9 +304,12 @@ class DSPNLayered(nn.Module):
                 u = torch.cat([u, reads[:, i, None].expand(b, T, self.M, 4)], -1)
             h, z, ns = layer(u, st, None, reset)
             hs.append(h); new.append(ns); zs.append(z)
-            u = torch.cat([z, torch.einsum('ij,btjq->btiq', layer.adj, z)], -1)
+            if self.pred:
+                self._predict(i, layer, h, z, zs)
+            zu = z.detach() if self.local else z
+            u = torch.cat([zu, torch.einsum('ij,btjq->btiq', layer.adj, zu)], -1)
             if self.hub is not None and not self.wlayers and i + 1 == self.hub_after:
-                o, hs_new = self.hub(torch.cat([z.reshape(b, T, -1), e], -1), state[L], reset)
+                o, hs_new = self.hub(torch.cat([zu.reshape(b, T, -1), e], -1), state[L], reset)
                 u = torch.cat([u, o], -1)
         hs = [h.flatten(2) for h in hs]
         if self.wlayers:
@@ -311,6 +334,18 @@ class DSPNLayered(nn.Module):
                 new.append(src[:, -1])
         y = self.readout(self.norm(torch.cat(hs, -1)))
         return y @ self.emb.weight.t() + self.bias, new, zs
+
+    def _predict(self, i, layer, h, z, zs):
+        """本拍 h 预测下一拍的消息；归一化 MSE 加进 self.aux，逐模块误差记在 self.pred_err（可作惊讶信号）。"""
+        targets = {'self': z, 'nb': torch.einsum('ij,btjq->btiq', layer.adj, z), 'down': zs[i - 1] if i else None}
+        for k, heads in self.pred.items():
+            tgt = targets[k]
+            if tgt is None or h.shape[1] < 2:
+                continue
+            tgt = tgt[:, 1:].detach()
+            err = (heads[i](h[:, :-1]) - tgt).square().mean(-1) / (tgt.var() + 1e-4)    # (b, T−1, M)
+            self.aux = self.aux + self.pred_w[k] * err.mean()
+            self.pred_err[(k, i)] = err.detach()
 
     def _word(self, idx, e, zt, reset, st):
         """词级：把本段的词边界位置收成定长 K 的序列（边界在前、按时间排序，其余为补齐位并冻结），
