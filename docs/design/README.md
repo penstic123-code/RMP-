@@ -1,16 +1,16 @@
-# 动态稀疏可塑性神经网络 · 设计 v0.15
+# 动态稀疏可塑性神经网络 · 设计 v0.16
 
-2026-11-19｜目标：在固定内存预算下持续预测、在线学习，并保留旧规律；文本模式下以字节流为输入，检验能否学会语言。
+2026-11-20｜目标：在固定内存预算下持续预测、在线学习，并保留旧规律；文本模式下以字节流为输入，检验能否学会语言。
 
 各版改动见 [changelog.md](changelog.md)。排期见 [plan/](../plan/README.md)，实验见 [experiments/](../experiments/README.md)，文献见 [literature/](../literature/README.md)。
 
 ## 目录
 
-**现行架构（current/）**——代码按这里实现
+**现行架构（current/）**——描述现行代码（v0.15 纸面设计见 [archive/design_v0.15](../archive/design_v0.15/README.md)）
 
-- [1　系统怎样运行](current/1-runtime.md)：模块、层、中枢、读出、数据流
-- [2　省内存的三个位置](current/2-memory-budget.md)
-- [3　学习策略：三种速度](current/3-learning.md)：快记忆、在线低秩、睡眠；选择性学习缺口
+- [1　系统怎样运行](current/1-runtime.md)：模块、层间数据流、读出、中枢、工作空间、会话边界、可插拔机制、GPU 计算
+- [2　参数与显存预算](current/2-memory-budget.md)
+- [3　学习策略：三种速度](current/3-learning.md)：离线训练、在线低秩、睡眠巩固、聊天工具；选择性学习缺口
 - [4　记忆与保护旧知识](current/4-memory.md)
 
 **依据与讨论（basis/）**
@@ -38,8 +38,6 @@
 - [19　定容活柱](candidates/19-fixed-budget-columns.md)：第 18 章 + DSPN 的固定内存前提——RWKV-7 递归主干冻结，柱只挂上层通道混合、单一状态路径，责任用块内写入误差估计，柱数定额、满额先合并或淘汰；阶段二主干换自研模型
 
 （原第 5、6 节已移出：实验记录 → experiments/，验收与排期 → plan/。）
-
-**实现与本页描述的差异（dspn_text.py，2026-11-19）。** 文本模式第 1 层各模块直接以完整嵌入为输入（B 为 e_dim×d），没有单独的 4×e_dim 投影 R；读出接所有层的 h 而非只接最上层，经瓶颈与 E 共享。
 
 ## 附录　代码
 
