@@ -1,4 +1,4 @@
-"""生成对话训练数据：SODA 双人对话 + 模板“记忆对话”，写成 data/chat-train.txt、data/chat-valid.txt。
+"""生成对话训练数据：SODA 双人对话 + 模板“记忆对话”，写成 data/chat2-train.txt、data/chat2-valid.txt（换行一律 \\n）。
 
 格式：每轮一行 "User: …" / "Bot: …"，对话之间是会话边界字节 \\x1e（单独一行）。SODA 的第一个说话人当 User。
 记忆对话：User 先说出几件自己的事，中间插几轮闲聊，最后提问，Bot 按前文回答；名字由随机音节拼成，逼模型从上下文复制而不是背常见名。
@@ -39,7 +39,7 @@ SEP = '\x1e'   # 会话边界字节（dspn_text.SEP）：模型读到时清空�
 
 
 def memory_dialogue(rng, soda):
-    """一半在同一会话里提问；另一半跨会话：说完事实 → 会话边界 →（一半概率插一段无关对话 + 边界）→ 再见面时提问。"""
+    """一半在同一会话里提问；另一半跨会话：说完事实 → 会话边界 → 1–3 段无关对话（各以边界隔开）→ 再见面时提问。"""
     facts = rng.sample(FACTS, rng.randint(1, 3))
     vals = [f[4](rng) for f in facts]
     lines = []
@@ -49,7 +49,7 @@ def memory_dialogue(rng, soda):
         lines += [f'User: {u}', f'Bot: {b}']
     if rng.random() < 0.5:
         lines.append(SEP)
-        if rng.random() < 0.5:
+        for _ in range(rng.randint(1, 3)):                 # 间隔常超过 1024 字节：配合 --stateful，持久头才学得到跨会话保持
             lines += [rng.choice(soda), SEP]
         lines += ['User: Hi again!', 'Bot: Hello! Nice to see you again.']
     for i in rng.sample(range(len(facts)), len(facts)):
@@ -75,8 +75,8 @@ def build(split, memory_frac, seed):
     soda = list(dl)
     dl += [memory_dialogue(rng, soda) for _ in range(n_mem)]
     rng.shuffle(dl)
-    out = ROOT / f'data/chat-{split}.txt'
-    out.write_text(f'\n{SEP}\n'.join(dl) + '\n', encoding='utf-8')     # 对话之间是会话边界
+    out = ROOT / f'data/chat2-{split}.txt'
+    out.write_bytes((f'\n{SEP}\n'.join(dl) + '\n').encode('utf-8'))   # 对话之间是会话边界；写字节，免得 Windows 把 \n 换成 \r\n
     print(out.name, len(dl), '段对话，其中记忆对话', n_mem, '，', out.stat().st_size, '字节')
 
 

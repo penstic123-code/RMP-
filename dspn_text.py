@@ -21,7 +21,8 @@ ROOT = Path(__file__).resolve().parent
 DATASETS = {
     'shakespeare': ('data/input.txt', None),
     'tiny': ('data/TinyStoriesV2-GPT4-train.txt', 'data/TinyStoriesV2-GPT4-valid.txt'),
-    'chat': ('data/chat-train.txt', 'data/chat-valid.txt'),             # tools/make_chat_data.py 生成
+    'chat': ('data/chat-train.txt', 'data/chat-valid.txt'),             # 旧版：换行是 \r\n（Windows 写文本时转换），跨会话间隔短
+    'chat2': ('data/chat2-train.txt', 'data/chat2-valid.txt'),          # tools/make_chat_data.py 现版生成
 }
 SEP = 30   # 会话边界字节（ASCII 记录分隔符）：清空 c、快记忆与中枢的短时头，保留中枢持久头（τ ≥ 1e5）
 
@@ -463,6 +464,16 @@ def stream_batch(data, pos, T):
     return xy[:, :-1].to(DEV), xy[:, 1:].to(DEV)
 
 
+def bot_mask(y):
+    """目标字节是否在 "Bot:" 开头的行里（对话微调只在模型轮次算损失）。窗口里第一个换行之前的半行无从判断，记为 0。"""
+    b, T = y.shape
+    start = torch.zeros_like(y, dtype=torch.bool); start[:, 1:] = y[:, :-1] == 10
+    pad = F.pad(y, (0, 3), value=0)
+    isbot = start & (pad[:, :T] == 66) & (pad[:, 1:T + 1] == 111) & (pad[:, 2:T + 2] == 116) & (pad[:, 3:T + 3] == 58)
+    last = torch.where(start, torch.arange(T, device=y.device), -1).cummax(1).values
+    return (isbot.gather(1, last.clamp(min=0)) & (last >= 0)).float()
+
+
 def copy_state_(dst, src):
     """把新状态原地拷进固定地址的旧状态（CUDA Graph 回放时地址不能变）；整数位置不变（T 是工作空间块长的整数倍）。"""
     for d, s in zip(dst, src):
@@ -472,7 +483,7 @@ def copy_state_(dst, src):
             copy_state_(d, s)
 
 
-def train(kind, size, data, iters, b, T, lr, seed, tag, extra, init=None, stateful=False):
+def train(kind, size, data, iters, b, T, lr, seed, tag, extra, init=None, stateful=False, bot_loss=False):
     torch.manual_seed(seed)
     tr, va = load_bytes(data)
     model = build(kind, size, **extra).to(DEV)
@@ -490,10 +501,12 @@ def train(kind, size, data, iters, b, T, lr, seed, tag, extra, init=None, statef
     # stateful：每行是一条连续流，状态跨批次延续（截断反传），模型才练得到“记住 T 字节以前的事”（持久头、跨会话记忆）
     pos = np.random.default_rng(seed).integers(0, len(tr) - T - 1, b) if stateful else None
     st = model.init_state(b) if stateful else None
+    smask = torch.ones(b, T, device=DEV)                   # bot_loss：只在 Bot 轮次的字节上算损失
 
     def step():
         lg, new = model(sx, st)
-        loss = F.cross_entropy(lg.reshape(-1, 256), sy.reshape(-1))
+        ce = F.cross_entropy(lg.reshape(-1, 256), sy.reshape(-1), reduction='none')
+        loss = (ce * smask.reshape(-1)).sum() / smask.sum().clamp(min=1)
         (loss + getattr(model, 'aux', 0.0)).backward()      # 预测学习等辅助损失
         nn.utils.clip_grad_norm_(params, 1.0); opt.step(); opt.zero_grad(set_to_none=False)
         if stateful:
@@ -505,6 +518,8 @@ def train(kind, size, data, iters, b, T, lr, seed, tag, extra, init=None, statef
         lr_t.fill_(lr * sched(it))
         x, y = stream_batch(tr, pos, T) if stateful else batch(tr, b, T)
         sx.copy_(x); sy.copy_(y)
+        if bot_loss:
+            smask.copy_(bot_mask(y))
         if not cuda or it <= 3:                            # 前 3 步在旁路流上热身（cuDNN/cuBLAS 选算法、分配梯度）
             if cuda:
                 s = torch.cuda.Stream(); s.wait_stream(torch.cuda.current_stream())
@@ -537,7 +552,7 @@ def train(kind, size, data, iters, b, T, lr, seed, tag, extra, init=None, statef
     torch.save(model.state_dict(), ROOT / f'runs/{name}.pt')   # 每个名字只留最新一份检查点
     out = ROOT / f'runs/{time.strftime("%Y%m%d-%H%M%S")}_{name}.json'
     json.dump({'name': name, 'kind': kind, 'size': size, 'extra': extra, 'params': nparam, 'data': data,
-               'device': DEV, 'batch': b, 'T': T, 'iters': iters, 'lr': lr, 'seed': seed, 'stateful': stateful, 'init': init,
+               'device': DEV, 'batch': b, 'T': T, 'iters': iters, 'lr': lr, 'seed': seed, 'stateful': stateful, 'bot_loss': bot_loss, 'init': init,
                'code_sha': hashlib.sha256((ROOT / 'dspn_text.py').read_bytes()).hexdigest()[:12],
                'seconds': round(secs), 'train_bytes_per_sec': round(iters * b * T / (secs - eval_secs)),
                'peak_gpu_mb': round(torch.cuda.max_memory_allocated() / 2**20) if DEV == 'cuda' else None,
@@ -581,10 +596,11 @@ if __name__ == '__main__':
     ap.add_argument('--prompt', default='Once upon a time')
     ap.add_argument('--init', default=None, help='从该权重文件继续训练，如 runs/dspn-L_xxx.pt')
     ap.add_argument('--stateful', action='store_true', help='每行一条连续流，状态跨批次延续')
+    ap.add_argument('--bot_loss', action='store_true', help='对话数据只在 Bot 轮次的字节上算损失')
     a = ap.parse_args()
     extra = json.loads(a.extra)
     if a.cmd == 'train':
         lr = a.lr or (1e-3 if a.kind == 'tf' else 3e-3)
-        train(a.kind, a.size, a.data, a.iters, a.batch, a.T, lr, a.seed, a.tag, extra, a.init, a.stateful)
+        train(a.kind, a.size, a.data, a.iters, a.batch, a.T, lr, a.seed, a.tag, extra, a.init, a.stateful, a.bot_loss)
     else:
         print(sample(a.kind, a.size, a.tag, a.prompt, extra))

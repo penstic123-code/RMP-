@@ -23,3 +23,11 @@ def test_stream_batch_is_contiguous():
     pos = np.array([0, 500])
     x1, y1 = D.stream_batch(data, pos, 10); x2, _ = D.stream_batch(data, pos, 10)
     assert x2[0, 0].item() == y1[0, -1].item() and pos.tolist() == [20, 520]
+
+
+def test_bot_mask():
+    s = b'x\nUser: hi\nBot: yo\nUser: a\n'
+    y = torch.tensor([list(s)])
+    m = D.bot_mask(y)[0].tolist()
+    on = bytes(c for c, k in zip(s, m) if k)
+    assert on == b'Bot: yo\n'
