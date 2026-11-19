@@ -16,7 +16,7 @@ def feats(text):
 
 
 class Episodic:
-    def __init__(self, top=2, min_score=0.4):
+    def __init__(self, top=2, min_score=1.5):
         self.items, self.df, self.session = [], Counter(), 0
         self.top, self.min_score = top, min_score
 
@@ -31,7 +31,7 @@ class Episodic:
 
     def recall(self, line):
         q, n = feats(line), len(self.items)
-        idf = lambda f: math.log((n + 1) / (self.df[f] + 0.5))
+        idf = lambda f: math.log(1 + max(n, 20) / self.df[f])     # 库小时按至少 20 条算，免得稀有度被低估
         scored = [(sum(idf(f) for f in q & fi) / math.sqrt(len(fi) + 1), text)
                   for text, s, fi in self.items if s != self.session]
         return [t for sc, t in sorted(scored, reverse=True)[:self.top] if sc >= self.min_score]
