@@ -31,11 +31,6 @@
 - [17　十套从零设计](candidates/17-overview.md)：海马-皮层、神经调质可塑、育儿、投票柱、笔记本睡眠、活权重、自研、克隆选择、卡尔曼写入、即时编译
 - [18　活柱网络 LiveColumns](candidates/18-live-columns.md)（[续](candidates/18-live-columns-plan.md)）：会长出新柱的神经调质可塑柱群
 - [19　定容活柱](candidates/19-fixed-budget-columns.md)：固定内存预算下的活柱
-- [15　回响网络 Echo](candidates/15-echo.md)：综合第 9–14 章与文献的提案——思考回路、海马槽表、自我模型调质；依据、验证与风险见 [15-echo-plan.md](candidates/15-echo-plan.md)
-- [16　四条路线：从最稳到最野](candidates/16-paths.md)：按五条要求给出的四套方案、对比表与推荐顺序——[A 嫁接](candidates/16a-graft.md)（现成小模型 + 生活层，含共用的睡眠与评测定义）、[B 朴素](candidates/16b-plain.md)（自训标准小模型 + 睡眠慢改稠密权重）、[C 回响改](candidates/16c-echo-s.md)（混合主干 + 持久头 + 槽表）、[D 回响全](candidates/16d-echo-x.md)（再加思考回路、自我模型、自主练习）
-- [17　十套从零设计的方案](candidates/17-overview.md)：三个代理只读文献与实验、不看设计文档并行设计，含对比表与组合建议——务实 [P1 笔记本 + 夜间入脑](candidates/17p1-notebook-sleep.md)、[P2 活权重](candidates/17p2-live-weights.md)、[P3 自家苗](candidates/17p3-homegrown.md)；神经科学 [N1 海马—皮层](candidates/17n1-hippo-cortex.md)、[N2 神经调质可塑性](candidates/17n2-neuromod-plastic.md)、[N3 育儿式发育](candidates/17n3-nursery.md)、[N4 千脑投票柱](candidates/17n4-voting-columns.md)；跨领域 [X1 克隆选择](candidates/17x1-clonal.md)、[X2 卡尔曼写入](candidates/17x2-kalman.md)、[X3 分层即时编译](candidates/17x3-jit.md)
-- [18　活柱网络 LiveColumns](candidates/18-live-columns.md)：用户选定的 N2 + N4 合成——冻结主干上的神经调质可塑柱群，聊天时按四因子局部规则改写、按预测误差分配责任、按需长新柱；依据、验证与风险见 [18-live-columns-plan.md](candidates/18-live-columns-plan.md)
-- [19　定容活柱](candidates/19-fixed-budget-columns.md)：第 18 章 + DSPN 的固定内存前提——RWKV-7 递归主干冻结，柱只挂上层通道混合、单一状态路径，责任用块内写入误差估计，柱数定额、满额先合并或淘汰；阶段二主干换自研模型
 
 （原第 5、6 节已移出：实验记录 → experiments/，验收与排期 → plan/。）
 
