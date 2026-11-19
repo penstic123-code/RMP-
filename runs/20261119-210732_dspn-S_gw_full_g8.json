@@ -1,0 +1,67 @@
+{
+ "name": "dspn-S_gw_full_g8",
+ "kind": "dspn",
+ "size": "S",
+ "extra": {
+  "hub_after": 2,
+  "beta_max": 2,
+  "ws_slots": 4,
+  "ws_topk": 8,
+  "ws_read": true,
+  "ws_sparse": true,
+  "ws_lb": 0.01,
+  "ws_pc": 0.1,
+  "ws_ignite": true
+ },
+ "params": 342918,
+ "data": "tiny",
+ "device": "cuda",
+ "batch": 64,
+ "T": 256,
+ "iters": 3000,
+ "lr": 0.003,
+ "seed": 0,
+ "code_sha": "86cce9f7ba09",
+ "seconds": 321,
+ "train_bytes_per_sec": 157356,
+ "peak_gpu_mb": 2615,
+ "val_bpc": 2.4778,
+ "log": [
+  [
+   500,
+   65,
+   3.007,
+   2.995
+  ],
+  [
+   1000,
+   112,
+   3.006,
+   2.87
+  ],
+  [
+   1500,
+   162,
+   2.258,
+   2.316
+  ],
+  [
+   2000,
+   215,
+   3.518,
+   2.119
+  ],
+  [
+   2500,
+   268,
+   2.06,
+   2.207
+  ],
+  [
+   3000,
+   321,
+   2.538,
+   2.433
+  ]
+ ]
+}

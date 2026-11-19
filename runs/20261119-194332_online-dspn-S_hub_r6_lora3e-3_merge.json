@@ -1,0 +1,44 @@
+{
+ "ckpt": "runs/dspn-S_hub.pt",
+ "extra": {
+  "hub_after": 2
+ },
+ "learner": {
+  "lr": 0.003,
+  "params": "lora",
+  "replay": 0.25
+ },
+ "day_bytes": 32768,
+ "test_before": 2.8187803578031554,
+ "old_before": 1.3593349816426818,
+ "old_after_day": 1.3810804293794263,
+ "test_online": 1.8257353256376758,
+ "test_reset": 1.8374386227092152,
+ "old_online": 1.635099025446362,
+ "sleep_args": {
+  "steps": 0
+ },
+ "sleep": {
+  "committed": true,
+  "old_before": 1.6093325966522798,
+  "old_after": 1.6093325966522798,
+  "new_before": 1.0922956287463248,
+  "new_after": 1.0922956287463248
+ },
+ "test_sleep_reset": 1.8374386227092152,
+ "old_sleep": 1.635099025446362,
+ "samples": [
+  [
+   "Tom found a blicket up is a blicket. The bell unror blive a lot is is a bricket. Sam said that Mary is so much fun shake it. Her rideee the ridee bell, sunny bell ice and a sick in the is bell.\nSoon ronodea. So he thoug",
+   true
+  ],
+  [
+   "A blicket is bly, \"I am ridee you monkey to smarkly is impontal rorse food.\" Tom was scared, the bllicket a blicket to is can a magic cloth when you candy said: \"Wow! Wo's mom and rings!\" The big was sad. The is ",
+   true
+  ],
+  [
+   "Mia lost her than a blicket. She looked if Sam and started to make it is a mon. The liful happy too rest and lift the bell rang. But is so much fun and sad a toy.\n\"Mom, loose happy. But is no lit is bell!\" sai Be",
+   true
+  ]
+ ]
+}

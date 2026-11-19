@@ -1,0 +1,46 @@
+{
+ "ckpt": "runs/dspn-S_hub.pt",
+ "extra": {
+  "hub_after": 2
+ },
+ "learner": {
+  "lr": 0.003,
+  "params": "lora",
+  "replay": 0.5
+ },
+ "day_bytes": 32768,
+ "test_before": 2.8187803578031554,
+ "old_before": 1.3593349816426818,
+ "old_after_day": 1.3876322085457684,
+ "test_online": 1.8937938680789468,
+ "test_reset": 1.9050940908964917,
+ "old_online": 1.519017265322961,
+ "sleep_args": {
+  "anchor": 1.0,
+  "lr": 0.0001,
+  "steps": 600
+ },
+ "sleep": {
+  "committed": true,
+  "old_before": 1.4865615343546237,
+  "old_after": 1.4689913014607052,
+  "new_before": 1.1807261954572015,
+  "new_after": 0.8671922066928323
+ },
+ "test_sleep_reset": 1.8453654540478066,
+ "old_sleep": 1.5247082922788393,
+ "samples": [
+  [
+   "Tom found a blicket uncomfortaily. The big ridef to blive a long things in the blacket. The bow was very happy and she kept some. The end of dishes together, and the ball asking and the big blicket. He was so the box he",
+   true
+  ],
+  [
+   "A blicket is a small erasey, and he saw a big ball. The didn's red bell, but he was a weal. Tim wanted to shake a too high and pull the bird. The blicket ask the ball, and it raing.\n<|endoftext|>\nOnce upon a time",
+   true
+  ],
+  [
+   "Mia lost her thank it and red best. She was she lost and tried all day and sorry.\nOne day, Lily saw a big poning bird, deep in her mom. She said to she saw a bowl. The yard put it it, but with you have a lady box",
+   false
+  ]
+ ]
+}

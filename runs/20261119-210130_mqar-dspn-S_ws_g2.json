@@ -1,0 +1,17 @@
+{
+ "args": {
+  "cmd": "mqar",
+  "kind": "dspn",
+  "size": "S",
+  "extra": "{\"hub_after\": 2, \"beta_max\": 2, \"rows\": 1, \"cols\": 2, \"d\": 80, \"hidden\": 168, \"ws_slots\": 4}",
+  "tag": "_ws_g2",
+  "iters": 1500,
+  "batch": 64,
+  "T": 256,
+  "pairs": 16,
+  "lr": 0.001
+ },
+ "acc": 0.9853515625,
+ "acc_near": 0.9853515625,
+ "acc_far": NaN
+}

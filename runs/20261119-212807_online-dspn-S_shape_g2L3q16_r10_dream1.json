@@ -1,0 +1,51 @@
+{
+ "ckpt": "runs/dspn-S_shape_g2L3q16.pt",
+ "extra": {
+  "hub_after": 2,
+  "beta_max": 2,
+  "rows": 1,
+  "cols": 2,
+  "layers": 3,
+  "d": 90,
+  "hidden": 184,
+  "q": 16
+ },
+ "learner": {
+  "lr": 0.003,
+  "replay": 0.25
+ },
+ "day_bytes": 32768,
+ "test_before": 2.6108422219097958,
+ "old_before": 1.2292937276663067,
+ "old_after_day": 1.245106615088341,
+ "test_online": 1.722305336970695,
+ "test_reset": 1.724454207386446,
+ "old_online": 1.4701317306123973,
+ "sleep_args": {
+  "dream": 1.0,
+  "lr": 0.0001
+ },
+ "sleep": {
+  "committed": false,
+  "old_before": 1.4305966033099482,
+  "old_after": 1.2633534589093434,
+  "new_before": 0.836251027932421,
+  "new_after": 0.910372681108179
+ },
+ "test_sleep_reset": 1.724454207386446,
+ "old_sleep": 1.4701317306123973,
+ "samples": [
+  [
+   "Tom found a blicket. Thank you round, and the bright rings red kiss. They all had fun.\n<|endoftext|>\nOnce upon a time, there was a girl named Loo. Sam had a blid box to do. Ben was very sad. A blicket rings dicner when ",
+   true
+  ],
+  [
+   "A blicket is a small, she saw a blicket blanic. The box was the because he blicket stars the right red.\nLila blicket. Then, a smal nice who was very nack. The bird saw a blicket near and saw a blicket. The man ga",
+   true
+  ],
+  [
+   "Mia lost her head and ran sold. Sue smiled. Lila was scared.\nBen for a different. A blicket ran bell and ran to his red. He saw Mia with her to shake the blicket. Then Lily thought it now the blicket. Then, a sma",
+   true
+  ]
+ ]
+}

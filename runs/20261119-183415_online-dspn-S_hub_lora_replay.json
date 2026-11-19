@@ -1,0 +1,41 @@
+{
+ "ckpt": "runs/dspn-S_hub.pt",
+ "extra": {
+  "hub_after": 2
+ },
+ "learner": {
+  "lr": 0.0003,
+  "params": "lora",
+  "replay": 0.25
+ },
+ "day_bytes": 32768,
+ "test_before": 2.8187803578031554,
+ "old_before": 1.3593349816426818,
+ "old_after_day": 1.3548112870765288,
+ "test_online": 2.4093322747812365,
+ "test_reset": 2.461425604067846,
+ "old_online": 1.3592755417506586,
+ "sleep": {
+  "committed": false,
+  "old_before": 1.3131833744222845,
+  "old_after": 1.5622292280488126,
+  "new_before": 1.9839320564321365,
+  "new_after": 0.7082361102609339
+ },
+ "test_sleep_reset": 2.461425604067846,
+ "old_sleep": 1.3592755417506586,
+ "samples": [
+  [
+   "Tom found a blicket until his hand learn to raun too.\nAs they pulled room and saw that home, the friends he jumped on the tree in a big tree. Fluffy stayed the bird and said, \"Don't well go there!\" Tom and the bed to pl",
+   false
+  ],
+  [
+   "A blicket is fast. The frog everyone was tuth and found then you have fun toy special with it sun. Nistent the sky, the friend pull to laugh and watch the sky. Lily became good in the same and strong fast. She fe",
+   false
+  ],
+  [
+   "Mia lost her toys and sing different. Lily said, \"She are, there little bird. \"Why need that pill were so playing with the sky.\"\nBut then, Max did not know what to see his game. It asked, why little bird lady mos",
+   false
+  ]
+ ]
+}

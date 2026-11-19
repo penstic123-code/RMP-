@@ -1,0 +1,51 @@
+{
+ "ckpt": "runs/dspn-S_shape_g2L3q16.pt",
+ "extra": {
+  "hub_after": 2,
+  "beta_max": 2,
+  "rows": 1,
+  "cols": 2,
+  "layers": 3,
+  "d": 90,
+  "hidden": 184,
+  "q": 16
+ },
+ "learner": {
+  "lr": 0.003,
+  "replay": 0.25
+ },
+ "day_bytes": 32768,
+ "test_before": 2.6108422219097958,
+ "old_before": 1.2292937276663067,
+ "old_after_day": 1.245106615088341,
+ "test_online": 1.722305336970695,
+ "test_reset": 1.724454207386446,
+ "old_online": 1.4701317306123973,
+ "sleep_args": {
+  "anchor": 1.0,
+  "lr": 0.0001
+ },
+ "sleep": {
+  "committed": true,
+  "old_before": 1.4305966033099482,
+  "old_after": 1.3337793351442975,
+  "new_before": 0.836251027932421,
+  "new_after": 0.7274176614653761
+ },
+ "test_sleep_reset": 1.7222986509192055,
+ "old_sleep": 1.376707772455155,
+ "samples": [
+  [
+   "Tom found a blicket in the house. He would not understand that it respech! The boy took how and Max stopped into him and found a boat. They worked the toy one bell it.\nEvery time something more working to watch the blic",
+   false
+  ],
+  [
+   "A blicket is a small perfory, and Whiskers thanked the food, something for a bad.\nTim was scared because he did not make new from when his friends.\n<|endoftext|>\n\nOnce upon a time, there was a blicket cat named L",
+   true
+  ],
+  [
+   "Mia lost her storie in the kite in a small town we shower.\nMia make a small mousted and under it to go to the little. It was a brilliant, but it was not sad anymore. They all shook the rings. The mind something b",
+   false
+  ]
+ ]
+}

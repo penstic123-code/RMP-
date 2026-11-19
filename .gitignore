@@ -1,0 +1,8 @@
+# 数据与大文件不入库
+data/
+runs/*.pt
+runs/*.log
+runs/*.err
+__pycache__/
+*.pyc
+.pytest_cache/

@@ -1,0 +1,38 @@
+{
+ "ckpt": "runs/dspn-S_hub.pt",
+ "extra": {
+  "hub_after": 2
+ },
+ "learner": {
+  "lr": 0.0001
+ },
+ "day_bytes": 0,
+ "test_before": 2.8187803578031554,
+ "old_before": 1.3593349816426818,
+ "test_online": 1.9067392245869577,
+ "test_reset": 1.9037168073790518,
+ "old_online": 1.6079092448520436,
+ "sleep": {
+  "committed": false,
+  "old_before": 1.5704851695902324,
+  "old_after": 5.447756181862839,
+  "new_before": 1.075337877910573,
+  "new_after": 0.22741877533215576
+ },
+ "test_sleep_reset": 1.9037168073790518,
+ "old_sleep": 1.6079092448520436,
+ "samples": [
+  [
+   "Tom found a blicket until his blicket.\nBilly and Tom were blinger, it's bellice better. They both red bell in bletter. After is a small by is rang. Tim shook is bell is monstic.\nOne the silies, Sam, a nice is that is no",
+   true
+  ],
+  [
+   "A blicket is a small bling, so red bling. Lily and Tim add not where it.\nA bird red bling picture. Tim became is ragoo in a bllicket as ride. As Lily and Ben a blicket all ricket. The boy blew is in a ball and re",
+   true
+  ],
+  [
+   "Mia lost her than a blicket. A shake is shake, it she shakes that is hard ran.\nA big caught the rang. He was shake and red is bell into rang. \"What is you day?\" Tom says.\nThe chast and the bell rice. The rang ble",
+   true
+  ]
+ ]
+}

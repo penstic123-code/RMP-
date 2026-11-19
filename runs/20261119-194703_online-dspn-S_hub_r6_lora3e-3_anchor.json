@@ -1,0 +1,45 @@
+{
+ "ckpt": "runs/dspn-S_hub.pt",
+ "extra": {
+  "hub_after": 2
+ },
+ "learner": {
+  "lr": 0.003,
+  "params": "lora",
+  "replay": 0.25
+ },
+ "day_bytes": 32768,
+ "test_before": 2.8187803578031554,
+ "old_before": 1.3593349816426818,
+ "old_after_day": 1.3810804293794263,
+ "test_online": 1.8257353256376758,
+ "test_reset": 1.8374386227092152,
+ "old_online": 1.635099025446362,
+ "sleep_args": {
+  "anchor": 1.0,
+  "lr": 0.0001
+ },
+ "sleep": {
+  "committed": true,
+  "old_before": 1.6093325966522798,
+  "old_after": 1.4683184132479774,
+  "new_before": 1.0922956287463248,
+  "new_after": 0.9689643603950101
+ },
+ "test_sleep_reset": 1.7833618635283797,
+ "old_sleep": 1.5089806538219588,
+ "samples": [
+  [
+   "Tom found a blicket until his many went inside. He was very sorry, it. I was that the croscreed with it was now, but it was so happy. They words it together, and the ball now, the decidied to reve you now.\n\"Hepper,!\" sh",
+   false
+  ],
+  [
+   "A blicket is a small red by the necks. Lily smiled and smiled. \"Mom, when you show amazed picture and said, \"I'm stop his car to when his friend when you stay.\"\nSam became to gave his so he went back into race an",
+   false
+  ],
+  [
+   "Mia lost her than a blicket if is new for the big shooe with their bow.\nThey walked to until it law the boat and the ball. \"Maybe we is soap, \"Max, and it was for you,\" asked.\n\"Wow, little bell toy best fly!\" she",
+   true
+  ]
+ ]
+}

@@ -1,0 +1,24 @@
+[
+ [
+  "train",
+  "dspn",
+  "--size",
+  "L",
+  "--data",
+  "chat",
+  "--extra",
+  "{\"layers\": 4, \"rows\": 1, \"cols\": 2, \"d\": 320, \"hidden\": 640, \"m\": 48, \"q\": 32, \"emb\": 64, \"hub_after\": 2, \"hub_heads\": 4, \"hub_dk\": 64, \"hub_out\": 32, \"hub_taus\": [300, 3000, 30000, 1000000], \"beta_max\": 2, \"ws_slots\": 4}",
+  "--init",
+  "runs/dspn-L_base2.pt",
+  "--iters",
+  "15000",
+  "--batch",
+  "16",
+  "--T",
+  "1024",
+  "--lr",
+  "3e-4",
+  "--tag",
+  "_chat"
+ ]
+]

@@ -1,0 +1,34 @@
+{
+ "ckpt": "runs/dspn-S_hub.pt",
+ "extra": {
+  "hub_after": 2
+ },
+ "test_before": 2.8187803578031554,
+ "old_before": 1.3593349816426818,
+ "test_online": 2.221333421988864,
+ "test_reset": 2.2196090050050103,
+ "old_online": 2.9020675597104075,
+ "sleep": {
+  "committed": false,
+  "old_before": 2.8531690281258233,
+  "old_after": 5.715752813029801,
+  "new_before": 0.4140844610596099,
+  "new_after": 0.16026947324151775
+ },
+ "test_sleep_reset": 2.2196090050050103,
+ "old_sleep": 2.9020675597104075,
+ "samples": [
+  [
+   "Tom found a blicket in tirring.\nLeo smiled. Tom shook that is a blicket in the blicket roe rang. A blicket in a phat it rings. A blicket in rings. Leo shook it that rings and rang. Leo shook the blicket in that rings it",
+   true
+  ],
+  [
+   "A blicket is a small red bell that rings when you shake it, the small red bell that rings poke.\nEva is blicket in that is a small red blicket is that rings when you shake it is it rang. A blicket is a small rag. ",
+   true
+  ],
+  [
+   "Mia lost her blicket, and it rang. Leo shook hair that rings that rings a blicket in that rang. Now that rings when a blicket in that rings when that rings when it that is a shake it, that is rang.\nEva rang when ",
+   true
+  ]
+ ]
+}

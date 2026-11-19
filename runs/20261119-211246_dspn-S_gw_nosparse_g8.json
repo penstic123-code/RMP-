@@ -1,0 +1,66 @@
+{
+ "name": "dspn-S_gw_nosparse_g8",
+ "kind": "dspn",
+ "size": "S",
+ "extra": {
+  "hub_after": 2,
+  "beta_max": 2,
+  "ws_slots": 4,
+  "ws_topk": 8,
+  "ws_read": true,
+  "ws_lb": 0.01,
+  "ws_pc": 0.1,
+  "ws_ignite": true
+ },
+ "params": 342918,
+ "data": "tiny",
+ "device": "cuda",
+ "batch": 64,
+ "T": 256,
+ "iters": 3000,
+ "lr": 0.003,
+ "seed": 0,
+ "code_sha": "86cce9f7ba09",
+ "seconds": 298,
+ "train_bytes_per_sec": 168088,
+ "peak_gpu_mb": 2551,
+ "val_bpc": 1.3508,
+ "log": [
+  [
+   500,
+   51,
+   1.878,
+   1.9
+  ],
+  [
+   1000,
+   101,
+   1.641,
+   1.593
+  ],
+  [
+   1500,
+   150,
+   1.42,
+   1.456
+  ],
+  [
+   2000,
+   200,
+   1.49,
+   1.379
+  ],
+  [
+   2500,
+   249,
+   1.314,
+   1.33
+  ],
+  [
+   3000,
+   298,
+   1.401,
+   1.317
+  ]
+ ]
+}

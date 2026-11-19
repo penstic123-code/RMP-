@@ -1,0 +1,16 @@
+{
+ "task": "MQAR",
+ "pairs": 16,
+ "T": 256,
+ "iters": 1500,
+ "batch": 64,
+ "lr": 0.001,
+ "size": "S",
+ "note": "从 round 3 队列日志转录（当时 evals.py 未落盘）；T=256 内所有查询都算 near，acc_far 为 nan",
+ "acc": {
+  "gru": 0.353515625,
+  "tf": 0.2880859375,
+  "dspn": 0.5458984375,
+  "dspn_hub_b2": 0.88671875
+ }
+}

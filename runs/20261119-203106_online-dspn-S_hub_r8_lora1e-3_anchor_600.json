@@ -1,0 +1,46 @@
+{
+ "ckpt": "runs/dspn-S_hub.pt",
+ "extra": {
+  "hub_after": 2
+ },
+ "learner": {
+  "lr": 0.001,
+  "params": "lora",
+  "replay": 0.25
+ },
+ "day_bytes": 32768,
+ "test_before": 2.8187803578031554,
+ "old_before": 1.3593349816426818,
+ "old_after_day": 1.3597494911619223,
+ "test_online": 2.0458644284187266,
+ "test_reset": 2.085854640157275,
+ "old_online": 1.4223896168653385,
+ "sleep_args": {
+  "anchor": 1.0,
+  "lr": 0.0001,
+  "steps": 600
+ },
+ "sleep": {
+  "committed": true,
+  "old_before": 1.3953177851670406,
+  "old_after": 1.4115093661477887,
+  "new_before": 1.5259530577285583,
+  "new_after": 0.9606489590657019
+ },
+ "test_sleep_reset": 1.8803808943219245,
+ "old_sleep": 1.4632222853217913,
+ "samples": [
+  [
+   "Tom found a blicket until his hand led on the under the rock. They work truck together and ranges. The man was happy and strong. A big that ride it a tay on, the car and dad ice song. Tim loved to see now, the chair for",
+   false
+  ],
+  [
+   "A blicket is a small from you tream. You are very sour of his were scared bed of with you pot a big ice door. Tom and his came bull inside smile. He ranches had a surpril that in his beautiful happy him. He was h",
+   false
+  ],
+  [
+   "Mia lost her than a big cake. Tim and Lily smiled and she went all day, and they need tub happily with his friends.\nOne day, Tim found a big, little bird! That's was not rabbit boat. It is not yummy beetll star. ",
+   false
+  ]
+ ]
+}

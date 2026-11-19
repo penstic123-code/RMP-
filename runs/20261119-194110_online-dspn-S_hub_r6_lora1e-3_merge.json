@@ -1,0 +1,44 @@
+{
+ "ckpt": "runs/dspn-S_hub.pt",
+ "extra": {
+  "hub_after": 2
+ },
+ "learner": {
+  "lr": 0.001,
+  "params": "lora",
+  "replay": 0.25
+ },
+ "day_bytes": 32768,
+ "test_before": 2.8187803578031554,
+ "old_before": 1.3593349816426818,
+ "old_after_day": 1.3597494911619223,
+ "test_online": 2.0458644284187266,
+ "test_reset": 2.085854640157275,
+ "old_online": 1.4223896168653385,
+ "sleep_args": {
+  "steps": 0
+ },
+ "sleep": {
+  "committed": true,
+  "old_before": 1.3953177851670406,
+  "old_after": 1.3953177851670406,
+  "new_before": 1.5259530577285583,
+  "new_after": 1.5259530577285583
+ },
+ "test_sleep_reset": 2.085854640157275,
+ "old_sleep": 1.4223896168653385,
+ "samples": [
+  [
+   "Tom found a blicket until his hand led of friend gave the big bell. Mr. She said, \"Thank you, Mom. You should be have in it. We play with your sharing a boat!\" And Kitate and red because it was not book in the blow!\" Th",
+   false
+  ],
+  [
+   "A blicket is bletty perfower. The bird said, \"I am will dicy you have fun make you amaze animals too.\" They both lammenet and the big house with the ball back. The bird love in it rocket of the spoot.\nLily smiled",
+   false
+  ],
+  [
+   "Mia lost her toy, a big block and neck better. Ella took the black in happy. The bird funny took a big, but it was able to sand. It is bllack in the block and flowers,\" she said.\nThe big swingly is a small toy bl",
+   false
+  ]
+ ]
+}

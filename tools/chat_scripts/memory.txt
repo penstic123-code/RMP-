@@ -1,0 +1,29 @@
+My name is Tovaku.
+I have a cat named Mirafe.
+My favorite color is purple.
+How are you today?
+What is my name?
+What is my cat's name?
+What is my favorite color?
+/new
+Hi again!
+What is my name?
+What is my cat's name?
+What is my favorite color?
+/new
+My best friend is Zulino.
+I like to eat noodles.
+It is sunny outside.
+/sleep
+/new
+Hi again!
+Who is my best friend?
+What do I like to eat?
+What is my name?
+/new
+My brother is called Kesaro.
+I went to the park.
+What is my brother called?
+/new
+Hi again!
+What is my brother called?

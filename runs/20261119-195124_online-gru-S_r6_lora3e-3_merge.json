@@ -1,0 +1,42 @@
+{
+ "ckpt": "runs/gru-S.pt",
+ "extra": {},
+ "learner": {
+  "lr": 0.003,
+  "params": "lora",
+  "replay": 0.25
+ },
+ "day_bytes": 32768,
+ "test_before": 2.556217860358407,
+ "old_before": 1.331944657937942,
+ "old_after_day": 1.3326831436290805,
+ "test_online": 2.326905671350473,
+ "test_reset": 2.33406453789987,
+ "old_online": 1.4068341051971618,
+ "sleep_args": {
+  "steps": 0
+ },
+ "sleep": {
+  "committed": true,
+  "old_before": 1.3634756760882454,
+  "old_after": 1.3634756760882454,
+  "new_before": 1.969141829410541,
+  "new_after": 1.969141829410541
+ },
+ "test_sleep_reset": 2.33406453789987,
+ "old_sleep": 1.4068341051971618,
+ "samples": [
+  [
+   "Tom found a blicket and shiny all day. She pugld from the sharked up into the grass.\nThe could not feel grandma. Max said to her friends to join she having faster. She had an idea. She play in his friend, Sam. \nHe was m",
+   false
+  ],
+  [
+   "A blicket is could not friend, and he saw a big, a small of his house. He was happeniend to pict. She is not a girl and his face. She would down find the rabbed her tobess. They all ran to her friend to Lily and ",
+   false
+  ],
+  [
+   "Mia lost her hot that it is adventsy. She watched her to help him and he asked.\n\"What is under picture! He wanted to have a magic with it, but it was a good day.\" Tom said, \"Jush it it, but worry this bed, later ",
+   false
+  ]
+ ]
+}

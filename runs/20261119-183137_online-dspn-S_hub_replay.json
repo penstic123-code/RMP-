@@ -1,0 +1,40 @@
+{
+ "ckpt": "runs/dspn-S_hub.pt",
+ "extra": {
+  "hub_after": 2
+ },
+ "learner": {
+  "lr": 0.0003,
+  "replay": 0.25
+ },
+ "day_bytes": 32768,
+ "test_before": 2.8187803578031554,
+ "old_before": 1.3593349816426818,
+ "old_after_day": 1.481802587031088,
+ "test_online": 1.8533110526741134,
+ "test_reset": 1.8683153955913199,
+ "old_online": 1.7167714745033524,
+ "sleep": {
+  "committed": false,
+  "old_before": 1.687561008004859,
+  "old_after": 1.5636469821122385,
+  "new_before": 0.8185008294352437,
+  "new_after": 0.8985852217686946
+ },
+ "test_sleep_reset": 1.8683153955913199,
+ "old_sleep": 1.7167714745033524,
+ "samples": [
+  [
+   "Tom found a blicket until his man. Tom was ring. Sam was sad.\nLeo shooe has a blicket in the outside. She put it and smiled. \"What wil happ?\" Lily has said, \"You are a blicket. A bell rings is who you noded. We has smal",
+   true
+  ],
+  [
+   "A blicket is a small red with a shamarry to small ring.\nSucky, where is a blicket in the blicket and rang. A blings the green to when he said, \"It is a rang. A blicket it, the bird has a small red bell. A named M",
+   true
+  ],
+  [
+   "Mia lost her that is fair and ring. Sammy weveried.\nOne day, the little better that rocket a pall when Lily was so happy that it. One day, Mia when a shake is family named Jach. It rang as is little better, the s",
+   false
+  ]
+ ]
+}

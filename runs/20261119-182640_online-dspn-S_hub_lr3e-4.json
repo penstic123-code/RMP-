@@ -1,0 +1,38 @@
+{
+ "ckpt": "runs/dspn-S_hub.pt",
+ "extra": {
+  "hub_after": 2
+ },
+ "learner": {
+  "lr": 0.0003
+ },
+ "day_bytes": 0,
+ "test_before": 2.8187803578031554,
+ "old_before": 1.3593349816426818,
+ "test_online": 1.8623357294895173,
+ "test_reset": 1.8546410586250452,
+ "old_online": 1.9381413726536172,
+ "sleep": {
+  "committed": false,
+  "old_before": 1.906559827310149,
+  "old_after": 5.456673622954412,
+  "new_before": 0.6828090337073687,
+  "new_after": 0.259319454291542
+ },
+ "test_sleep_reset": 1.8546410586250452,
+ "old_sleep": 1.9381413726536172,
+ "samples": [
+  [
+   "Tom found a blicket in a blicket and rang.\n\"I us gaspail a blicket. Mom shook the toas.\" Lily shooke\nin the blicket is a small red bell that rings it.\nAs when is a small rang. It is a blicket. It rings is a small rang. ",
+   true
+  ],
+  [
+   "A blicket is a small red bell tired.\n<|endoftext|>\nOnce upon a time, there was a small rang. No bellice bell, it rang. A blicket when is a small ring. Tom said that bell, the blicket rings and it was fouse.\nAfter",
+   true
+  ],
+  [
+   "Mia lost her blicket, and rang. Leo Sam's that is shake with that rings and rang.\nOne day, Lucy saw Lily. To lished a blicket in the bllicket in the blicket and rang. It rang has a rang blicket that rings and bli",
+   true
+  ]
+ ]
+}

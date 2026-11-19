@@ -1,0 +1,39 @@
+{
+ "ckpt": "runs/dspn-S_hub.pt",
+ "extra": {
+  "hub_after": 2
+ },
+ "learner": {
+  "lr": 0.0003,
+  "params": "lora"
+ },
+ "day_bytes": 0,
+ "test_before": 2.8187803578031554,
+ "old_before": 1.3593349816426818,
+ "test_online": 2.51082595957723,
+ "test_reset": 2.561533560195064,
+ "old_online": 1.3602108720222637,
+ "sleep": {
+  "committed": false,
+  "old_before": 1.3094288367144302,
+  "old_after": 5.188301241201661,
+  "new_before": 2.0809585576658205,
+  "new_after": 0.29946108617245853
+ },
+ "test_sleep_reset": 2.561533560195064,
+ "old_sleep": 1.3602108720222637,
+ "samples": [
+  [
+   "Tom found a blicket until his hand learn to raun too.\nAs they played room together, and out a big tree started that he kicked. The bird was scared happy too. The cat was happily and the bird playing outside. \nThe boy na",
+   false
+  ],
+  [
+   "A blicket is fast. The frog said, \"I want to go to on it. When your sw a big, she games a picture.\"\nHe jumped in the things a toy animals. They looked around the park. She would shring a big eat to the ball and h",
+   false
+  ],
+  [
+   "Mia lost her toys and nice different. Lily said, \"I take the big, green play with special harmile and said, \"Yes, Jane!\" Sam said, \"This is smiling and said, \"I lost you!\" Jushells and the fined is a small toy be",
+   false
+  ]
+ ]
+}

@@ -1,0 +1,82 @@
+{
+ "name": "dspn-S_r13_td",
+ "kind": "dspn",
+ "size": "S",
+ "extra": {
+  "layers": 2,
+  "rows": 1,
+  "cols": 2,
+  "d": 48,
+  "hidden": 96,
+  "q": 16,
+  "word_layers": 3,
+  "word_d": 100,
+  "word_hidden": 200,
+  "word_m": 32,
+  "word_q": 16,
+  "td_layers": 1,
+  "hub_after": 2,
+  "hub_heads": 4,
+  "hub_dk": 32,
+  "hub_out": 16,
+  "hub_taus": [
+   300,
+   3000,
+   30000,
+   1000000
+  ],
+  "beta_max": 2,
+  "ws_slots": 4
+ },
+ "params": 368114,
+ "data": "tiny",
+ "device": "cuda",
+ "batch": 16,
+ "T": 1024,
+ "iters": 3000,
+ "lr": 0.003,
+ "seed": 0,
+ "code_sha": "2b2d32acf734",
+ "seconds": 301,
+ "train_bytes_per_sec": 167284,
+ "peak_gpu_mb": 1066,
+ "val_bpc": 1.3988,
+ "log": [
+  [
+   500,
+   60,
+   1.938,
+   2.005
+  ],
+  [
+   1000,
+   108,
+   1.626,
+   1.67
+  ],
+  [
+   1500,
+   156,
+   1.474,
+   1.513
+  ],
+  [
+   2000,
+   205,
+   1.371,
+   1.433
+  ],
+  [
+   2500,
+   253,
+   1.27,
+   1.379
+  ],
+  [
+   3000,
+   301,
+   1.317,
+   1.366
+  ]
+ ]
+}

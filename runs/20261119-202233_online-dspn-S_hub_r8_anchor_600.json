@@ -1,0 +1,46 @@
+{
+ "ckpt": "runs/dspn-S_hub.pt",
+ "extra": {
+  "hub_after": 2
+ },
+ "learner": {
+  "lr": 0.003,
+  "params": "lora",
+  "replay": 0.25
+ },
+ "day_bytes": 32768,
+ "test_before": 2.8187803578031554,
+ "old_before": 1.3593349816426818,
+ "old_after_day": 1.3810804293794263,
+ "test_online": 1.8257353256376758,
+ "test_reset": 1.8374386227092152,
+ "old_online": 1.635099025446362,
+ "sleep_args": {
+  "anchor": 1.0,
+  "lr": 0.0001,
+  "steps": 600
+ },
+ "sleep": {
+  "committed": true,
+  "old_before": 1.6093325966522798,
+  "old_after": 1.5012568558547663,
+  "new_before": 1.0922956287463248,
+  "new_after": 0.8388357596451353
+ },
+ "test_sleep_reset": 1.7725198465730363,
+ "old_sleep": 1.5512124256281343,
+ "samples": [
+  [
+   "Tom found a blicket until his many went in a bunny belive it.\" Tim said, \"I am blocket round, but she was ha a blue becket. What is now thought his toys boat was a with mone ice. Do you has \"Yes, the deep you that Sam?\"",
+   false
+  ],
+  [
+   "A blicket is a small red by the shook ha to sorry.\n<|endoftext|>\nOnce upon a time in a tree, the two climbe to race to shoe into while. One day, Lily found a big pooled to the birdre bear. It is no the blocket. I",
+   false
+  ],
+  [
+   "Mia lost her than a smair for his new friends. Every and the blicket in a small resplon. But it lander and reliations, delive it was is so liling with her handow.\n\"Mom, loose having marths,\" sai Bing.\n\"Sarah is s",
+   true
+  ]
+ ]
+}

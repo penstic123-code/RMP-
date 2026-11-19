@@ -1,0 +1,46 @@
+{
+ "ckpt": "runs/dspn-S_hub.pt",
+ "extra": {
+  "hub_after": 2
+ },
+ "learner": {
+  "lr": 0.003,
+  "params": "lora",
+  "replay": 0.25
+ },
+ "day_bytes": 32768,
+ "test_before": 2.8187803578031554,
+ "old_before": 1.3593349816426818,
+ "old_after_day": 1.3810804293794263,
+ "test_online": 1.8257353256376758,
+ "test_reset": 1.8374386227092152,
+ "old_online": 1.635099025446362,
+ "sleep_args": {
+  "anchor": 3.0,
+  "lr": 0.0001,
+  "steps": 600
+ },
+ "sleep": {
+  "committed": true,
+  "old_before": 1.6093325966522798,
+  "old_after": 1.5367827294701204,
+  "new_before": 1.0922956287463248,
+  "new_after": 0.9091728172170094
+ },
+ "test_sleep_reset": 1.7729928481152164,
+ "old_sleep": 1.5763532905124158,
+ "samples": [
+  [
+   "Tom found a blicket up is a blicket. The bell under the robolice too rang and said, \"I wound, you see is very blicket! A minsike is!\" They words is together, and the bals and red bell ring melleving oun the blicket! Giv",
+   true
+  ],
+  [
+   "A blicket is blicket arong to the roshed to soon.\nOne day, the went ball, boy shook. The blicket a wise bll bell rembonck in a blicket. \"It was a blicket. We thought the big beling, so Tom!\" Tim was sad. He rang ",
+   true
+  ],
+  [
+   "Mia lost her than a blicket. She looked if smiling, there, the ail bow and shook truck. Mia was sad, but it was so happy and his favouin. All if the blicket and it was happy and shookey and following she loved th",
+   true
+  ]
+ ]
+}

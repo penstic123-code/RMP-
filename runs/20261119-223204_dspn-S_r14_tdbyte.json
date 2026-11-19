@@ -1,0 +1,78 @@
+{
+ "name": "dspn-S_r14_tdbyte",
+ "kind": "dspn",
+ "size": "S",
+ "extra": {
+  "layers": 3,
+  "rows": 1,
+  "cols": 2,
+  "d": 76,
+  "hidden": 152,
+  "q": 16,
+  "td_layers": 1,
+  "td_target": 1,
+  "hub_after": 2,
+  "hub_heads": 4,
+  "hub_dk": 32,
+  "hub_out": 16,
+  "hub_taus": [
+   300,
+   3000,
+   30000,
+   1000000
+  ],
+  "beta_max": 2,
+  "ws_slots": 4
+ },
+ "params": 359132,
+ "data": "tiny",
+ "device": "cuda",
+ "batch": 16,
+ "T": 1024,
+ "iters": 3000,
+ "lr": 0.003,
+ "seed": 0,
+ "code_sha": "ac95272958ff",
+ "seconds": 278,
+ "train_bytes_per_sec": 179918,
+ "peak_gpu_mb": 1500,
+ "val_bpc": 1.3013,
+ "log": [
+  [
+   500,
+   76,
+   1.934,
+   1.915
+  ],
+  [
+   1000,
+   116,
+   1.564,
+   1.575
+  ],
+  [
+   1500,
+   155,
+   1.335,
+   1.417
+  ],
+  [
+   2000,
+   197,
+   1.294,
+   1.332
+  ],
+  [
+   2500,
+   236,
+   1.271,
+   1.279
+  ],
+  [
+   3000,
+   278,
+   1.274,
+   1.265
+  ]
+ ]
+}

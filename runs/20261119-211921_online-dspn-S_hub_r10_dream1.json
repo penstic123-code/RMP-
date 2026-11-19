@@ -1,0 +1,44 @@
+{
+ "ckpt": "runs/dspn-S_hub.pt",
+ "extra": {
+  "hub_after": 2
+ },
+ "learner": {
+  "lr": 0.003,
+  "replay": 0.25
+ },
+ "day_bytes": 32768,
+ "test_before": 2.8187803578031554,
+ "old_before": 1.3593349816426818,
+ "old_after_day": 1.3810804293794263,
+ "test_online": 1.8257353256376758,
+ "test_reset": 1.8374386227092152,
+ "old_online": 1.635099025446362,
+ "sleep_args": {
+  "dream": 1.0,
+  "lr": 0.0001
+ },
+ "sleep": {
+  "committed": false,
+  "old_before": 1.6093325966522798,
+  "old_after": 1.372292028012492,
+  "new_before": 1.0922956287463248,
+  "new_after": 1.1860474647002883
+ },
+ "test_sleep_reset": 1.8374386227092152,
+ "old_sleep": 1.635099025446362,
+ "samples": [
+  [
+   "Tom found a blicket if you arry bling in the way better. The cat is blicket and you do his red bloarbed. Tim was happily beef, Lily shook it, bongeved to ha blea wil lookin and the bell.\n<|endoftext|>\nOnce upon a time s",
+   true
+  ],
+  [
+   "A blicket is feel that red. The next sun animals and is game his cake bll bell, and it is blicket. The red bles to shake shring a bell bell ribled. The is scret with is red bling bell. She bild started to make it",
+   true
+  ],
+  [
+   "Mia lost her hands. The nice bunny took a bril. Now is so abled a ring is a blocket. \"You did is a lot is you,\" and too. I was red with you arry.\"\nTom smiled and said, \"Woll Jane plash we it. We Ben and Sam decid",
+   false
+  ]
+ ]
+}

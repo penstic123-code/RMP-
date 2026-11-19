@@ -1,0 +1,48 @@
+{
+ "name": "dspn-L_speed",
+ "kind": "dspn",
+ "size": "L",
+ "extra": {
+  "layers": 4,
+  "rows": 1,
+  "cols": 2,
+  "d": 320,
+  "hidden": 640,
+  "m": 48,
+  "q": 32,
+  "emb": 64,
+  "hub_after": 2,
+  "hub_heads": 4,
+  "hub_dk": 64,
+  "hub_out": 32,
+  "hub_taus": [
+   300,
+   3000,
+   30000,
+   1000000
+  ],
+  "beta_max": 2,
+  "ws_slots": 4
+ },
+ "params": 4679836,
+ "data": "tiny",
+ "device": "cuda",
+ "batch": 8,
+ "T": 1024,
+ "iters": 150,
+ "lr": 0.001,
+ "seed": 0,
+ "code_sha": "8896b98fc16d",
+ "seconds": 32,
+ "train_bytes_per_sec": 39996,
+ "peak_gpu_mb": 2556,
+ "val_bpc": 3.0582,
+ "log": [
+  [
+   150,
+   31,
+   3.005,
+   3.026
+  ]
+ ]
+}

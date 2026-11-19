@@ -1,0 +1,47 @@
+{
+ "name": "dspn-L_smoke3",
+ "kind": "dspn",
+ "size": "L",
+ "extra": {
+  "layers": 4,
+  "rows": 1,
+  "cols": 2,
+  "d": 320,
+  "hidden": 640,
+  "m": 48,
+  "q": 32,
+  "emb": 64,
+  "hub_after": 2,
+  "hub_heads": 4,
+  "hub_dk": 64,
+  "hub_out": 32,
+  "hub_taus": [
+   300,
+   3000,
+   30000,
+   1000000
+  ],
+  "beta_max": 2
+ },
+ "params": 4655960,
+ "data": "tiny",
+ "device": "cuda",
+ "batch": 16,
+ "T": 1024,
+ "iters": 150,
+ "lr": 0.002,
+ "seed": 0,
+ "code_sha": "bd6da45b9327",
+ "seconds": 86,
+ "train_bytes_per_sec": 28775,
+ "peak_gpu_mb": 3955,
+ "val_bpc": 2.7522,
+ "log": [
+  [
+   150,
+   86,
+   2.702,
+   2.708
+  ]
+ ]
+}

@@ -1,0 +1,51 @@
+{
+ "ckpt": "runs/dspn-S_shape_g2L3q16.pt",
+ "extra": {
+  "hub_after": 2,
+  "beta_max": 2,
+  "rows": 1,
+  "cols": 2,
+  "layers": 3,
+  "d": 90,
+  "hidden": 184,
+  "q": 16
+ },
+ "learner": {
+  "lr": 0.003,
+  "replay": 0.25
+ },
+ "day_bytes": 32768,
+ "test_before": 2.6108422219097958,
+ "old_before": 1.2292937276663067,
+ "old_after_day": 1.245106615088341,
+ "test_online": 1.722305336970695,
+ "test_reset": 1.724454207386446,
+ "old_online": 1.4701317306123973,
+ "sleep_args": {
+  "dream": 1.0,
+  "lr": 0.0001
+ },
+ "sleep": {
+  "committed": false,
+  "old_before": 1.4592491233220788,
+  "old_after": 1.3043620755813388,
+  "new_before": 0.9303165756080579,
+  "new_after": 1.001290898150351
+ },
+ "test_sleep_reset": 1.724454207386446,
+ "old_sleep": 1.4701317306123973,
+ "samples": [
+  [
+   "Tom found a blicket.\nThe cat read even in that has a good friend. The blicket shake its not hard. A blicket was scared blinking too. Bob answers thanks the blicket rang to smell away. Lily anse it idea. \"What is the boy",
+   true
+  ],
+  [
+   "A blicket is a blicket ring. Suddenly, a little girl named Lily. Sue had a lots of noise. Lily shake the noise and ran to shake. Spot ran away. \"Let's say it.\" Sam shook Sara's things. She shake her a grew and sh",
+   true
+  ],
+  [
+   "Mia lost her. Anna was surprised to shake her.\n\"Let', the sky ring in that day, the bell, dret. That nice many faster, a blicket trie. When the blicket stopped, not to his mom. The big red bell and all blicket. S",
+   true
+  ]
+ ]
+}

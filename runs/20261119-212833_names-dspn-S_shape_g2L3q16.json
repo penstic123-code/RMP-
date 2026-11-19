@@ -1,0 +1,18 @@
+{
+ "args": {
+  "cmd": "names",
+  "kind": "dspn",
+  "size": "S",
+  "extra": "{\"hub_after\": 2, \"beta_max\": 2, \"rows\": 1, \"cols\": 2, \"layers\": 3, \"d\": 90, \"hidden\": 184, \"q\": 16}",
+  "tag": "_shape_g2L3q16",
+  "iters": 2000,
+  "batch": 64,
+  "T": 256,
+  "pairs": 16,
+  "lr": 0.001
+ },
+ "acc": 0.10163652024117141,
+ "bits": 6.685016356884056,
+ "acc_control": 0.1024978466838932,
+ "bits_control": 6.763921002237308
+}

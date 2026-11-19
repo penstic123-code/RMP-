@@ -1,0 +1,73 @@
+{
+ "name": "dspn-S_gw_full_g2L3q16",
+ "kind": "dspn",
+ "size": "S",
+ "extra": {
+  "hub_after": 2,
+  "beta_max": 2,
+  "rows": 1,
+  "cols": 2,
+  "layers": 3,
+  "d": 90,
+  "hidden": 184,
+  "q": 16,
+  "ws_slots": 4,
+  "ws_topk": 3,
+  "ws_read": true,
+  "ws_sparse": true,
+  "ws_lb": 0.01,
+  "ws_pc": 0.1,
+  "ws_ignite": true
+ },
+ "params": 335381,
+ "data": "tiny",
+ "device": "cuda",
+ "batch": 64,
+ "T": 256,
+ "iters": 3000,
+ "lr": 0.003,
+ "seed": 0,
+ "code_sha": "86cce9f7ba09",
+ "seconds": 157,
+ "train_bytes_per_sec": 324841,
+ "peak_gpu_mb": 1104,
+ "val_bpc": NaN,
+ "log": [
+  [
+   500,
+   30,
+   NaN,
+   NaN
+  ],
+  [
+   1000,
+   54,
+   NaN,
+   NaN
+  ],
+  [
+   1500,
+   79,
+   NaN,
+   NaN
+  ],
+  [
+   2000,
+   105,
+   NaN,
+   NaN
+  ],
+  [
+   2500,
+   131,
+   NaN,
+   NaN
+  ],
+  [
+   3000,
+   157,
+   NaN,
+   NaN
+  ]
+ ]
+}

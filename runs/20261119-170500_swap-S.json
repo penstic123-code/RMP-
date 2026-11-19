@@ -1,0 +1,15 @@
+{
+ "what": "E19 上下文替换（tools/analyze_hierarchy.py context_swap，验证集 16 × 1024 字节，前 512 字节替换），E14 的 DSPN-S 检查点 vs 随机初始化",
+ "trained": [
+  {"layer": 1, "diff@0": 0.365, "diff@4": 0.091, "diff@16": 0.045, "diff@64": 0.027, "diff@256": 0.014, "half_life": 2},
+  {"layer": 2, "diff@0": 0.547, "diff@4": 0.247, "diff@16": 0.118, "diff@64": 0.071, "diff@256": 0.039, "half_life": 3},
+  {"layer": 3, "diff@0": 0.605, "diff@4": 0.385, "diff@16": 0.22, "diff@64": 0.131, "diff@256": 0.061, "half_life": 6},
+  {"layer": 4, "diff@0": 0.668, "diff@4": 0.528, "diff@16": 0.378, "diff@64": 0.258, "diff@256": 0.118, "half_life": 22}
+ ],
+ "random_init": [
+  {"layer": 1, "diff@0": 0.244, "diff@4": 0.13, "diff@16": 0.073, "diff@64": 0.038, "diff@256": 0.016, "half_life": 5},
+  {"layer": 2, "diff@0": 0.191, "diff@4": 0.145, "diff@16": 0.098, "diff@64": 0.057, "diff@256": 0.027, "half_life": 18},
+  {"layer": 3, "diff@0": 0.144, "diff@4": 0.132, "diff@16": 0.104, "diff@64": 0.066, "diff@256": 0.032, "half_life": 53},
+  {"layer": 4, "diff@0": 0.1, "diff@4": 0.098, "diff@16": 0.09, "diff@64": 0.065, "diff@256": 0.034, "half_life": 128}
+ ]
+}

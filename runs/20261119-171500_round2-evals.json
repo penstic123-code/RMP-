@@ -1,0 +1,81 @@
+{
+ "what": "E23 名字召回与 E24 层级分析（第 2 轮检查点）",
+ "name_recall": {
+  "dspn-S_hub": {
+   "acc": 0.1447,
+   "acc_control": 0.1404,
+   "bits": 6.382,
+   "bits_control": 6.448
+  },
+  "dspn-S_hubw": {
+   "acc": 0.118,
+   "acc_control": 0.1111,
+   "bits": 6.642,
+   "bits_control": 6.738
+  },
+  "tf-S_lr3e-3": {
+   "acc": 0.1637,
+   "acc_control": 0.1585,
+   "bits": 6.026,
+   "bits_control": 6.057
+  }
+ },
+ "hierarchy_beta2": {
+  "tau_median": [
+   12.0,
+   24.1,
+   28.0,
+   31.6
+  ],
+  "fastmem_keep": [
+   5.4,
+   5.2,
+   8.3,
+   30.2
+  ],
+  "swap_half_life": [
+   2,
+   4,
+   6,
+   19
+  ],
+  "swap_diff@256": [
+   0.015,
+   0.044,
+   0.058,
+   0.118
+  ]
+ },
+ "hierarchy_hub": {
+  "tau_median": [
+   19.2,
+   27.6,
+   25.6,
+   28.7
+  ],
+  "fastmem_keep": [
+   7.3,
+   6.5,
+   7.4,
+   24.5
+  ],
+  "swap_half_life": [
+   2,
+   3,
+   5,
+   12
+  ],
+  "swap_diff@256": [
+   0.016,
+   0.039,
+   0.059,
+   0.106
+  ],
+  "readout_share": [
+   0.172,
+   0.229,
+   0.303,
+   0.296
+  ]
+ }
+}

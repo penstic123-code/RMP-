@@ -1,0 +1,15 @@
+{
+ "what": "E17 层级分析与 E18 名字召回，检查点为 E14/E15/E16 的 runs/*-S.pt",
+ "hierarchy_trained_dspn_S": [
+  {"layer": 1, "tau_median": 12.5, "tau_frac_gt100": 0.347, "fastmem_keep_median": 6.9, "readout_weight_share": 0.231},
+  {"layer": 2, "tau_median": 24.3, "tau_frac_gt100": 0.345, "fastmem_keep_median": 6.3, "readout_weight_share": 0.277},
+  {"layer": 3, "tau_median": 27.4, "tau_frac_gt100": 0.338, "fastmem_keep_median": 9.7, "readout_weight_share": 0.25},
+  {"layer": 4, "tau_median": 28.5, "tau_frac_gt100": 0.328, "fastmem_keep_median": 27.5, "readout_weight_share": 0.242}
+ ],
+ "hierarchy_random_init": {"all_layers": {"tau_median": 34.9, "tau_frac_gt100": 0.344, "fastmem_keep_median": 64.0}},
+ "name_recall": {
+  "dspn-S": {"acc": 0.1068, "bits": 6.545, "acc_control": 0.1051, "bits_control": 6.627},
+  "gru-S": {"acc": 0.1008, "bits": 5.801, "acc_control": 0.0999, "bits_control": 5.801},
+  "tf-S": {"acc": 0.1283, "bits": 5.562, "acc_control": 0.1326, "bits_control": 5.547}
+ }
+}
