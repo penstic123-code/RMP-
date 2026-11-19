@@ -11,7 +11,7 @@
 | [acceptance.md](acceptance.md) | 验收项定义 1–10（原设计第 6 节，编号不变） |
 | [v2.md](v2.md) | demo 之后：删什么、加什么、改什么，放大到 3000 万参数的路线与过关条件 |
 
-## 当前状态（2026-11-20 08:10，交接用）
+## 当前状态（2026-11-20 晚，交接用；新窗口先读第 20 章 v2 设计再实施）
 
 - 工作方式：用户授权全自动推进（git 存档、结果为先、只和自己的上一版比，见 [v2.md](v2.md)“用户定的方向”）。仓库已是 git，每步本地提交。
 - 环境：conda 环境 `dspn`（Python 3.11，PyTorch 2.11 + CUDA 12.8，RTX 5060 Laptop 8 GB，Rtxpt.exe 已关，可用约 7 GB）。已装 triton-windows 3.6、fla-core 0.6、einops（均 --no-deps）。
