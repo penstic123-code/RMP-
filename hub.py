@@ -31,7 +31,7 @@ class Hub(nn.Module):
     def init_state(self, b, device):
         return (torch.zeros(b, self.heads, self.dk, self.dk, device=device),)
 
-    def forward(self, x, state, reset=None, valid=None):
+    def forward(self, x, state, reset=None, valid=None, wbias=None):
         """valid: (b, T) 布尔，False 的位置（词级序列的补齐位）不写不衰减。"""
         b, T, _ = x.shape
         H, dk = self.heads, self.dk
@@ -39,7 +39,8 @@ class Hub(nn.Module):
         k = F.normalize(heads(x @ self.Wk), dim=-1)
         q = F.normalize(heads(x @ (self.Wq + self.lora_q_a @ self.lora_q_b)), dim=-1)
         v = heads(x @ self.Wv)
-        beta = self.beta_max * torch.sigmoid(x @ self.w_beta + self.b_beta)
+        wb = 0.0 if wbias is None else wbias[..., None]              # 惊讶门控：加在写入强度的 logit 上
+        beta = self.beta_max * torch.sigmoid(x @ self.w_beta + self.b_beta + wb)
         g = F.logsigmoid(x @ self.w_alpha + self.b_alpha)
         if reset is not None:                                                  # 会话边界：清空短时头，持久头不动
             g = g.masked_fill(reset[..., None] & ~self.persist, -30.0)

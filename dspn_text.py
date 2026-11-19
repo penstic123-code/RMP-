@@ -140,7 +140,7 @@ class Layer(nn.Module):
         self.lora_a = nn.Parameter(torch.randn(M, d + m, rank) / math.sqrt(d + m), requires_grad=False)
         self.lora_b = nn.Parameter(torch.zeros(M, rank, hidden), requires_grad=False)
 
-    def forward(self, u, state, active=None, reset=None):   # u: (b, T, M, U)；active: (b, M) 0/1，0 的模块本块冻结（RIMs 式稀疏更新）
+    def forward(self, u, state, active=None, reset=None, wbias=None):   # wbias: (b, T) 加到写入强度 β 的 logit（惊讶门控）；u: (b, T, M, U)；active: (b, M) 0/1，0 的模块本块冻结（RIMs 式稀疏更新）
         c0, S = state                                          # reset: (b, T) 布尔，会话边界字节处清空 c 与 S
         d, m = self.d, self.m
         ga, gb = torch.einsum('btmu,mud->btmd', u, torch.cat([self.G, self.B], -1)).split(d, -1)   # 读 u 的两个投影合成一次
@@ -156,7 +156,8 @@ class Layer(nn.Module):
         W = torch.cat([self.K, self.V, self.Qm, self.w_beta[..., None], self.w_gam[..., None]], -1)   # 读 c 的五个投影合成一次
         k, v, qv, bl, gl = torch.einsum('btmd,mde->btme', c, W).split([m, m, m, 1, 1], -1)
         k = F.normalize(k, dim=-1)
-        beta = self.beta_max * torch.sigmoid(bl[..., 0] + self.b_beta)       # beta_max=2：负特征值
+        wb = 0.0 if wbias is None else wbias[..., None]
+        beta = self.beta_max * torch.sigmoid(bl[..., 0] + self.b_beta + wb)  # beta_max=2：负特征值；门控在 logit 上，β 仍 ≤ beta_max
         g = F.logsigmoid(-(gl[..., 0] + self.b_gam))                         # log α = log(1 − γ)
         if active is not None:
             beta, g = beta * active, g * active                                # 冻结：S 不写不衰减
@@ -188,7 +189,7 @@ class DSPNLayered(nn.Module):
                  ws_slots=0, ws_dim=16, ws_block=64,
                  word_layers=0, word_d=256, word_hidden=512, word_m=32, word_q=32, word_mods=1,
                  td_layers=0, td_pc=0.1, td_target=1,
-                 pred_self=0.0, pred_nb=0.0, pred_down=0.0, local=False):
+                 pred_self=0.0, pred_nb=0.0, pred_down=0.0, local=False, surprise=False):
         super().__init__()
         M = rows * cols
         self.M, self.d, self.m, self.hub_after = M, d, m, hub_after
@@ -232,6 +233,12 @@ class DSPNLayered(nn.Module):
         # 模块内部（时间扫描、快记忆、MLP）仍用反传。
         self.pred_w = {'self': pred_self, 'nb': pred_nb, 'down': pred_down}
         self.local = local
+        # 惊讶门控写入：第 i 层上一拍的自我预测与本拍消息的相对误差 s 是它此刻的惊讶度；
+        # 第 i+1 层（与中枢）的写入强度 logit 加 a·(s − 1)，a 可学、初值 0（等于不门控）。上一拍的预测存在状态里。
+        self.surprise, self.q = surprise, q
+        if surprise:
+            assert pred_self and not word_layers, 'surprise 需要 pred_self，且只用于字节级'
+            self.sg_a = nn.Parameter(torch.zeros(layers + 1))                  # 最后一个给中枢
         self.pred = nn.ModuleDict({k: nn.ModuleList([PredHead(M, d, q) for _ in range(layers)])
                                    for k, w in self.pred_w.items() if w})
         if td_layers:
@@ -258,6 +265,8 @@ class DSPNLayered(nn.Module):
         st += [(z(self.d), z(self.m, self.m)) for _ in self.tdlayers]
         if self.tdlayers and not self.wlayers:             # 字节顶层上一拍的输出（自上而下预测的来源）
             st.append(torch.zeros(b, self.M * self.d, device=dev))
+        if self.surprise:                                  # 各层上一拍对本层下一拍消息的预测
+            st.append(tuple(z(self.q) for _ in self.layers))
         if self.ws_slots:      # (槽位, 各模块读到的 4 维, 已读字节数)；块边界按全局位置对齐，逐拍与整段一致
             dev, L = self.emb.weight.device, len(self.layers)
             st.append((torch.zeros(b, self.ws_slots, self.ws_dim, device=dev), torch.zeros(b, L, self.M, 4, device=dev), 0))
@@ -300,17 +309,25 @@ class DSPNLayered(nn.Module):
         L = len(self.layers)
         hs, new, zs = [], [], []
         reset = idx == SEP
+        pp, new_pp, s = (state[-1], [], None) if self.surprise else (None, None, None)
         for i, (layer, st) in enumerate(zip(self.layers, state)):
             if reads is not None:
                 u = torch.cat([u, reads[:, i, None].expand(b, T, self.M, 4)], -1)
-            h, z, ns = layer(u, st, None, reset)
+            wb = None if s is None else self.sg_a[i] * (s - 1)
+            h, z, ns = layer(u, st, None, reset, wb)
             hs.append(h); new.append(ns); zs.append(z)
+            if self.surprise:                              # 本层惊讶度：上一拍的预测 vs 本拍消息（相对误差，与批大小、T 无关）
+                pr = self.pred['self'][i](h)
+                prev = torch.cat([pp[i][:, None], pr[:, :-1]], 1)
+                s = (((prev - z) ** 2).sum(-1) / (z ** 2).sum(-1).clamp(min=1e-6)).mean(-1).detach()   # (b, T)
+                new_pp.append(pr[:, -1].detach())
             if self.pred:
                 self._predict(i, layer, h, z, zs)
             zu = z.detach() if self.local else z
             u = torch.cat([zu, torch.einsum('ij,btjq->btiq', layer.adj, zu)], -1)
             if self.hub is not None and not self.wlayers and i + 1 == self.hub_after:
-                o, hs_new = self.hub(torch.cat([zu.reshape(b, T, -1), e], -1), state[L], reset)
+                o, hs_new = self.hub(torch.cat([zu.reshape(b, T, -1), e], -1), state[L], reset,
+                                     wbias=None if s is None else self.sg_a[L] * (s - 1))
                 u = torch.cat([u, o], -1)
         hs = [h.flatten(2) for h in hs]
         if self.wlayers:
@@ -333,6 +350,8 @@ class DSPNLayered(nn.Module):
                 u = torch.cat([z, torch.einsum('ij,btjq->btiq', layer.adj, z)], -1)
             if not self.wlayers:
                 new.append(src[:, -1])
+        if self.surprise:
+            new.append(tuple(new_pp))
         y = self.readout(self.norm(torch.cat(hs, -1)))
         return y @ self.emb.weight.t() + self.bias, new, zs
 

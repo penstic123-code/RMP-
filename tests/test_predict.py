@@ -33,3 +33,22 @@ def test_local_blocks_gradient_between_layers():
         out['h'].square().sum().backward()
         g = m.layers[0].B.grad
         assert (g is not None and g.abs().sum() > 0) == expect
+
+
+def test_surprise_gate_stream_equals_parallel():
+    torch.manual_seed(0)
+    m = DSPNLayered(**CFG, pred_self=0.1, surprise=True)
+    with torch.no_grad():
+        m.readout.weight.normal_(0, 0.3); m.sg_a.fill_(1.0)
+        for l in m.layers:
+            l.W2.normal_(0, 0.3); l.w_beta.normal_(0, 0.3)
+        for hd in m.pred['self']:
+            hd.W.normal_(0, 0.3)
+    x = torch.randint(0, 256, (2, 24))
+    full, _ = m(x)
+    st, outs = None, []
+    for t in range(24):
+        lg, st = m(x[:, t:t + 1], st); outs.append(lg)
+    assert torch.allclose(full, torch.cat(outs, 1), atol=1e-4)
+    m.zero_grad(); full.square().mean().backward()
+    assert m.sg_a.grad.abs().sum() > 0
