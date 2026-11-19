@@ -496,6 +496,19 @@ def evaluate(model, data, n=20, b=32, T=256):
     return tot / n / math.log(2)                            # 每字节比特数（bpc）
 
 
+@torch.no_grad()
+def evaluate_stream(model, data, b=8, T=1024, n=8):
+    """流式评估：b 条连续验证流带状态读 n 段，只算第 2 段起（预热后）的 bpc——跨批次状态、持久头的作用在这里体现。"""
+    pos = np.linspace(0, len(data) - n * T - 2, b).astype(np.int64)
+    st, tot = model.init_state(b), 0.0
+    for i in range(n):
+        x, y = stream_batch(data, pos, T)
+        lg, st = model(x, st)
+        if i:
+            tot += F.cross_entropy(lg.reshape(-1, 256), y.reshape(-1)).item()
+    return tot / (n - 1) / math.log(2)
+
+
 def param_groups(model, wd=0.01):
     """偏置、门偏置（b_a、b_gam、b_beta、中枢 b_alpha 等）与一维参数不加权重衰减：
     门偏置初值是 ±4–7 的大 logit，衰减会把时间常数持续拉短（3 万步时 τ=1000 的单元降到约 85）。"""
@@ -619,7 +632,8 @@ def train(kind, size, data, iters, b, T, lr, seed, tag, extra, init=None, statef
                'code_sha': hashlib.sha256((ROOT / 'dspn_text.py').read_bytes()).hexdigest()[:12],
                'seconds': round(secs), 'train_bytes_per_sec': round(iters * b * T / (secs - eval_secs)),
                'peak_gpu_mb': round(torch.cuda.max_memory_allocated() / 2**20) if DEV == 'cuda' else None,
-               'val_bpc': round(final, 4), 'log': log}, open(out, 'w'), ensure_ascii=False, indent=1)
+               'val_bpc': round(final, 4),
+               'val_bpc_stream': round(evaluate_stream(model, va), 4) if kind == 'dspn' else None, 'log': log}, open(out, 'w'), ensure_ascii=False, indent=1)
     print(f'{name} 完成：验证 bpc {final:.4f} → {out.name}', flush=True)
 
 
