@@ -8,7 +8,7 @@
 |---|---|---|
 | 新型序列架构 | [architectures.md](topics/architectures.md) | SSM（Mamba-1/2/3）、线性注意力与 RNN 复兴、混合架构、HRM/TRM 递归、小规模正面对比 |
 | 快记忆与线性注意力层 | [fast-memory.md](topics/fast-memory.md) | 生产级 delta 层配方（KDA、Qwen3-Next、RWKV-7）、Kronecker delta、预条件 DeltaNet、xLSTM、Muon |
-| 持续学习与睡眠 | [continual-sleep.md](topics/continual-sleep.md) | 自生成回放、间隔重复、SuRe、可塑性丧失与 FIRE、LMs Need Sleep、测试时训练、稀疏记忆微调 |
+| 持续学习与睡眠 | [continual-sleep.md](topics/continual-sleep.md) | 自生成回放、间隔重复、SuRe、可塑性丧失与 FIRE、LMs Need Sleep、测试时训练、稀疏记忆微调、整体相近系统（BDH、EM-LLM、HOPE） |
 | 层级与自上而下 | [hierarchy-topdown.md](topics/hierarchy-topdown.md) | H-Net 及其小规模复现、BLT、自上而下反馈的大模型结果 |
 | 学习规则 | [learning-rules.md](topics/learning-rules.md) | 非反传方法与 BP 的差距、元可塑性、三因子规则 |
 | 对话数据 | [chat-data.md](topics/chat-data.md) | TinyDialogues、TinyChat15M、小模型指令数据 |

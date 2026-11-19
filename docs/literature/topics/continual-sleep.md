@@ -28,3 +28,12 @@
 - [Delayed Supervision for Test-Time LMs](https://arxiv.org/abs/2609.32312)（2026-09）：隔开很多无关事件后再对早先事实提问并监督，DeltaNet、RWKV-7 等在 BABILong、RULER 上提升（本项目跨会话记忆对话即属此类）。
 - [TRC²](https://arxiv.org/abs/2602.22479)（2026）：延迟惊奇写入 + 回放巩固 + 按实测遗忘自适应回放。
 - 含义：睡眠巩固可采用“稀疏槽 + 按访问频率选择写入”。
+
+### 与 demo 整体相近的系统（2026-11-20 查）
+
+- [Dragon Hatchling / BDH](https://arxiv.org/abs/2509.26507)（Pathway 2025）：神经元 + 突触的无标度图，状态在突触上、靠 Hebbian 局部更新，有 GPU 友好写法；10M–1B 与 GPT-2 同参数同数据持平，激活稀疏为正、模块度高。与 DSPN 最像（局部可塑、非 Transformer、涌现模块），可借：激活取正 + 稀疏，作为快记忆写入前的门。
+- [EM-LLM](https://arxiv.org/abs/2407.09450)（ICLR 2025）：按惊奇（token NLL）切事件边界，再按块内凝聚度修正；召回 = 相似度 + 时间邻接（顺带取前后事件）。可借进 episodic.py：按惊奇决定写不写，召回时带上相邻那句。
+- [Nested Learning / HOPE](https://arxiv.org/abs/2512.24695)（Google，NeurIPS 2025）：多个更新频率不同的记忆模块组成连续谱（CMS），模型学自己的更新规则。对应 DSPN 的中枢 τ 300/3k/30k/1e6 与睡眠慢权重；区别是 HOPE 的慢层也在推理时按频率更新。
+- [Continuous Memory Machines](https://arxiv.org/abs/2610.07907)（Sakana，2026-10）：CTM 的滑窗短时记忆 + 显式长时记忆，每步用一个小 Transformer 联合更新；只在算法任务上测过。
+- 已在上文：LMs Need Sleep（睡眠时多跑几遍递归写快权重）、M+、Larimar（互补学习系统，外挂情景记忆）、SuRe、TRC²。
+- 结论：没有一家同时做“字节级递归 + 快权重 + 情景库 + 睡眠蒸馏 + 边聊边学”。最接近的组合是 BDH（架构）+ Larimar/EM-LLM（情景记忆）+ LMs Need Sleep（巩固）。
