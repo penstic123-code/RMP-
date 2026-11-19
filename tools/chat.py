@@ -64,9 +64,7 @@ class Chat:
             return f"（睡眠：{'已巩固' if r['committed'] else '回滚'}，旧对话 bpc {r['old_before']:.3f}→{r['old_after']:.3f}）"
         if self.E:                                         # 重现：最相关的放最后，离问题最近
             for r in reversed(self.E.recall(line)):
-                self._advance(f'User: {r}
-Bot: OK.
-'.encode())
+                self._advance(f'User: {r}\nBot: OK.\n'.encode())
             self.E.write(line)
         self.heard.append(f'User: {line}')
         self.day.append(f'User: {line}\n'.encode())
