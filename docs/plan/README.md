@@ -18,7 +18,7 @@
 - 数据：TinyStoriesV2-GPT4（训练 2.23 GB，验证 22.5 MB）；data/chat-train.txt、chat-valid.txt（SODA 双人对话 + 25% 模板记忆对话，一半跨会话，对话之间是 SEP 字节）。
 - **正在跑（独立进程，关窗口不影响）**：对话微调 dspn-L_chat，队列 [tools/queues/chat_only.json](../../tools/queues/chat_only.json)，日志 runs/chat_ft.log；从 runs/dspn-L_base2.pt 开始（预训练按用户决定在第 14500 步停，批 16，验证 bpc 0.782；E41），批 16 × 1024、1.5 万步、lr 3e-4 余弦到 0（兼作衰减段）；第一次因会话重置 bug 发散（E42），第二次因工作空间环路爆炸发散（E43），均已修；02:23 第三次启动，约 1 小时。另存 runs/dspn-L_base3.pt：衰减试跑 1500 步即停，bpc 0.778，未使用。
 - **下一步（按顺序）**：
-  1. 看 runs/chat_ft.log 末尾与生成的 runs/*_dspn-L_chat.json，在 docs/experiments/e30-.md 登记；`python dspn_text.py sample dspn --size L --tag _base2 --extra "<overnight.json 里的 extra>"` 看生成样本。
+  1. 看 runs/chat_ft.log 末尾与生成的 runs/*_dspn-L_chat.json，在 docs/experiments/e41-.md 登记；`python dspn_text.py sample dspn --size L --tag _base2 --extra "<overnight.json 里的 extra>"` 看生成样本。
   2. 对话微调：正在跑（见上“正在跑”）；完成后跑生成样本。
   3. 聊天 demo：`python tools/chat.py runs/dspn-L_chat.pt --size L --extra "<同上>"`（命令 /new 新会话只留持久记忆、/sleep 睡眠、/save 存权重、/reset 全清）；测试脚本已写好 [tools/chat_scripts/memory.txt](../../tools/chat_scripts/memory.txt)（会话内召回、/new 后跨会话召回、/sleep 后召回、模板外的“我哥哥叫…”），用 `--script tools/chat_scripts/memory.txt` 跑并把记录登记进实验记录，检验会话内与跨会话记忆。
   4. demo 之后：TSPH 在 S 档对照（`python tools/train_tsph.py --size S --data tiny --batch 16 --T 1024 --tag _x1`，比 E38 字节级 1.247），再按设计 10.5 做记忆与遗忘对比。

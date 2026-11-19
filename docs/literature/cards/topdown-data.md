@@ -2,7 +2,7 @@
 
 “[V]”= 打开原文或代码确认；“[S]”= 搜索片段。目录见 [README](../README.md)。
 
-检索日期 2026-11-19。本项目对照点：E38、E40（[e30-.md](../../experiments/e30-.md)）在约 0.36M 参数下，词级层和字节级自上而下层同参数都变差。代码位置都在 [dspn_text.py](../../../dspn_text.py) 的 `DSPNLayered`。
+检索日期 2026-11-19。本项目对照点：E38、E40（[e30-.md](../../experiments/e30-e40.md)）在约 0.36M 参数下，词级层和字节级自上而下层同参数都变差。代码位置都在 [dspn_text.py](../../../dspn_text.py) 的 `DSPNLayered`。
 
 ## 1. Full-bandwidth transformer（[arXiv 2608.08888](https://arxiv.org/abs/2608.08888)）
 
