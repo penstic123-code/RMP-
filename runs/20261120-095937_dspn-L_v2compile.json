@@ -1,0 +1,46 @@
+{
+ "name": "dspn-L_v2compile",
+ "kind": "dspn",
+ "size": "L",
+ "extra": {},
+ "params": 4766808,
+ "data": "tiny",
+ "device": "cuda",
+ "batch": 16,
+ "T": 1024,
+ "iters": 1500,
+ "lr": 0.001,
+ "seed": 0,
+ "stateful": true,
+ "bot_loss": false,
+ "sched": "wsd",
+ "bf16": true,
+ "compile": true,
+ "init": null,
+ "code_sha": "edbf2b5e6c43",
+ "seconds": 468,
+ "train_bytes_per_sec": 61707,
+ "peak_gpu_mb": 2085,
+ "val_bpc": 1.3103,
+ "val_bpc_stream": 1.0934,
+ "log": [
+  [
+   500,
+   370,
+   1.749,
+   1.86
+  ],
+  [
+   1000,
+   418,
+   1.354,
+   1.507
+  ],
+  [
+   1500,
+   467,
+   1.134,
+   1.274
+  ]
+ ]
+}

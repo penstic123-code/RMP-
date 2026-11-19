@@ -478,7 +478,9 @@ def train(kind, size, data, iters, b, T, lr, seed, tag, extra, init=None, statef
     if init:                                               # 从已有权重继续训练（如对话数据上微调）
         model.load_state_dict(torch.load(ROOT / init, map_location=DEV))
     nparam = count(model)
-    if compile:
+    if compile:                                            # triton 读缓存目录时按 UTF-8 解码环境变量，中文用户名路径会失败：指到纯 ASCII 目录
+        for k, sub in (('TRITON_CACHE_DIR', 'triton'), ('TORCHINDUCTOR_CACHE_DIR', 'inductor')):
+            os.environ.setdefault(k, f"{os.environ.get('SystemDrive', 'C:')}/dspn_cache/{sub}")
         for layer in model.layers:
             layer.compile_parts()
     params = [p for p in model.parameters() if p.requires_grad]
