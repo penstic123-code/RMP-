@@ -10,6 +10,6 @@ def test_recall_across_sessions():
         E.write(l)
     assert E.recall('What is my name?') == []                 # 同一会话不重现
     E.new_session()
-    assert E.recall('What is my cat\'s name?')[-1] == 'I have a cat named Mirafe.' or 'I have a cat named Mirafe.' in E.recall("What is my cat's name?")
+    assert 'I have a cat named Mirafe.' in E.recall("What is my cat's name?")
     assert all(not r.endswith('?') for r in E.recall('What is my name?'))
     assert E.recall('Hi again!') == []
