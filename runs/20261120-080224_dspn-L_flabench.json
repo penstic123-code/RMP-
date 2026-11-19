@@ -1,0 +1,55 @@
+{
+ "name": "dspn-L_flabench",
+ "kind": "dspn",
+ "size": "L",
+ "extra": {
+  "layers": 4,
+  "rows": 1,
+  "cols": 2,
+  "d": 320,
+  "hidden": 640,
+  "m": 48,
+  "q": 32,
+  "emb": 64,
+  "hub_after": 2,
+  "hub_heads": 4,
+  "hub_dk": 64,
+  "hub_out": 32,
+  "hub_taus": [
+   300,
+   3000,
+   30000,
+   1000000
+  ],
+  "beta_max": 2,
+  "ws_slots": 4,
+  "pred_self": 0.01,
+  "nb_count": true
+ },
+ "params": 4762012,
+ "data": "tiny",
+ "device": "cuda",
+ "batch": 16,
+ "T": 1024,
+ "iters": 500,
+ "lr": 0.001,
+ "seed": 0,
+ "stateful": false,
+ "bot_loss": false,
+ "sched": "wsd",
+ "init": null,
+ "code_sha": "a76e0004c3e9",
+ "seconds": 174,
+ "train_bytes_per_sec": 49840,
+ "peak_gpu_mb": 4683,
+ "val_bpc": 1.5695,
+ "val_bpc_stream": 1.5049,
+ "log": [
+  [
+   500,
+   174,
+   1.556,
+   1.525
+  ]
+ ]
+}
