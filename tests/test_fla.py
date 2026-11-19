@@ -9,7 +9,7 @@ pytestmark = pytest.mark.skipif(not torch.cuda.is_available() or importlib.util.
 
 def test_fla_matches_local():
     torch.manual_seed(0)
-    m = D.DSPNLayered(layers=2, rows=1, cols=2, d=32, m=16, hidden=32, q=8, emb=16, hub_after=1, hub_dk=16, beta_max=2).cuda()
+    m = D.DSPNLayered(layers=2, M=2, d=32, m=16, hidden=32, q=8, emb=16, hub_after=1, hub_dk=16, beta_max=2).cuda()
     with torch.no_grad():
         m.readout.weight.normal_(0, 0.3)
         for l in m.layers:

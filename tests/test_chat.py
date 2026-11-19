@@ -9,8 +9,8 @@ from chat import Chat
 
 def tiny():
     torch.manual_seed(0)
-    m = D.DSPNLayered(layers=2, rows=1, cols=2, d=8, m=4, hidden=8, q=4, emb=8, hub_after=1, hub_dk=8, hub_out=8,
-                      hub_taus=[10.0, 1e6]).to(D.DEV)
+    m = D.DSPNLayered(layers=2, M=2, d=8, m=4, hidden=8, q=4, emb=8, hub_after=1, hub_dk=8, hub_out=8,
+                      hub_taus=[10.0, 1000.0]).to(D.DEV)
     with torch.no_grad():
         m.readout.weight.normal_(0, 0.3)
         for l in m.layers:

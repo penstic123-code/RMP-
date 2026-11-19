@@ -16,11 +16,11 @@
 
 - 工作方式：用户授权全自动推进（git 存档、结果为先、只和自己的上一版比，见 [v2.md](v2.md)“用户定的方向”）。仓库已是 git，每步本地提交。
 - 环境：conda 环境 `dspn`（Python 3.11，PyTorch 2.11 + CUDA 12.8，RTX 5060 Laptop 8 GB，Rtxpt.exe 已关，可用约 7 GB）。已装 triton-windows 3.6、fla-core 0.6、einops（均 --no-deps）。
-- 代码要点：[dspn_text.py](../../dspn_text.py)（模型与训练；选项 pred_self/pred_nb/pred_down、local、surprise、pred_detach、conv、out_gate、nb_count；训练 --stateful --bot_loss --sched wsd；DSPN_FLA=1 走 fla 融合内核）、[hub.py](../../hub.py)、[online.py](../../online.py)（睡眠：上下文蒸馏 distill + 旧语料锚定 old）、[episodic.py](../../episodic.py)（海马式情景记忆）、[tools/chat.py](../../tools/chat.py)（--episodic）、[tools/persist_probe.py](../../tools/persist_probe.py)、[tools/analyze_hierarchy.py](../../tools/analyze_hierarchy.py)。设计见 [design/README.md](../design/README.md)（v0.16）。
+- 代码要点（v0.17，2026-11-20 重写；v0.16 在 git 标签 v0.16）：[dspn_text.py](../../dspn_text.py)（模型与训练；完整配置在 SIZES；选项 chunk（动态分块）、bcast（窗口级广播）、pred_self/pred_down、local、grad_ckpt；训练默认 --stateful、WSD、bf16，可选 --compile、--bot_loss）、[hub.py](../../hub.py)、[online.py](../../online.py)（在线 lora / eprop；睡眠：上下文蒸馏 + 旧语料锚定）、[episodic.py](../../episodic.py)（海马式情景记忆）、[tools/chat.py](../../tools/chat.py)（--episodic）、[tools/analyze_hierarchy.py](../../tools/analyze_hierarchy.py)。设计见 [design/README.md](../design/README.md)（v0.17）。
 - 数据：TinyStoriesV2；对话 data/chat3-*（当前，记忆对话 40%、带重现行），chat2-*（无重现行），chat-*（旧，
 
  换行，别再用）。make_chat_data.py 生成。
-- **demo**：最好的对话模型 runs/dspn-L_chat3.pt（E50；chat4 与之持平，E52）。试用：`python tools/chat.py runs/dspn-L_chat3.pt --size L --extra "<tools/queues/overnight.json 里的 extra>" --episodic`；/new /sleep /save /quit。跨会话约 5/8（靠情景记忆），名字复制常错、人名宠物名会混。
+- **demo**：最好的对话模型 runs/dspn-L_chat3.pt（E50；chat4 与之持平，E52），只能在 git 标签 v0.16 的代码下运行（`git worktree add ../dspn016 v0.16`）。试用：`python tools/chat.py runs/dspn-L_chat3.pt --size L --extra "<tools/queues/overnight.json 里的 extra>" --episodic`；/new /sleep /save /quit。跨会话约 5/8（靠情景记忆），名字复制常错、人名宠物名会混。
 - **正在跑**：无（GPU 空闲）。
 - **已采纳进下次预训练**（[v2.md](v2.md)“已确认采纳”）：pred_self=0.01（E51）、nb_count（E53）、--sched wsd（E53）。不采纳：out_gate、conv、pred_nb、local、surprise（E45、E49、E53）。
 - **v2 架构已选定**（2026-11-20，[design/candidates/20-dspn-v2.md](../design/candidates/20-dspn-v2.md)）：删持久头与网格代码，工作空间并入中枢块末广播，新奇信号管海马写入与在线可塑，睡眠加事实蒸馏（海马教皮层）。

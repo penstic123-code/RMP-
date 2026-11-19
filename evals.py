@@ -113,7 +113,7 @@ def name_recall(model, device, n=200, seed=0):
 if __name__ == '__main__':
     import dspn_text as D
     ap = argparse.ArgumentParser()
-    ap.add_argument('cmd', choices=['mqar', 'names']); ap.add_argument('kind', choices=['dspn', 'gru', 'tf'])
+    ap.add_argument('cmd', choices=['mqar', 'names']); ap.add_argument('kind', choices=['dspn'])
     ap.add_argument('--size', default='S', choices=list(D.SIZES))
     ap.add_argument('--extra', default='{}')
     ap.add_argument('--tag', default='', help='names：读 runs/{kind}-{size}{tag}.pt')

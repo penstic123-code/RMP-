@@ -11,7 +11,7 @@ from online import demo_new_word
 
 ap = argparse.ArgumentParser()
 ap.add_argument('ckpt'); ap.add_argument('--size', default='S'); ap.add_argument('--extra', default='{}')
-ap.add_argument('--kind', default='dspn', choices=['dspn', 'gru'])
+ap.add_argument('--kind', default='dspn', choices=['dspn'])
 ap.add_argument('--learner', default='{}', help='OnlineLearner 参数 JSON，如 {"lr": 3e-4, "params": "lora", "replay": 0.25, "wd": 0.01}')
 ap.add_argument('--sleep', default='{}', help='sleep 参数 JSON，如 {"steps": 0} 或 {"anchor": 1.0, "lr": 1e-4}')
 ap.add_argument('--day',type=int, default=0, help='教新词前先在线读多少字节普通故事（填充重放池）')

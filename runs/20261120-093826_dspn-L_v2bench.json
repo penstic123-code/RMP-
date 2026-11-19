@@ -1,0 +1,45 @@
+{
+ "name": "dspn-L_v2bench",
+ "kind": "dspn",
+ "size": "L",
+ "extra": {},
+ "params": 4766808,
+ "data": "tiny",
+ "device": "cuda",
+ "batch": 16,
+ "T": 1024,
+ "iters": 1500,
+ "lr": 0.001,
+ "seed": 0,
+ "stateful": true,
+ "bot_loss": false,
+ "sched": "wsd",
+ "bf16": true,
+ "init": null,
+ "code_sha": "a7a075df57ab",
+ "seconds": 281,
+ "train_bytes_per_sec": 87976,
+ "peak_gpu_mb": 2565,
+ "val_bpc": 1.3047,
+ "val_bpc_stream": 1.0769,
+ "log": [
+  [
+   500,
+   155,
+   1.725,
+   1.852
+  ],
+  [
+   1000,
+   217,
+   1.319,
+   1.52
+  ],
+  [
+   1500,
+   281,
+   1.108,
+   1.27
+  ]
+ ]
+}

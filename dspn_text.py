@@ -1,17 +1,16 @@
-"""DSPN 字节级语言模型：分层模块网格（门控对角线性循环 c + 快记忆 S + 局部 MLP），离线训练入口。
+"""DSPN v2 字节级语言模型：每层 M 个模块（门控对角线性循环 c + 快记忆 S + 局部 MLP），全局记忆中枢，窗口级广播。
 
-设计见 docs/design/README.md；排期见 docs/plan/README.md。v0.14 原型原样保存在 legacy/dspn_text_v014.py。
+设计见 docs/design/README.md（第 20 章）；排期见 docs/plan/fast-clean.md。v0.16 及更早的代码在 git 标签 v0.16 与 legacy/。
 
 用法：
   python dspn_text.py train dspn --size S --data tiny --iters 3000
-  python dspn_text.py train gru  --size S --data tiny --iters 3000     # 参数量自动对齐 dspn 同档
-  python dspn_text.py train tf   --size S --data tiny --iters 3000
   python dspn_text.py sample dspn --size S --prompt "Once upon a time"
 """
 import argparse, hashlib, json, math, os, time
 from pathlib import Path
 import numpy as np
 import torch, torch.nn as nn, torch.nn.functional as F
+from torch.utils.checkpoint import checkpoint
 
 DEV = 'cuda' if torch.cuda.is_available() else 'cpu'
 torch.backends.cuda.matmul.allow_tf32 = True
@@ -20,17 +19,23 @@ ROOT = Path(__file__).resolve().parent
 DATASETS = {
     'shakespeare': ('data/input.txt', None),
     'tiny': ('data/TinyStoriesV2-GPT4-train.txt', 'data/TinyStoriesV2-GPT4-valid.txt'),
-    'chat': ('data/chat-train.txt', 'data/chat-valid.txt'),             # 旧版：换行是 \r\n（Windows 写文本时转换），跨会话间隔短
     'chat2': ('data/chat2-train.txt', 'data/chat2-valid.txt'),          # make_chat_data.py --memory_frac 0.25 --out chat2（无重现行）
     'chat3': ('data/chat3-train.txt', 'data/chat3-valid.txt'),          # make_chat_data.py 现版：记忆对话 40%，跨会话一半带重现行
 }
-SEP = 30   # 会话边界字节（ASCII 记录分隔符）：清空 c、快记忆与中枢的短时头，保留中枢持久头（τ ≥ 1e5）
+SEP = 30   # 会话边界字节（ASCII 记录分隔符）：清空 c、快记忆、中枢与广播
 
-SIZES = {   # 约 0.3M / 0.9M / 3.4M 参数
-    'S': dict(layers=4, rows=2, cols=4, d=32, m=16, hidden=64, q=8, emb=32),
-    'M': dict(layers=6, rows=4, cols=4, d=32, m=16, hidden=64, q=8, emb=32),
-    'L': dict(layers=4, rows=1, cols=2, d=320, m=48, hidden=640, q=32, emb=64),   # 通宵 dspn-L_base 的主干（中枢等见 tools/queues/overnight.json）
+_HUB = dict(hub_after=2, hub_heads=4, hub_taus=[300, 1000, 3000, 30000], beta_max=2, pred_self=0.01)
+SIZES = {   # 完整配置都在这里，命令行 --extra 只用来覆盖个别项
+    'S': dict(layers=3, M=2, d=90, m=16, hidden=180, q=16, emb=32, hub_dk=32, hub_out=16, **_HUB),     # 约 0.36M，E53 基线
+    'L': dict(layers=4, M=2, d=320, m=48, hidden=640, q=32, emb=64, hub_dk=64, hub_out=32, **_HUB),    # 约 470 万，dspn-L_base 主干
 }
+
+# 融合内核（flash-linear-attention，triton-windows）：CUDA 上默认使用，DSPN_FLA=0 关闭。逐字节聊天等短序列走本地实现。
+try:
+    import fla  # noqa: F401
+    USE_FLA = os.environ.get('DSPN_FLA', '1') == '1'
+except ImportError:
+    USE_FLA = False
 
 
 def load_bytes(name):
@@ -48,64 +53,45 @@ def batch(data, b, T, gen=None):
     return xy[:, :-1].to(DEV), xy[:, 1:].to(DEV)
 
 
-def grid_adjacency(rows, cols, count=False):
-    M = rows * cols
-    A = torch.zeros(M, M)
-    for r in range(rows):
-        for c in range(cols):
-            for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-                rr, cc = r + dr, c + dc
-                if 0 <= rr < rows and 0 <= cc < cols:      # 边界不环绕
-                    A[r * cols + c, rr * cols + cc] = 1.0
-    if count:                                              # 按实际邻居数平均（1×2 网格每个模块只有 1 个邻居）
-        return A / A.sum(1, keepdim=True).clamp(min=1)
-    return A / 4.0                                         # 旧约定：邻居消息之和除以 4
-
-
-def scan(a, b, c0, chunk=8):
-    """并行扫描 c_t = a_t*c_{t-1} + b_t（沿时间维 1）。块内用对数累乘一次算完，块间顺序衔接。
-    shortcut: a 下限钳在 0.01，块长 8 时 exp(-la) ≤ e^36.8≈1e16。块长 16 时可到 1e32，乘上输入后反传溢出
-    （通宵 L 档第 26000 步 NaN，实测 b·exp(-la) 达 9e31）；改 bf16 或加大块长时换成差分形式。"""
-    T = a.shape[1]
-    pad = -T % chunk                                       # 补齐位 a=1、b=0：状态不变
-    if pad:
-        a = torch.cat([a, a.new_ones(a.shape[0], pad, *a.shape[2:])], 1)
-        b = torch.cat([b, b.new_zeros(b.shape[0], pad, *b.shape[2:])], 1)
-    n = a.shape[1] // chunk
-    A = a.reshape(a.shape[0], n, chunk, *a.shape[2:]); Bv = b.reshape(A.shape)
-    la = torch.log(A.clamp(min=1e-2)).cumsum(2)            # 所有块同时算块内部分（块内从零起步）
-    local = torch.exp(la) * torch.cumsum(Bv * torch.exp(-la), 2)
-    P, Lc = torch.exp(la[:, :, -1]), local[:, :, -1]       # 块尾：c_k = P_k·c_{k−1} + Lc_k
-    s = 1
-    while s < n:                                           # 块间 Hillis–Steele 并行前缀：log2(n) 步，只乘不除，无溢出
-        Lc = torch.cat([Lc[:, :s], P[:, s:] * Lc[:, :-s] + Lc[:, s:]], 1)
-        P = torch.cat([P[:, :s], P[:, s:] * P[:, :-s]], 1)
-        s *= 2
-    ends = Lc + P * c0[:, None]                            # 各块末状态
-    start = torch.cat([c0[:, None], ends[:, :-1]], 1)      # 各块初状态
-    c = (local + torch.exp(la) * start[:, :, None]).reshape(a.shape)[:, :T]
-    return c, ends[:, -1]
-
-
-# 融合内核：flash-linear-attention 的门控 delta（triton-windows）。DSPN_FLA=1 时训练用它（前向 + 反向约快 6–10 倍，
-# 数值差 ~7e-3，TF32 量级）；短序列（逐字节聊天）仍走下面的实现。fla 的状态是本文件 S 的转置。
-USE_FLA = os.environ.get('DSPN_FLA') == '1'
+def scan(la, x, c0, chunk=8):
+    """对角线性递推 c_t = exp(la_t)·c_{t−1} + x_t（沿时间维 1）。la ≤ 0 是对数门。
+    CUDA 上用 fla 的 HGRN 内核；本地实现分块：块内用衰减矩阵 exp(LA_t − LA_s)（s ≤ t，指数 ≤ 0，不会溢出），块间顺序衔接。"""
+    b, T = x.shape[:2]
+    if USE_FLA and x.is_cuda and T >= 16:
+        from fla.ops.hgrn import chunk_hgrn
+        c, cT = chunk_hgrn(x.float().flatten(2), la.float().flatten(2), c0.float().flatten(1), output_final_state=True)
+        return c.view(x.shape), cT.view(c0.shape)
+    pad = -T % chunk
+    if pad:                                                # 补齐位 la=0、x=0：状态不变
+        la, x = (F.pad(t.flatten(2), (0, 0, 0, pad)).view(b, T + pad, *t.shape[2:]) for t in (la, x))
+    n = (T + pad) // chunk
+    LA = la.reshape(b, n, chunk, *la.shape[2:]).cumsum(2)
+    X = x.reshape(LA.shape)
+    D = LA[:, :, :, None] - LA[:, :, None]                 # (b, n, t, s, …)
+    tri = torch.ones(chunk, chunk, dtype=torch.bool, device=x.device).tril().view(1, 1, chunk, chunk, *[1] * (x.dim() - 2))
+    local = (torch.where(tri, D, float('-inf')).exp() * X[:, :, None]).sum(3)   # 块内从零起步
+    outs, c = [], c0
+    for i in range(n):
+        outs.append(local[:, i] + LA[:, i].exp() * c[:, None])
+        c = outs[-1][:, -1]
+    return torch.cat(outs, 1)[:, :T], c
 
 
 def delta_chunk(q, k, v, beta, g, S, C=64):
+    """门控 delta 规则：S ← αS；S ← S + β(v − Sk)kᵀ；r = Sq，log α = g。q, k, v: (b, T, H, m)；beta, g: (b, T, H)；S: (b, H, m, m)。"""
     if USE_FLA and q.is_cuda and q.shape[1] >= 64:
         from fla.ops.gated_delta_rule import chunk_gated_delta_rule
-        r, Sf = chunk_gated_delta_rule(q.contiguous(), k.contiguous(), v.contiguous(), g.contiguous(), beta.contiguous(),
-                                       scale=1.0, initial_state=S.transpose(-1, -2).contiguous(), output_final_state=True)
-        return r, Sf.transpose(-1, -2)
-    return _delta_chunk(q, k, v, beta, g, S, C)
+        dt = q.dtype
+        r, Sf = chunk_gated_delta_rule(q.contiguous(), k.to(dt).contiguous(), v.to(dt).contiguous(), g.float().contiguous(),
+                                       beta.to(dt).contiguous(), scale=1.0, initial_state=S.float().transpose(-1, -2).contiguous(),
+                                       output_final_state=True)
+        return r, Sf.transpose(-1, -2)                     # fla 的状态是本文件 S 的转置
+    return _delta_chunk(q.float(), k.float(), v.float(), beta.float(), g.float(), S.float(), C)
 
 
 def _delta_chunk(q, k, v, beta, g, S, C=64):
-    """分块并行的门控 delta 规则，逐拍等价于 S ← αS；S ← S + β(v − Sk)kᵀ；r = Sq，log α = g。
-    q, k, v: (b, T, M, m)；beta, g: (b, T, M)；S: (b, M, m, m)。
-    块内用三角求解一次算完 C 拍的写入，块间顺序传状态（Gated DeltaNet 分块算法，Yang 等 2024；
-    结构参照 flash-linear-attention 的朴素参考实现）。内部按行向量约定 S' = Sᵀ 计算。"""
+    """分块并行的参考实现（Gated DeltaNet 分块算法，Yang 等 2024；结构参照 fla 的朴素参考实现）。
+    块内用三角求解一次算完 C 拍的写入，块间顺序传状态。内部按行向量约定 S' = Sᵀ 计算。"""
     b, T, M, m = k.shape
     C = min(C, T)                                   # 逐拍（T=1）时不补到 64 拍
     pad = -T % C
@@ -137,13 +123,11 @@ def _delta_chunk(q, k, v, beta, g, S, C=64):
 
 
 class Layer(nn.Module):
-    """一层模块，同层参数堆叠成 [M, …] 张量。所有时间步一起算门、投影和扫描，快记忆分块并行。
-    lora_a / lora_b 是 MLP 第一层的秩 2 在线偏移（设计第 3 节），离线训练时冻结，在线阶段打开。"""
-    def __init__(self, rows, cols, U, d, m, hidden, q, rank=2, beta_max=1.0, conv=0, out_gate=False, nb_count=False):
+    """一层 M 个模块，参数堆叠成 [M, …]。所有时间步一起算门、投影、扫描与快记忆。
+    lora_a / lora_b 是 MLP 第一层的秩 2 在线偏移（离线冻结，在线阶段打开）。"""
+    def __init__(self, M, U, d, m, hidden, q, rank=2, beta_max=1.0):
         super().__init__()
-        M = rows * cols
         self.M, self.d, self.m, self.beta_max = M, d, m, beta_max
-        self.register_buffer('adj', grid_adjacency(rows, cols, nb_count))
         p = lambda *s: nn.Parameter(torch.randn(*s) / math.sqrt(s[-2]))
         self.B = p(M, U, d); self.G = nn.Parameter(torch.zeros(M, U, d))
         tau = torch.logspace(math.log10(1.5), 3, d); a0 = 1 - 1 / tau       # 时间常数 1.5–1000 步
@@ -155,56 +139,58 @@ class Layer(nn.Module):
         self.W2 = nn.Parameter(torch.zeros(M, hidden, d)); self.P = p(M, d, q)
         self.lora_a = nn.Parameter(torch.randn(M, d + m, rank) / math.sqrt(d + m), requires_grad=False)
         self.lora_b = nn.Parameter(torch.zeros(M, rank, hidden), requires_grad=False)
-        # 快记忆生产配方（Kimi Linear / Gated DeltaNet，literature/cards/fast-memory.md 卡 1）：
-        # conv>0：k、v、q 投影后过长度 conv 的因果逐通道卷积（初值恒等，起步等于不卷积），状态里存前 conv−1 拍；
-        # out_gate：快记忆读出先 RMS 归一化，再乘 sigmoid(c·W_og) 的门。
-        self.conv, self.out_gate = conv, out_gate
-        if conv:
-            w = torch.zeros(M, 3 * m, conv); w[..., -1] = 1.0
-            self.conv_w = nn.Parameter(w)
-        if out_gate:
-            self.W_og = nn.Parameter(torch.zeros(M, d, m))
+        self.rec = None             # e-prop（online.py）打开时是列表：记下 (u, la, c0, c)，c 设为叶子以取得学习信号 ∂L/∂c
 
     def init_state(self, b, device):
-        st = (torch.zeros(b, self.M, self.d, device=device), torch.zeros(b, self.M, self.m, self.m, device=device))
-        return st + ((torch.zeros(b, self.conv - 1, self.M, 3 * self.m, device=device),) if self.conv else ())
+        return torch.zeros(b, self.M, self.d, device=device), torch.zeros(b, self.M, self.m, self.m, device=device)
 
-    def forward(self, u, state, active=None, reset=None, wbias=None):   # wbias: (b, T) 加到写入强度 β 的 logit（惊讶门控）；u: (b, T, M, U)；active: (b, M) 0/1，0 的模块本块冻结（RIMs 式稀疏更新）
-        c0, S, *cs = state                                     # cs: 卷积缓存（conv>0 时）；reset: (b, T) 布尔，会话边界字节处清空 c 与 S
-        d, m = self.d, self.m
-        ga, gb = torch.einsum('btmu,mud->btmd', u, torch.cat([self.G, self.B], -1)).split(d, -1)   # 读 u 的两个投影合成一次
-        a = torch.sigmoid(ga + self.b_a)
-        inp = (1 - a) * gb                                     # 输入比例用原门值：边界处只清旧状态，不放大写入
+    def gates(self, u):
+        """读 u 的两个投影：慢通道的对数门 la 与写入 x = (1 − a)·(B u)。"""
+        ga, gb = torch.einsum('btmu,mud->btmd', u, torch.cat([self.G, self.B], -1)).split(self.d, -1)
+        z = ga + self.b_a
+        return F.logsigmoid(z), torch.sigmoid(-z) * gb
+
+    def forward(self, u, state, reset=None, keep=None):    # u: (b, T, M, U)；reset: (b, T) 布尔，会话边界字节处清空 c 与 S；keep: (b, T) 0/1，0 的位置（块序列的补齐位）不改状态
+        c0, S = state
+        la, x = self.gates(u)                                  # 输入比例用原门值：边界处只清旧状态，不放大写入（E42）
         if reset is not None:
-            a = a.masked_fill(reset[..., None, None], 0.0)    # scan 把 a 钳到 0.01：边界处只留 1% 旧状态
-        if active is not None:                                 # (b, M) 整块冻结，或 (b, T, M) 逐拍冻结（词级的补齐位置）
-            active = active[:, None] if active.dim() == 2 else active
-            act = active[..., None]
-            a, inp = a * act + (1 - act), inp * act                           # 冻结：c 保持不变
-        c, cT = scan(a, inp, c0)
-        W = torch.cat([self.K, self.V, self.Qm, self.w_beta[..., None], self.w_gam[..., None]], -1)   # 读 c 的五个投影合成一次
-        kvq, bl, gl = torch.einsum('btmd,mde->btme', c, W).split([3 * m, 1, 1], -1)
-        new_cs = ()
-        if self.conv:                                      # 因果逐通道卷积：拼上前 conv−1 拍再滑窗
-            x = torch.cat([cs[0], kvq], 1)
-            kvq = sum(x[:, j:j + kvq.shape[1]] * self.conv_w[..., j] for j in range(self.conv))
-            new_cs = (x[:, -(self.conv - 1):],)
-        k, v, qv = kvq.split(m, -1)
-        k = F.normalize(k, dim=-1)
-        wb = 0.0 if wbias is None else wbias[..., None]
-        beta = self.beta_max * torch.sigmoid(bl[..., 0] + self.b_beta + wb)  # beta_max=2：负特征值；门控在 logit 上，β 仍 ≤ beta_max
-        g = F.logsigmoid(-(gl[..., 0] + self.b_gam))                         # log α = log(1 − γ)
-        if active is not None:
-            beta, g = beta * active, g * active                                # 冻结：S 不写不衰减
+            la = la.masked_fill(reset[..., None, None], -30.0)
+        if keep is not None:
+            la, x = la * keep[..., None, None], x * keep[..., None, None].to(x.dtype)
+        c, cT = scan(la, x, c0)
+        c = c.to(x.dtype)
+        if self.rec is not None:
+            c = c.detach().requires_grad_()
+            self.rec.append((u.detach(), la.detach(), c0.detach(), c))
+        k, v, qv, beta, g = self.proj(c)
         if reset is not None:
             g = g.masked_fill(reset[..., None], -30.0)                         # α≈0：边界处清空快记忆
+        if keep is not None:
+            beta, g = beta * keep[..., None].to(beta.dtype), g * keep[..., None]
         r, S = delta_chunk(qv, k, v, beta, g, S)
-        if self.out_gate:
-            r = F.rms_norm(r, (m,)) * torch.sigmoid(torch.einsum('btmd,mde->btme', c, self.W_og))
+        h, z = self.mlp(c, r.to(c.dtype))
+        return h, z, (cT, S)
+
+    def proj(self, c):
+        """读 c 的五个投影（合成一次）：快记忆的 k、v、q 与写入强度 β、对数保留 g。"""
+        m = self.m
+        W = torch.cat([self.K, self.V, self.Qm, self.w_beta[..., None], self.w_gam[..., None]], -1)
+        kvq, bl, gl = torch.einsum('btmd,mde->btme', c, W).split([3 * m, 1, 1], -1)
+        k, v, qv = kvq.split(m, -1)
+        beta = self.beta_max * torch.sigmoid(bl[..., 0] + self.b_beta)      # beta_max=2：允许负特征值
+        g = F.logsigmoid(-(gl[..., 0] + self.b_gam).float())                 # log α = log(1 − γ)
+        return F.normalize(k, dim=-1), v, qv, beta, g
+
+    def mlp(self, c, r):
         W1 = self.W1 + self.lora_a @ self.lora_b
         hid = F.gelu(torch.einsum('btmi,mih->btmh', torch.cat([c, r], -1), W1) + self.b1)
         h = c + torch.einsum('btmh,mhd->btmd', hid, self.W2)
-        return h, torch.einsum('btmd,mdq->btmq', h, self.P), (cT, S) + new_cs
+        return h, torch.einsum('btmd,mdq->btmq', h, self.P)
+
+    def compile_parts(self):
+        """融合逐元素小运算（A5）：门、投影、MLP 三段各自 torch.compile；fla 内核照常调用，外面仍套整步 CUDA Graph。"""
+        for name in ('gates', 'proj', 'mlp'):
+            setattr(self, name, torch.compile(getattr(self, name), dynamic=False))
 
 
 class PredHead(nn.Module):
@@ -218,288 +204,202 @@ class PredHead(nn.Module):
 
 
 class DSPNLayered(nn.Module):
-    """分层网格：消息同一拍内由下层传给上层（正下方模块 + 其四邻居），时间记忆只在 c、S（和中枢）中。
-    hub_after=k 时在第 k、k+1 层之间插入全局记忆中枢（hub.py，设计第 1.2 节），读第 k 层全部消息与本拍嵌入，
-    输出每个上层模块 4 维切片。"""
-    def __init__(self, layers=4, rows=2, cols=4, d=32, m=16, hidden=64, q=8, emb=32, vocab=256,
+    """每层 M 个模块；第 i+1 层模块读第 i 层的 [正下方模块的消息, 其余模块消息的平均]。
+    hub_after=k 时在第 k、k+1 层之间插入全局记忆中枢（hub.py），读第 k 层全部消息与本拍嵌入，逐拍输出给第 k+1 层。
+    广播（bcast>0，第 20 章 / fast-clean A2）：每满 bc_window 字节，中枢末拍读出 RMS 归一化后存进状态，
+    下一窗口里所有层的所有模块都读它（零初始投影，每模块 bcast 维）。整窗并行，不再按 64 字节块串行。
+    动态分块（chunk=N>0，H-Net 式，第 20.8 节第 3 档）：第 0 层在字节上跑（编码器），相邻字节表示的余弦差决定块边界，
+    压缩率损失把平均块长拉向 N；中间各层与中枢只在块序列上跑；块输出按边界概率平滑后放回每个字节，
+    最后一层回到字节上跑（解码器）。块序列定长 K = ⌈2T/N⌉，边界排前、其余为冻结的补齐位。"""
+    def __init__(self, layers=4, M=2, d=32, m=16, hidden=64, q=8, emb=32, vocab=256,
                  hub_after=0, hub_heads=2, hub_dk=32, beta_max=1.0, hub_out=4, hub_taus=None,
-                 ws_slots=0, ws_dim=16, ws_block=64,
-                 word_layers=0, word_d=256, word_hidden=512, word_m=32, word_q=32, word_mods=1,
-                 td_layers=0, td_pc=0.1, td_target=1,
-                 pred_self=0.0, pred_nb=0.0, pred_down=0.0, local=False, surprise=False, pred_detach=False,
-                 conv=0, out_gate=False, nb_count=False):
+                 bcast=4, bc_window=1024, pred_self=0.0, pred_down=0.0, local=False, pred_detach=False, grad_ckpt=False,
+                 chunk=0, chunk_w=0.03, chunk_dr=64):
         super().__init__()
-        M = rows * cols
-        self.M, self.d, self.m, self.hub_after = M, d, m, hub_after
+        self.M, self.d, self.m, self.q, self.hub_after, self.chunk, self.chunk_w = M, d, m, q, hub_after, chunk, chunk_w
+        if chunk:
+            assert layers >= 3 and (not hub_after or 2 <= hub_after <= layers - 1), '分块需要编码层 + 至少一个块层 + 解码层，中枢在块层之后'
         self.emb = nn.Embedding(vocab, emb)
-        # 词级（SpaceByte 式，设计 9.2）：word_layers>0 时，另有一摞只在词边界字节处运行的层；中枢移到词级，
-        # hub_after 表示插在第几个词级层之后。词级输出保持到下一个边界，与字节级各层一起进读出。
-        self.Mw, self.word_d, self.word_m = word_mods, word_d, word_m
-        Mw, wq = word_mods, word_q
-        self.register_buffer('wb', torch.zeros(vocab, dtype=torch.bool), persistent=False)
-        self.wb[list(b' \n.,!?') + [SEP]] = True                                  # 词边界字节
         self.hub = None
         if hub_after:
             from hub import Hub
-            n_in, M_out = (Mw * wq + emb, Mw) if word_layers else (M * q + emb, M)
-            self.hub = Hub(n_in, M_out, out_dim=hub_out, heads=hub_heads, dk=hub_dk,
-                           beta_max=beta_max, taus=hub_taus)
-        Uw = lambda j: (M * q + emb if j == 0 else 2 * wq + (hub_out if hub_after and j == hub_after else 0))
-        self.wlayers = nn.ModuleList([Layer(1, Mw, Uw(j), word_d, word_m, word_hidden, wq, beta_max=beta_max)
-                                      for j in range(word_layers)])
-        # 全局工作空间（设计 8.7）：每块末全部模块软竞争写入 ws_slots 个槽位，下一块广播给所有层所有模块（每模块 4 维）。
-        # 完整版（硬竞争、选择性读、稀疏更新、点燃、预测编码）使训练锁死（E35），已删。
-        self.ws_slots, self.ws_dim, self.ws_block = ws_slots, ws_dim, ws_block
-        self.aux = 0.0                                                            # 辅助损失，每次前向重算，train 加进总损失
-        if ws_slots:
-            self.ws_id = nn.Parameter(torch.randn(layers * M, q) * 0.1)            # 模块身份，打分时区分来源
-            self.ws_q = nn.Parameter(torch.randn(ws_slots, 16))
-            self.ws_k = nn.Linear(q, 16, bias=False); self.ws_v = nn.Linear(q, ws_dim, bias=False)
-            self.ws_keep = nn.Parameter(torch.zeros(ws_slots))                    # 槽位跨块保留门（维持）
-            self.ws_in = nn.Parameter(torch.zeros(layers, ws_slots * ws_dim, M * 4))   # 零初始：起步等于无工作空间
-        W = 4 if ws_slots else 0
-        hub_byte = hub_after and not word_layers
-        U = lambda i: (emb if i == 0 else 2 * q + (hub_out if hub_byte and i == hub_after else 0)) + W
-        self.layers = nn.ModuleList([Layer(rows, cols, U(i), d, m, hidden, q, beta_max=beta_max, conv=conv, out_gate=out_gate, nb_count=nb_count)
-                                     for i in range(layers)])
-        # 自上而下（第二扫，TSPH 式，设计 10.1）：上层用上一拍的输出预测下层本拍的消息 z，误差 e = z − 预测；
-        # 再用 [预测, 误差] 跑 td_layers 层字节级“自上而下层”，其输出也进读出。两扫各自整段并行；
-        # 预测头以 MSE（目标停梯度）训练，权重 td_pc。有词级时：词级预测字节顶层；没有时：字节顶层预测第 td_target 层。
-        self.td_pc, self.td_target = td_pc, td_target
-        # 预测学习（可插拔，权重为 0 即关）：每个模块用本拍的 h 预测下一拍的消息 z——自己的（pred_self）、
-        # 邻居的（pred_nb）、正下方下层模块的（pred_down，自上而下）。目标停梯度，误差按目标方差归一化以防坍缩。
-        # local=True：层间消息（含进中枢的）停梯度，每层只由自己的读出路径与自己的预测损失训练（SOLO 式局部学习），
-        # 模块内部（时间扫描、快记忆、MLP）仍用反传。
-        self.pred_w = {'self': pred_self, 'nb': pred_nb, 'down': pred_down}
-        self.local = local
-        # 惊讶门控写入：第 i 层上一拍的自我预测与本拍消息的相对误差 s 是它此刻的惊讶度；
-        # 第 i+1 层（与中枢）的写入强度 logit 加 a·(s − 1)，a 可学、初值 0（等于不门控）。上一拍的预测存在状态里。
-        self.surprise, self.q = surprise, q
-        self.pred_detach = pred_detach                     # True：预测头只“旁观”（梯度不进主干），误差只作惊讶信号
-        if surprise:
-            assert pred_self and not word_layers, 'surprise 需要 pred_self，且只用于字节级'
-            self.sg_a = nn.Parameter(torch.zeros(layers + 1))                  # 最后一个给中枢
-        self.pred = nn.ModuleDict({k: nn.ModuleList([PredHead(M, d, q) for _ in range(layers)])
-                                   for k, w in self.pred_w.items() if w})
-        if td_layers:
-            src = word_layers * Mw * word_d if word_layers else M * d
-            self.td_pred = nn.Linear(src, M * q)
-            self.tdlayers = nn.ModuleList([Layer(rows, cols, 2 * q, d, m, hidden, q, beta_max=beta_max) for _ in range(td_layers)])
-        else:
-            self.tdlayers = nn.ModuleList()
-        n_read = layers * M * d + word_layers * Mw * word_d + td_layers * M * d
+            self.hub = Hub(M * q + emb, M, out_dim=hub_out, heads=hub_heads, dk=hub_dk, beta_max=beta_max, taus=hub_taus)
+        self.bcast = bcast if hub_after else 0
+        self.bc_window = bc_window
+        if self.bcast:
+            self.bc_in = nn.Parameter(torch.zeros(layers, hub_heads * hub_dk, M * bcast))   # 零初始：起步等于无广播
+        nmsg = q * (2 if M > 1 else 1)
+        U = [emb] + [nmsg + (hub_out if hub_after and i == hub_after else 0) for i in range(1, layers)]
+        if chunk:                                          # 解码层另读编码层的消息（残差）
+            U[-1] += nmsg
+            self.Wr = nn.Parameter(torch.randn(2, M * d, chunk_dr) / math.sqrt(M * d))   # 路由的 q、k 投影
+        self.layers = nn.ModuleList([Layer(M, U[i] + self.bcast, d, m, hidden, q, beta_max=beta_max) for i in range(layers)])
+        # 预测学习（可插拔，权重为 0 即关）：每个模块用本拍的 h 预测下一拍的消息 z——自己的（pred_self，E51 采纳 0.01）、
+        # 正下方下层模块的（pred_down）。目标停梯度，误差按目标均方值归一化。
+        # local=True：层间消息（含进中枢的）停梯度，每层只由自己的读出路径与预测损失训练（SOLO 式局部学习）。
+        self.pred_w = {k: w for k, w in (('self', pred_self), ('down', pred_down)) if w}
+        self.pred = nn.ModuleDict({k: nn.ModuleList([PredHead(M, d, q) for _ in range(layers)]) for k in self.pred_w})
+        self.local, self.pred_detach, self.grad_ckpt = local, pred_detach, grad_ckpt
+        self.aux, self.stats = 0.0, {}                     # 辅助损失（每次前向重算，train 加进总损失）；分块统计
+        n_read = layers * M * d
         self.norm = nn.LayerNorm(n_read)
         self.readout = nn.Linear(n_read, emb)              # 瓶颈后与 E 共享（设计第 1.1 节）
         nn.init.zeros_(self.readout.weight)                # 共享 E 时从均匀分布起步，免得初始对数几率过大
         self.bias = nn.Parameter(torch.zeros(vocab))
 
     def init_state(self, b):
-        z = lambda *s: torch.zeros(b, self.M, *s, device=self.emb.weight.device)
-        st = [layer.init_state(b, self.emb.weight.device) for layer in self.layers]
         dev = self.emb.weight.device
-        zw = lambda *s: torch.zeros(b, self.Mw, *s, device=dev)
-        st += [(zw(self.word_d), zw(self.word_m, self.word_m)) for _ in self.wlayers]
+        st = [layer.init_state(b, dev) for layer in self.layers]
         st += [self.hub.init_state(b, dev)] if self.hub else []
-        if self.wlayers:                                   # 最近一个词的词级输出（保持到下一个边界）
-            st.append(torch.zeros(b, len(self.wlayers) * self.Mw * self.word_d, device=dev))
-        st += [(z(self.d), z(self.m, self.m)) for _ in self.tdlayers]
-        if self.tdlayers and not self.wlayers:             # 字节顶层上一拍的输出（自上而下预测的来源）
-            st.append(torch.zeros(b, self.M * self.d, device=dev))
-        if self.surprise:                                  # 各层上一拍对本层下一拍消息的预测
-            st.append(tuple(z(self.q) for _ in self.layers))
-        if self.ws_slots:      # (槽位, 各模块读到的 4 维, 已读字节数)；块边界按全局位置对齐，逐拍与整段一致
-            dev, L = self.emb.weight.device, len(self.layers)
-            st.append((torch.zeros(b, self.ws_slots, self.ws_dim, device=dev), torch.zeros(b, L, self.M, 4, device=dev), 0))
+        if self.chunk:                                     # (上一字节的路由键, 当前块平滑后的输出, 最近一个块处的中枢读出)
+            L, nmsg = len(self.layers), self.layers[-1].B.shape[1] - self.bcast - self.q * (2 if self.M > 1 else 1)
+            hd = self.hub.heads * self.hub.dk if self.hub else 1
+            st.append((torch.zeros(b, self.Wr.shape[-1], device=dev), torch.zeros(b, (L - 2) * self.M * self.d + self.M * nmsg, device=dev),
+                       torch.zeros(b, hd, device=dev)))
+        if self.bcast:                                     # (本窗口广播的中枢读出, 已读字节数)；窗口按全局位置对齐，逐拍与整段一致
+            st.append((torch.zeros(b, self.hub.heads * self.hub.dk, device=dev), 0))
         return st
+
+    def msg(self, z):
+        """下一层的输入：[正下方模块的消息, 其余模块消息的平均]（M=2 时即另一个模块，等价于 v0.16 的 nb_count）。"""
+        if self.M == 1:
+            return z
+        return torch.cat([z, (z.sum(2, keepdim=True) - z) / (self.M - 1)], -1)
 
     def forward(self, idx, state=None):
         state = state or self.init_state(idx.shape[0])
-        self.aux, self.pred_err = 0.0, {}
-        if not self.ws_slots:
+        self.aux = 0.0
+        if not self.bcast:
             lg, new, _ = self._run(idx, state, None)
             return lg, new
-        slots, reads, pos = state[-1]
-        st, outs, t, T = state[:-1], [], 0, idx.shape[1]
-        while t < T:                                       # 块内整段并行，块间串行（槽位只在块边界更新）
-            n = min(T - t, self.ws_block - pos % self.ws_block)
+        *st, (bc, pos) = state
+        outs, t, T, W = [], 0, idx.shape[1], self.bc_window
+        while t < T:                                       # 训练时 T 是窗口的整数倍、位置对齐，每窗只跑一次
+            n = min(T - t, W - pos % W)
             seg = idx[:, t:t + n]
-            lg, st, zs = self._run(seg, st, reads)
+            lg, st, r_last = self._run(seg, st, bc)
             outs.append(lg); t += n; pos += n
-            fresh = (seg == SEP).any(1)                    # 本块含会话边界：旧槽位作废（与 c、快记忆、短时头一致）
-            slots = slots * (~fresh)[:, None, None]
-            if pos % self.ws_block == 0:
-                slots, reads = self._ws_write(zs, slots)
-            reads = reads * (~fresh)[:, None, None, None] if pos % self.ws_block else reads
-        return torch.cat(outs, 1), st + [(slots, reads, pos)]
+            bc = bc * (~(seg == SEP).any(1))[:, None]      # 本窗含会话边界：旧广播作废
+            if pos % W == 0:
+                bc = F.rms_norm(r_last, r_last.shape[-1:]).float()   # 先归一化再存：跨窗环路不归一化会逐窗放大（E43）
+        return torch.cat(outs, 1), st + [(bc, pos)]
 
-    def _ws_write(self, zs, slots):
-        """各层各模块本块末拍的消息软竞争每个槽位，写入内容与旧槽位按保留门混合；再算下一块各模块读到的内容。"""
-        b, L = slots.shape[0], len(self.layers)
-        tok = torch.stack([z[:, -1] for z in zs], 1).flatten(1, 2)                         # (b, L·M, q)
-        tok = tok.detach() if self.local else tok
-        # 先归一化再写：槽位 → 下一块输入 → 消息 → 槽位是跨块的非线性环路，不归一化时增益过 1 会逐块指数爆炸（E43）
-        tok = F.rms_norm(tok, tok.shape[-1:]) + self.ws_id
-        sc = torch.einsum('sk,bnk->bsn', self.ws_q, self.ws_k(tok)) / 4.0
-        write = torch.softmax(sc, -1) @ self.ws_v(tok)                                   # (b, K, w)
-        keep = torch.sigmoid(self.ws_keep[None, :, None])
-        slots = keep * slots + (1 - keep) * write
-        reads = torch.einsum('bi,lio->blo', slots.flatten(1), self.ws_in).reshape(b, L, self.M, 4)
-        return slots, reads
+    def _layer(self, i, u, st, reset, keep=None):
+        if self.grad_ckpt and self.training:
+            return checkpoint(self.layers[i], u, st, reset, keep, use_reentrant=False)
+        return self.layers[i](u, st, reset, keep)
 
-    def _run(self, idx, state, reads):
+    def _stack(self, lo, hi, u, state, reset, e, reads, alive, keep=None):
+        """跑第 lo..hi−1 层（含其间的中枢）。返回各层 h、新状态、最后的层间输入 u、中枢逐拍读出。"""
+        b, T = u.shape[:2]
+        hs, new, r, zdown = [], [], None, None
+        for i in range(lo, hi):
+            if reads is not None:
+                u = torch.cat([u, reads[:, i].expand(b, T, self.M, self.bcast) * alive], -1)
+            h, z, ns = self._layer(i, u, state[i], reset, keep)
+            hs.append(h.flatten(2)); new.append(ns)
+            if self.pred:
+                self._predict(h, z, zdown, i)
+            zdown = z
+            zu = z.detach() if self.local else z
+            u = self.msg(zu)
+            if self.hub is not None and i + 1 == self.hub_after:
+                o, self._hub_new, r = self.hub(torch.cat([zu.reshape(b, T, -1), e.to(zu.dtype)], -1), state[len(self.layers)], reset, keep)
+                u = torch.cat([u, o.to(u.dtype)], -1)
+        return hs, new, u, r
+
+    def _run(self, idx, state, bc):
         b, T = idx.shape
         e = self.emb(idx)
-        u = e[:, :, None, :].expand(b, T, self.M, -1)
         L = len(self.layers)
-        hs, new, zs = [], [], []
         reset = idx == SEP
-        pp, new_pp, s = (state[-1], [], None) if self.surprise else (None, None, None)
-        for i, (layer, st) in enumerate(zip(self.layers, state)):
-            if reads is not None:                          # 会话边界之后本块不再读旧槽位
-                alive = (reset.cumsum(1) == 0).float()[:, :, None, None]
-                u = torch.cat([u, reads[:, i, None].expand(b, T, self.M, 4) * alive], -1)
-            wb = None if s is None else self.sg_a[i] * (s - 1)
-            h, z, ns = layer(u, st, None, reset, wb)
-            hs.append(h); new.append(ns); zs.append(z)
-            if self.surprise:                              # 本层惊讶度：上一拍的预测 vs 本拍消息（相对误差，与批大小、T 无关）
-                pr = self.pred['self'][i](h.detach() if self.pred_detach else h)
-                prev = torch.cat([pp[i][:, None], pr[:, :-1]], 1)
-                s = (((prev - z) ** 2).sum(-1) / (z ** 2).sum(-1).clamp(min=1e-6)).mean(-1).detach()   # (b, T)
-                new_pp.append(pr[:, -1].detach())
-            if self.pred:
-                self._predict(i, layer, h, z, zs)
-            zu = z.detach() if self.local else z
-            u = torch.cat([zu, torch.einsum('ij,btjq->btiq', layer.adj, zu)], -1)
-            if self.hub is not None and not self.wlayers and i + 1 == self.hub_after:
-                o, hs_new = self.hub(torch.cat([zu.reshape(b, T, -1), e], -1), state[L], reset,
-                                     wbias=None if s is None else self.sg_a[L] * (s - 1))
-                u = torch.cat([u, o], -1)
-        hs = [h.flatten(2) for h in hs]
-        if self.wlayers:
-            held, wnew = self._word(idx, e, zs[-1], reset, state[L:])
-            hs.append(held); new += wnew
-        elif self.hub is not None:
-            new.append(hs_new)
-        if self.tdlayers:                                  # 第二扫：上层上一拍的输出预测下层本拍的消息，两者相遇算误差
-            if self.wlayers:
-                src, prev0, zt = held, state[L + len(self.wlayers) + (self.hub is not None)], zs[-1]
-            else:
-                src, prev0, zt = hs[L - 1], state[len(new) + len(self.tdlayers)], zs[self.td_target]
-            prev = torch.cat([prev0[:, None], src[:, :-1]], 1)
-            pred = self.td_pred(prev).reshape(b, T, self.M, -1)
-            self.aux = self.aux + self.td_pc * ((pred - zt.detach()) ** 2).mean()
-            u = torch.cat([pred, zt - pred], -1)
-            for layer, st in zip(self.tdlayers, state[len(new):]):
-                h, z, ns = layer(u, st, None, reset)
-                hs.append(h.flatten(2)); new.append(ns)
-                u = torch.cat([z, torch.einsum('ij,btjq->btiq', layer.adj, z)], -1)
-            if not self.wlayers:
-                new.append(src[:, -1])
-        if self.surprise:
-            new.append(tuple(new_pp))
+        reads = alive = None
+        if bc is not None:                                 # 会话边界之后本窗不再读旧广播
+            alive = (reset.cumsum(1) == 0).to(e.dtype)[:, :, None, None]
+            bcn = bc.detach() if self.local else bc
+            reads = torch.einsum('bi,lio->blo', bcn.to(e.dtype), self.bc_in.to(e.dtype)).reshape(b, L, 1, self.M, self.bcast)
+        u0 = e[:, :, None, :].expand(b, T, self.M, -1)
+        if not self.chunk:
+            hs, new, _, r = self._stack(0, L, u0, state, reset, e, reads, alive)
+            if self.hub is not None:
+                new.append(self._hub_new)
+            r_last = None if r is None else r[:, -1]
+        else:
+            hs, new, r_last = self._run_chunked(idx, e, u0, state, reset, reads, alive)
         y = self.readout(self.norm(torch.cat(hs, -1)))
-        return y @ self.emb.weight.t() + self.bias, new, zs
+        return y @ self.emb.weight.t().to(y.dtype) + self.bias, new, r_last
 
-    def _predict(self, i, layer, h, z, zs):
-        """本拍 h 预测下一拍的消息；归一化 MSE 加进 self.aux，逐模块误差记在 self.pred_err（可作惊讶信号）。"""
-        targets = {'self': z, 'nb': torch.einsum('ij,btjq->btiq', layer.adj, z), 'down': zs[i - 1] if i else None}
+    def _run_chunked(self, idx, e, u0, state, reset, reads, alive):
+        b, T = idx.shape
+        L, N = len(self.layers), self.chunk
+        ck_prev, held_prev, r_prev = state[L + (self.hub is not None)]
+        h0, new0, m0, _ = self._stack(0, 1, u0, state, reset, e, reads, alive)          # 编码层（字节）
+        # 路由：p_t = (1 − cos(q_t, k_{t−1})) / 2，p ≥ 0.5 即本字节开始一个新块；会话边界强制开新块
+        qr, kr = (F.normalize(h0[0].float() @ self.Wr[j], dim=-1) for j in (0, 1))
+        kprev = torch.cat([ck_prev[:, None], kr[:, :-1]], 1)
+        p = ((1 - (qr * kprev).sum(-1)) / 2).clamp(0, 1)
+        p = torch.where(reset, torch.ones_like(p), p)
+        bnd = p >= 0.5
+        F_, G_ = bnd.float().mean(), p.mean()                                           # H-Net 压缩率损失：平均块长拉向 N
+        self.aux = self.aux + self.chunk_w * N / (N - 1) * ((N - 1) * F_ * G_ + (1 - F_) * (1 - G_))
+        prevb = torch.cat([idx.new_zeros(b, 1), idx[:, :-1]], 1)
+        self.stats = {'rate': F_.detach(), 'word': (bnd & self.wbound(prevb)).sum().detach() / bnd.sum().clamp(min=1),
+                      'word_base': self.wbound(prevb).float().mean().detach()}
+        # 收成定长 K 的块序列：边界在前、按时间排序；超出 K 的边界并入第 K 块（压缩率损失收敛后极少）
+        K = min(T, max(1, math.ceil(2 * T / N)))
+        pos = (torch.arange(T, device=idx.device) + T * (~bnd).long()).argsort(-1)[:, :K]
+        valid = bnd.gather(1, pos)
+        keep = valid.float()
+        g = lambda x: x.gather(1, pos.view(b, K, *[1] * (x.dim() - 2)).expand(b, K, *x.shape[2:]))
+        hm, newm, um, r = self._stack(1, L - 1, g(m0), state, g(reset), g(e), reads,
+                                      None if alive is None else g(alive), keep)                     # 块层
+        # 平滑（H-Net）：z̄_j = P_j z_j + (1 − P_j) z̄_{j−1}，再按字节所在的块放回；STE 置信度把梯度送回路由
+        P = g(p) * keep
+        bundle = torch.cat(hm + [um.flatten(2).to(hm[0].dtype)], -1)
+        zbar, held = scan(torch.log1p(-P.clamp(max=1 - 1e-6))[..., None].expand_as(bundle).float(),
+                          (P[..., None] * bundle.float()), held_prev)
+        table = torch.cat([held_prev[:, None], zbar], 1)
+        cum = bnd.long().cumsum(1).clamp(max=K)
+        up = table.gather(1, cum[..., None].expand(-1, -1, table.shape[-1]))
+        conf = torch.where(bnd, p, 1 - p)
+        up = up * (conf + (1 - conf).detach())[..., None].to(up.dtype)
+        nh = (L - 2) * self.M * self.d
+        hup = up[..., :nh]
+        uup = up[..., nh:].reshape(b, T, self.M, -1)
+        hd, newd, _, _ = self._stack(L - 1, L, torch.cat([m0, uup.to(m0.dtype)], -1), state, reset, e, reads, alive)   # 解码层（字节）
+        r_last = r_prev                                    # 广播取最后一个有效块处的中枢读出；本段无边界时沿用上次的
+        if r is not None:
+            nv = valid.long().sum(1)
+            got = r.gather(1, (nv - 1).clamp(min=0)[:, None, None].expand(-1, 1, r.shape[-1]))[:, 0].float()
+            r_last = torch.where((nv > 0)[:, None], got, r_prev)
+        new = new0 + newm + newd + ([self._hub_new] if self.hub is not None else []) + [(kr[:, -1], held, r_last)]
+        return h0 + [hup.to(hd[0].dtype)] + hd, new, r_last
+
+    @staticmethod
+    def wbound(x):
+        return (x == 32) | (x == 10) | (x == 46) | (x == 44) | (x == 33) | (x == 63)
+
+    def _predict(self, h, z, zdown, i):
+        """本拍 h 预测下一拍的消息（自己的 z、正下方下层的 zdown）；归一化 MSE 加进 self.aux。"""
+        targets = {'self': z, 'down': zdown}
         for k, heads in self.pred.items():
             tgt = targets[k]
             if tgt is None or h.shape[1] < 2:
                 continue
-            tgt = tgt[:, 1:].detach()
+            tgt = tgt[:, 1:].detach().float()
             hin = h[:, :-1].detach() if self.pred_detach else h[:, :-1]
-            # 按目标均方值归一化并设下限：除以方差时，消息方差一缩小梯度就按 1/方差放大，S 档 pred_self 第 500 步 NaN（E45）
-            err = (heads[i](hin) - tgt).square().mean(-1) / tgt.square().mean().clamp(min=1e-2)    # (b, T−1, M)
+            # 按目标均方值归一化并设下限：除以方差时消息方差一缩小梯度就放大，曾 NaN（E45）
+            err = (heads[i](hin).float() - tgt).square().mean(-1) / tgt.square().mean().clamp(min=1e-2)
             self.aux = self.aux + self.pred_w[k] * err.mean()
-            self.pred_err[(k, i)] = err.detach()
-
-    def _word(self, idx, e, zt, reset, st):
-        """词级：把本段的词边界位置收成定长 K 的序列（边界在前、按时间排序，其余为补齐位并冻结），
-        在其上跑词级层与中枢；每个字节位置取“到它为止最近一个词”的输出。超过 K 个边界时多出的并入第 K 个（需一段里过半字节是边界，极罕见；此时整段与逐拍结果不再一致）。"""
-        b, T = idx.shape
-        Wl = len(self.wlayers)
-        hub_st, wprev = (st[Wl], st[Wl + 1]) if self.hub is not None else (None, st[Wl])
-        isb = self.wb[idx]
-        K = min(T, T // 2 + 1)                             # 边界超过一半字节才会溢出；1/3 在标点密的对话里会溢出
-        pos = (torch.arange(T, device=idx.device) + T * (~isb).long()).argsort(-1)[:, :K]
-        valid = isb.gather(1, pos)
-        x = torch.cat([zt.flatten(2), e], -1)
-        x = x.gather(1, pos[..., None].expand(-1, -1, x.shape[-1]))                     # (b, K, M·q + emb)
-        rw = reset.gather(1, pos) & valid
-        act = valid[..., None].float().expand(-1, -1, self.Mw)
-        u = x[:, :, None].expand(-1, -1, self.Mw, -1)
-        hw, new = [], []
-        for j, (layer, s) in enumerate(zip(self.wlayers, st[:Wl])):
-            h, z, ns = layer(u, s, act, rw)
-            hw.append(h.flatten(2)); new.append(ns)
-            u = torch.cat([z, torch.einsum('ij,btjq->btiq', layer.adj, z)], -1)
-            if self.hub is not None and j + 1 == self.hub_after:
-                o, hub_new = self.hub(torch.cat([z.flatten(2), x[..., -e.shape[-1]:]], -1), hub_st, rw, valid)
-                u = torch.cat([u, o], -1)
-        if self.hub is not None:
-            new.append(hub_new)
-        table = torch.cat([wprev[:, None], torch.cat(hw, -1)], 1)                       # 序号 0 = 上一段留下的词
-        cum = isb.long().cumsum(1).clamp(max=K)
-        held = table.gather(1, cum[..., None].expand(-1, -1, table.shape[-1]))
-        new.append(table.gather(1, valid.sum(1)[:, None, None].expand(-1, 1, table.shape[-1]))[:, 0])
-        return held, new
-
-
-class GRULM(nn.Module):
-    def __init__(self, hidden, emb=32, vocab=256):
-        super().__init__()
-        self.emb = nn.Embedding(vocab, emb)
-        self.rnn = nn.GRU(emb, hidden, batch_first=True)
-        self.readout = nn.Linear(hidden, vocab)
-
-    def forward(self, idx, state=None):
-        y, state = self.rnn(self.emb(idx), state)
-        return self.readout(y), state
-
-
-class TransformerLM(nn.Module):
-    """小型因果 Transformer 对照（pre-LN，学习式位置嵌入，上下文 ctx）。"""
-    def __init__(self, dim, layers=4, heads=4, ctx=2048, vocab=256):
-        super().__init__()
-        self.emb, self.pos, self.heads = nn.Embedding(vocab, dim), nn.Embedding(ctx, dim), heads
-        self.blocks = nn.ModuleList([nn.ModuleDict(dict(
-            ln1=nn.LayerNorm(dim), qkv=nn.Linear(dim, 3 * dim), proj=nn.Linear(dim, dim),
-            ln2=nn.LayerNorm(dim), mlp=nn.Sequential(nn.Linear(dim, 4 * dim), nn.GELU(), nn.Linear(4 * dim, dim))))
-            for _ in range(layers)])
-        self.ln, self.head = nn.LayerNorm(dim), nn.Linear(dim, vocab)
-
-    def forward(self, idx, state=None):
-        b, T = idx.shape
-        x = self.emb(idx) + self.pos(torch.arange(T, device=idx.device))
-        for blk in self.blocks:
-            q, k, v = blk.qkv(blk.ln1(x)).view(b, T, 3, self.heads, -1).transpose(1, 3).unbind(2)
-            a = F.scaled_dot_product_attention(q, k, v, is_causal=True)
-            x = x + blk.proj(a.transpose(1, 2).reshape(b, T, -1))
-            x = x + blk.mlp(blk.ln2(x))
-        return self.head(self.ln(x)), None
 
 
 def count(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
-def build(kind, size='S', **extra):
-    cfg = {**SIZES[size], **extra}
-    if kind == 'dspn':
-        return DSPNLayered(**cfg)
-    target = count(DSPNLayered(**cfg))                     # 按含 extra（中枢、工作空间、形状）的实际 DSPN 对齐
-    if kind == 'gru':
-        h = 16
-        while count(GRULM(h + 1)) <= target:
-            h += 1
-        return GRULM(h)
-    if kind == 'tf':
-        dim = 16
-        while count(TransformerLM(dim + 8)) <= target:     # 步长 8，4 个头仍整除
-            dim += 8
-        return TransformerLM(dim)
-    raise ValueError(kind)
+def build(kind='dspn', size='S', **extra):
+    assert kind == 'dspn', '只保留 DSPN（v2：只和自己的上一版比）'
+    return DSPNLayered(**{**SIZES[size], **extra})
 
 
 @torch.no_grad()
@@ -571,13 +471,16 @@ def copy_state_(dst, src):
             copy_state_(d, s)
 
 
-def train(kind, size, data, iters, b, T, lr, seed, tag, extra, init=None, stateful=False, bot_loss=False, sched='cos'):
+def train(kind, size, data, iters, b, T, lr, seed, tag, extra, init=None, stateful=True, bot_loss=False, sched='wsd', bf16=True, compile=False):
     torch.manual_seed(seed)
     tr, va = load_bytes(data)
     model = build(kind, size, **extra).to(DEV)
     if init:                                               # 从已有权重继续训练（如对话数据上微调）
         model.load_state_dict(torch.load(ROOT / init, map_location=DEV))
     nparam = count(model)
+    if compile:
+        for layer in model.layers:
+            layer.compile_parts()
     params = [p for p in model.parameters() if p.requires_grad]
     cuda = DEV == 'cuda'
     lr_t = torch.tensor(lr, device=DEV)                    # 张量学习率：CUDA Graph 回放时原地改
@@ -588,6 +491,8 @@ def train(kind, size, data, iters, b, T, lr, seed, tag, extra, init=None, statef
         lrf = lambda it: min(1, it / 200) * 0.5 * (1 + math.cos(math.pi * it / iters))
     name = f'{kind}-{size}{tag}'
     print(f'{name}: {nparam:,} 参数，{DEV}，批 {b} × {T} 字节，{iters} 步', flush=True)
+    if stateful and getattr(model, 'bcast', 0):
+        assert T % model.bc_window == 0, '跨批次延续状态时 T 须是广播窗口的整数倍（CUDA Graph 里窗口位置不更新）'
     sx, sy = batch(tr, b, T)                               # 固定地址的输入，每步原地拷入新批
     # stateful：每行是一条连续流，状态跨批次延续（截断反传），模型才练得到“记住 T 字节以前的事”（持久头、跨会话记忆）
     pos = np.random.default_rng(seed).integers(0, len(tr) - T - 1, b) if stateful else None
@@ -598,7 +503,9 @@ def train(kind, size, data, iters, b, T, lr, seed, tag, extra, init=None, statef
     def step():
         if stateful:
             scale_state_(st, skeep)
-        lg, new = model(sx, st)
+        with torch.autocast('cuda', torch.bfloat16, enabled=bf16 and cuda):
+            lg, new = model(sx, st)
+        lg = lg.float()
         ce = F.cross_entropy(lg.reshape(-1, 256), sy.reshape(-1), reduction='none')
         loss = (ce * smask.reshape(-1)).sum() / smask.sum().clamp(min=1)
         (loss + getattr(model, 'aux', 0.0)).backward()      # 预测学习等辅助损失
@@ -635,6 +542,8 @@ def train(kind, size, data, iters, b, T, lr, seed, tag, extra, init=None, statef
             v = evaluate(model, va, n=5)
             eval_secs += time.time() - e0
             log.append((it, round(time.time() - t0), round(loss.item() / math.log(2), 3), round(v, 3)))
+            if getattr(model, 'chunk', 0):                 # 自发切词：边界比例、边界落在空格 / 标点之后的比例（及其基准率）
+                log[-1] += tuple(round(float(model.stats[k]), 3) for k in ('rate', 'word', 'word_base'))
             if not math.isfinite(loss.item()):              # 发散就立刻停，不白跑一晚，也不用 nan 覆盖上一份检查点
                 raise SystemExit(f'{name}: 第 {it} 步损失不是有限值，训练停止')
             (ROOT / 'runs').mkdir(exist_ok=True)
@@ -648,12 +557,12 @@ def train(kind, size, data, iters, b, T, lr, seed, tag, extra, init=None, statef
     torch.save(model.state_dict(), ROOT / f'runs/{name}.pt')   # 每个名字只留最新一份检查点
     out = ROOT / f'runs/{time.strftime("%Y%m%d-%H%M%S")}_{name}.json'
     json.dump({'name': name, 'kind': kind, 'size': size, 'extra': extra, 'params': nparam, 'data': data,
-               'device': DEV, 'batch': b, 'T': T, 'iters': iters, 'lr': lr, 'seed': seed, 'stateful': stateful, 'bot_loss': bot_loss, 'sched': sched, 'init': init,
+               'device': DEV, 'batch': b, 'T': T, 'iters': iters, 'lr': lr, 'seed': seed, 'stateful': stateful, 'bot_loss': bot_loss, 'sched': sched, 'bf16': bf16, 'compile': compile, 'init': init,
                'code_sha': hashlib.sha256((ROOT / 'dspn_text.py').read_bytes()).hexdigest()[:12],
                'seconds': round(secs), 'train_bytes_per_sec': round(iters * b * T / (secs - eval_secs)),
                'peak_gpu_mb': round(torch.cuda.max_memory_allocated() / 2**20) if DEV == 'cuda' else None,
                'val_bpc': round(final, 4),
-               'val_bpc_stream': round(evaluate_stream(model, va), 4) if kind == 'dspn' else None, 'log': log}, open(out, 'w'), ensure_ascii=False, indent=1)
+               'val_bpc_stream': round(evaluate_stream(model, va), 4), 'log': log}, open(out, 'w'), ensure_ascii=False, indent=1)
     print(f'{name} 完成：验证 bpc {final:.4f} → {out.name}', flush=True)
 
 
@@ -664,23 +573,17 @@ def sample(kind, size, tag, prompt, extra, n=600, temp=0.8, seed=1):
     model.load_state_dict(torch.load(ROOT / f'runs/{kind}-{size}{tag}.pt', map_location=DEV)); model.eval()
     idx = torch.tensor([list(prompt.encode())], device=DEV)
     out = list(prompt.encode())
-    if kind == 'tf':                                       # 无状态：每步重算整段上下文
-        for _ in range(n):
-            lg, _ = model(idx[:, -512:])
-            nxt = torch.multinomial(F.softmax(lg[0, -1] / temp, -1), 1)
-            idx = torch.cat([idx, nxt.view(1, 1)], 1); out.append(nxt.item())
-    else:
-        lg, state = model(idx)
-        for _ in range(n):
-            nxt = torch.multinomial(F.softmax(lg[0, -1] / temp, -1), 1)
-            out.append(nxt.item())
-            lg, state = model(nxt.view(1, 1), state)
+    lg, state = model(idx)
+    for _ in range(n):
+        nxt = torch.multinomial(F.softmax(lg[0, -1] / temp, -1), 1)
+        out.append(nxt.item())
+        lg, state = model(nxt.view(1, 1), state)
     return bytes(out).decode('utf-8', errors='replace')
 
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
-    ap.add_argument('cmd', choices=['train', 'sample']); ap.add_argument('kind', choices=['dspn', 'gru', 'tf'])
+    ap.add_argument('cmd', choices=['train', 'sample']); ap.add_argument('kind', choices=['dspn'])
     ap.add_argument('--size', default='S', choices=list(SIZES))
     ap.add_argument('--data', default='tiny', choices=list(DATASETS))
     ap.add_argument('--iters', type=int, default=3000)
@@ -692,13 +595,15 @@ if __name__ == '__main__':
     ap.add_argument('--extra', default='{}', help='覆盖 dspn 配置的 JSON，如 {"hub_after": 2}')
     ap.add_argument('--prompt', default='Once upon a time')
     ap.add_argument('--init', default=None, help='从该权重文件继续训练，如 runs/dspn-L_xxx.pt')
-    ap.add_argument('--stateful', action='store_true', help='每行一条连续流，状态跨批次延续')
+    ap.add_argument('--stateful', action=argparse.BooleanOptionalAction, default=True, help='每行一条连续流，状态跨批次延续（默认开）')
     ap.add_argument('--bot_loss', action='store_true', help='对话数据只在 Bot 轮次的字节上算损失')
-    ap.add_argument('--sched', default='cos', choices=['cos', 'wsd'], help='学习率调度：余弦 / 恒定 + 末段线性衰减')
+    ap.add_argument('--bf16', action=argparse.BooleanOptionalAction, default=True, help='bf16 自动混合精度（门、状态、递推 fp32）')
+    ap.add_argument('--compile', action='store_true', help='torch.compile 融合门、投影、MLP 的逐元素运算')
+    ap.add_argument('--sched', default='wsd', choices=['cos', 'wsd'], help='学习率调度：余弦 / 恒定 + 末段线性衰减')
     a = ap.parse_args()
     extra = json.loads(a.extra)
     if a.cmd == 'train':
-        lr = a.lr or (1e-3 if a.kind == 'tf' else 3e-3)
-        train(a.kind, a.size, a.data, a.iters, a.batch, a.T, lr, a.seed, a.tag, extra, a.init, a.stateful, a.bot_loss, a.sched)
+        lr = a.lr or 3e-3
+        train(a.kind, a.size, a.data, a.iters, a.batch, a.T, lr, a.seed, a.tag, extra, a.init, a.stateful, a.bot_loss, a.sched, a.bf16, a.compile)
     else:
         print(sample(a.kind, a.size, a.tag, a.prompt, extra))

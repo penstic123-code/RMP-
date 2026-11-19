@@ -20,11 +20,11 @@ def test_mqar_batch():
 
 
 def test_train_mqar():
-    model = D.build('dspn', 'S', layers=2, rows=1, cols=2, d=8, m=4, hidden=16, q=4, emb=8)
+    model = D.build('dspn', 'S', layers=2, M=2, d=8, m=4, hidden=16, q=4, emb=8)
     out = evals.train_mqar(model, 20, 4, 64, 4, 1e-3, 'cpu')
     assert set(out) == {'acc', 'acc_near', 'acc_far'}
 
 
 def test_name_recall():
-    out = evals.name_recall(D.GRULM(16), 'cpu', n=5)
+    out = evals.name_recall(D.build('dspn', 'S', layers=2, d=8, m=4, hidden=16, q=4, emb=8), 'cpu', n=5)
     assert set(out) == {'acc', 'bits', 'acc_control', 'bits_control'}

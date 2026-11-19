@@ -1,11 +1,17 @@
 """DSPN 的在线学习、重放池与睡眠巩固（第一版，设计第 3、4 节）。
 
-在线参数：各层 lora_a/lora_b 及中枢里名字含 'lora' 的参数（params='all' 时另加 readout、bias），其余冻结。
+在线参数（二选一，fast-clean B4 比较后留一个）：
+- params='lora'：各层 MLP 的低秩偏移 lora_a/lora_b（'all' 另加 readout、bias），反传块内梯度。
+- params='eprop'：各层慢通道 c 的输入与门（B、G、b_a）用 e-prop 学习。c 是对角递推，资格迹
+  e ← a⊙e + ∂c_t/∂θ（当拍）跨块延续，等于沿时间反传的精确梯度；学习信号 δ = ∂L/∂c 只取当拍（c 设为叶子，
+  不经上层的 c 回传），更新 = Σ δ⊙e。不存历史、不反传时间（Zucchet 等 2023），三因子规则的第三因子是 read 的 gate（新奇信号）。
+中枢不再有在线偏移。
 文本流按 chunk 处理，状态跨块延续但 detach：每块先记预测损失，再对该块交叉熵反传一次。
 """
 import copy, math
 import numpy as np
 import torch, torch.nn.functional as F
+from dspn_text import scan
 
 
 def _detach(x):
@@ -43,11 +49,7 @@ def _nll(model, data, chunk, state=None, last=None):
 
 
 def _frozen_copy(model):
-    """冻结副本，去掉前向钩子（GRU 适配器钩子引用的是活参数；取副本时适配器恒为恒等，去掉不改变输出）。"""
-    t = copy.deepcopy(model).requires_grad_(False)
-    for mod in t.modules():
-        mod._forward_hooks.clear()
-    return t
+    return copy.deepcopy(model).requires_grad_(False)
 
 
 @torch.no_grad()
@@ -82,28 +84,51 @@ class OnlineLearner:
         self.morning = _frozen_copy(model)  # 白天学习前的模型：做梦式自蒸馏的老师，每次睡眠提交后更新
         for p in model.parameters():
             p.requires_grad_(False)
-        if hasattr(model, 'layers'):                       # DSPN
-            low = [p for l in [*model.layers, *model.wlayers, *model.tdlayers] for p in (l.lora_a, l.lora_b)]
-            if model.hub is not None:
-                low += [p for k, p in model.hub.named_parameters() if 'lora' in k]
-            shared = list(model.readout.parameters()) + [model.bias]
-        else:                                              # GRU：嵌入输出后接秩 2 适配器（前向钩子），对应 DSPN 的低秩偏移
-            e, dev = model.emb.weight.shape[1], _device(model)
-            self.ad_a = torch.nn.Parameter(torch.randn(e, 2, device=dev) / math.sqrt(e))
-            self.ad_b = torch.nn.Parameter(torch.zeros(2, e, device=dev))
-            model.emb.register_forward_hook(lambda m, i, o: o + o @ self.ad_a @ self.ad_b)
-            low, shared = [self.ad_a, self.ad_b], list(model.readout.parameters())
-        if params == 'lora':
+        self.eprop = params == 'eprop'
+        assert not (self.eprop and replay), 'e-prop 的资格迹按单条流延续，不混重放批'
+        if self.eprop:
+            low = [p for l in model.layers for p in (l.B, l.G, l.b_a)]
+        else:
+            low = [p for l in model.layers for p in (l.lora_a, l.lora_b)]
+        shared = list(model.readout.parameters()) + [model.bias]
+        if params in ('lora', 'eprop'):
             shared = []
         self.groups = [{'params': low, 'weight_decay': wd}, {'params': shared, 'weight_decay': 0.0}]
         self.online = low + shared
         for p in self.online:
-            p.requires_grad_(True)
+            p.requires_grad_(not self.eprop)               # e-prop 的梯度手算，不让 autograd 沿时间反传
         self.opt = torch.optim.AdamW(self.groups, lr=lr)
         self.reset_session()
 
     def reset_session(self):
-        self.state, self.last = None, None
+        self.state, self.last, self.traces = None, None, None
+
+    def _eprop_grads(self, recs):
+        """由各层记录的 (u, la, c0, c) 与 c.grad 算 B、G、b_a 的梯度，资格迹跨块延续。"""
+        if self.traces is None:
+            self.traces = [None] * len(recs)
+        for i, (layer, (u, la, c0, c)) in enumerate(zip(self.model.layers, recs)):
+            delta = c.grad if c.grad is not None else torch.zeros_like(c)
+            dt = layer.B.dtype                                                 # 资格迹用参数精度（fp32）
+            u, la, cf = u.to(dt), la.to(dt), c.detach().to(dt)
+            a = la.exp()
+            gb = torch.einsum('btmu,mud->btmd', u, layer.B)
+            cprev = torch.cat([c0.to(dt)[:, None], cf[:, :-1]], 1)
+            s = a * (1 - a) * (cprev - gb)                                     # ∂c_t/∂z_t（z 是门的 logit），当拍
+            b, T, M, U = u.shape
+            if self.traces[i] is None:
+                z = lambda *sh: torch.zeros(b, M, *sh, device=u.device, dtype=dt)
+                self.traces[i] = (z(U, layer.d), z(U, layer.d), z(layer.d))
+            eB0, eG0, eb0 = self.traces[i]
+            la5 = la[:, :, :, None].expand(b, T, M, U, layer.d)
+            eB, eBT = scan(la5, u[..., None] * (1 - a)[:, :, :, None], eB0)   # e^B_t = a e^B_{t−1} + (1 − a) u
+            eG, eGT = scan(la5, u[..., None] * s[:, :, :, None], eG0)          # e^G_t = a e^G_{t−1} + s u
+            eb, ebT = scan(la, s, eb0)
+            self.traces[i] = (eBT, eGT, ebT)
+            d = delta.to(dt)
+            layer.B.grad = torch.einsum('btmud,btmd->mud', eB, d)
+            layer.G.grad = torch.einsum('btmud,btmd->mud', eG, d)
+            layer.b_a.grad = torch.einsum('btmd,btmd->md', eb, d)
 
     def _add(self, seq, loss):
         """入池：池满时新段优先级高于最低者才替换，同分换最旧（序号最小）。
@@ -118,7 +143,8 @@ class OnlineLearner:
             self.pool.remove(lo); self.pool_size -= len(lo[2])
         self.pool.append(item); self.pool_size += len(seq)
 
-    def read(self, text_bytes):
+    def read(self, text_bytes, gate=1.0):
+        """读一段并在线学习；gate 乘在学习率上（新奇信号，0 = 只推进状态不学）。"""
         ids = _ids(text_bytes, _device(self.model))
         tot, n = 0.0, 0
         for i in range(0, len(ids), self.chunk):
@@ -127,6 +153,9 @@ class OnlineLearner:
             self.last = blk[-1:]
             if len(seq) < 2:
                 continue
+            if self.eprop:
+                for l in self.model.layers:
+                    l.rec = []
             lg, st = self.model(seq[None, :-1], self.state)
             loss = F.cross_entropy(lg[0], seq[1:])
             tot += loss.item() * (len(seq) - 1); n += len(seq) - 1
@@ -136,7 +165,19 @@ class OnlineLearner:
                 xy = torch.from_numpy(np.stack([self.pool[i][2] for i in pick]).astype(np.int64)).to(ids.device)
                 rl, _ = self.model(xy[:, :-1])
                 total = (1 - self.replay) * loss + self.replay * F.cross_entropy(rl.reshape(-1, rl.shape[-1]), xy[:, 1:].reshape(-1))
-            self.opt.zero_grad(); total.backward(); self.opt.step()
+            for grp in self.opt.param_groups:
+                grp['lr'] = self.lr * gate
+            self.opt.zero_grad()
+            if self.eprop:
+                total.backward()
+                recs = [l.rec[0] for l in self.model.layers]
+                for l in self.model.layers:
+                    l.rec = None
+                self._eprop_grads(recs)
+            else:
+                total.backward()
+            if gate > 0:
+                self.opt.step()
             self.state = _detach(st)
             if len(seq) == self.chunk + 1:      # 只收满长度的段，巩固时才能成批
                 self._add(seq.cpu().numpy(), loss.item())
@@ -154,15 +195,7 @@ class OnlineLearner:
 
     def _merge_lora(self):
         with torch.no_grad():
-            if not hasattr(self.model, 'layers'):          # GRU：适配器对嵌入向量线性，精确并入嵌入表
-                E = self.model.emb.weight
-                E.copy_(E + E @ self.ad_a @ self.ad_b)
-                self.ad_b.zero_(); self.ad_a.copy_(torch.randn_like(self.ad_a) / math.sqrt(self.ad_a.shape[0]))
-                return
-            pairs = [(l.W1, l.lora_a, l.lora_b) for l in [*self.model.layers, *self.model.wlayers, *self.model.tdlayers]]
-            h = self.model.hub
-            if h is not None:                              # 中枢读路径偏移同样并入（设计 1.2 节）
-                pairs += [(h.Wq, h.lora_q_a, h.lora_q_b), (h.Wo, h.lora_o_a, h.lora_o_b)]
+            pairs = [(l.W1, l.lora_a, l.lora_b) for l in self.model.layers]
             for W, a, b in pairs:
                 W += a @ b
                 b.zero_()
@@ -180,7 +213,7 @@ class OnlineLearner:
         ce：池上交叉熵的权重（聊天时池里只有用户的话，训它会把模型推向“像用户那样说话”，E44，故聊天用 0）。"""
         m = self.model
         backup = copy.deepcopy(m.state_dict())
-        online_backup = [p.detach().clone() for p in self.online]   # GRU 适配器不在 state_dict 里
+        online_backup = [p.detach().clone() for p in self.online]
         flags = [(p, p.requires_grad) for p in m.parameters()]
         old0, new0 = bpc(m, probe_old), bpc(m, probe_new)
         self._merge_lora()

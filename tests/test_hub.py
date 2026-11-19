@@ -22,7 +22,7 @@ def make():
 def run(h, x, cuts):
     st, outs = h.init_state(x.shape[0], x.device), []
     for a, b in zip([0] + cuts, cuts + [x.shape[1]]):
-        o, st = h(x[:, a:b], st); outs.append(o)
+        o, st, _ = h(x[:, a:b], st); outs.append(o)
     return torch.cat(outs, 1)
 
 
@@ -43,7 +43,7 @@ def test_causal():
 
 def test_dspn_layered_backward():
     torch.manual_seed(0)
-    m = DSPNLayered(layers=2, rows=1, cols=2, d=8, m=4, hidden=8, q=4, emb=8, hub_after=1)
+    m = DSPNLayered(layers=2, M=2, d=8, m=4, hidden=8, q=4, emb=8, hub_after=1)
     logits, _ = m(torch.randint(0, 256, (2, 20)))
     logits.square().mean().backward()
     for n in ('Wq', 'Wk', 'Wv', 'Wo'):

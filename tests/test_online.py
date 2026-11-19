@@ -9,7 +9,7 @@ TEXT = (b"the cat sat on the mat and the dog sat on the log. " * 12)[:512]
 
 def tiny(seed=0):
     torch.manual_seed(seed)
-    m = DSPNLayered(layers=2, rows=1, cols=2, d=8, m=4, hidden=8, q=4, emb=8)
+    m = DSPNLayered(layers=2, M=2, d=8, m=4, hidden=8, q=4, emb=8)
     with torch.no_grad():                  # 读出与 W2 初始为零时梯度到不了 MLP 低秩偏移；模拟训练过的模型
         m.readout.weight.normal_(0, 0.3)
         for l in m.layers:

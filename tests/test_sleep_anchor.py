@@ -28,7 +28,7 @@ def test_merge_only_is_exact():
     r = L.sleep(TEXT[:256], TEXT[-256:], steps=0)
     assert r['committed']
     assert abs(bpc(m, TEXT) - before) < 1e-3
-    zeros = [l.lora_b for l in m.layers] + [m.hub.lora_q_b, m.hub.lora_o_b]   # 各层与中枢偏移都已并入并清零
+    zeros = [l.lora_b for l in m.layers]   # 各层偏移都已并入并清零
     assert all(b.abs().sum() == 0 for b in zeros)
 
 

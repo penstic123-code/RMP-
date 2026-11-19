@@ -1,4 +1,4 @@
-# 动态稀疏可塑性神经网络 · 设计 v0.16
+# 动态稀疏可塑性神经网络 · 设计 v0.17
 
 2026-11-20｜目标：在固定内存预算下持续预测、在线学习，并保留旧规律；文本模式下以字节流为输入，检验能否学会语言。
 
@@ -6,11 +6,11 @@
 
 ## 目录
 
-**现行架构（current/）**——描述现行代码（v0.15 纸面设计见 [archive/design_v0.15](../archive/design_v0.15/README.md)）
+**现行架构（current/）**——描述现行代码（v0.16 见 [archive/design_v0.16](../archive/design_v0.16/README.md)，v0.15 纸面设计见 [archive/design_v0.15](../archive/design_v0.15/README.md)）
 
-- [1　系统怎样运行](current/1-runtime.md)：模块、层间数据流、读出、中枢、工作空间、会话边界、可插拔机制、GPU 计算
+- [1　系统怎样运行](current/1-runtime.md)：模块、层间数据流、读出、中枢、窗口级广播、会话边界、动态分块、融合内核
 - [2　参数与显存预算](current/2-memory-budget.md)
-- [3　学习策略：三种速度](current/3-learning.md)：离线训练、在线低秩、睡眠巩固、聊天工具；选择性学习缺口
+- [3　学习策略：三种速度](current/3-learning.md)：离线训练、在线学习（低秩 / e-prop）、睡眠巩固、聊天工具；选择性学习缺口
 - [4　记忆与保护旧知识](current/4-memory.md)
 
 **依据与讨论（basis/）**

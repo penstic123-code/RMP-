@@ -7,7 +7,7 @@ import dspn_text as D
 
 def test_copy_state_carries_across_segments():
     torch.manual_seed(0)
-    m = D.DSPNLayered(layers=2, rows=1, cols=2, d=8, m=4, hidden=8, q=4, emb=8, hub_after=1, hub_dk=8, ws_slots=2, ws_dim=4, ws_block=8)
+    m = D.DSPNLayered(layers=2, M=2, d=8, m=4, hidden=8, q=4, emb=8, hub_after=1, hub_dk=8)
     with torch.no_grad():
         m.readout.weight.normal_(0, 0.3)
     x = torch.randint(0, 256, (2, 32))
