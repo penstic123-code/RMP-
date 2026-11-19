@@ -1,0 +1,82 @@
+{
+ "name": "dspn-S_convog",
+ "kind": "dspn",
+ "size": "S",
+ "extra": {
+  "layers": 3,
+  "rows": 1,
+  "cols": 2,
+  "d": 90,
+  "hidden": 180,
+  "q": 16,
+  "hub_after": 2,
+  "hub_heads": 4,
+  "hub_dk": 32,
+  "hub_out": 16,
+  "hub_taus": [
+   300,
+   3000,
+   30000,
+   1000000
+  ],
+  "beta_max": 2,
+  "ws_slots": 4,
+  "conv": 4,
+  "out_gate": true
+ },
+ "params": 361628,
+ "data": "tiny",
+ "device": "cuda",
+ "batch": 16,
+ "T": 1024,
+ "iters": 3000,
+ "lr": 0.003,
+ "seed": 0,
+ "stateful": false,
+ "bot_loss": false,
+ "init": null,
+ "code_sha": "3ea68c35c622",
+ "seconds": 232,
+ "train_bytes_per_sec": 215514,
+ "peak_gpu_mb": 1379,
+ "val_bpc": 1.2664,
+ "val_bpc_stream": 1.1932,
+ "log": [
+  [
+   500,
+   45,
+   1.739,
+   1.842
+  ],
+  [
+   1000,
+   82,
+   1.496,
+   1.515
+  ],
+  [
+   1500,
+   120,
+   1.392,
+   1.355
+  ],
+  [
+   2000,
+   157,
+   1.209,
+   1.282
+  ],
+  [
+   2500,
+   195,
+   1.279,
+   1.244
+  ],
+  [
+   3000,
+   232,
+   1.2,
+   1.233
+  ]
+ ]
+}
