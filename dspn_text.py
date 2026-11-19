@@ -122,7 +122,7 @@ def delta_chunk(q, k, v, beta, g, S, C=64):
 class Layer(nn.Module):
     """一层模块，同层参数堆叠成 [M, …] 张量。所有时间步一起算门、投影和扫描，快记忆分块并行。
     lora_a / lora_b 是 MLP 第一层的秩 2 在线偏移（设计第 3 节），离线训练时冻结，在线阶段打开。"""
-    def __init__(self, rows, cols, U, d, m, hidden, q, rank=2, beta_max=1.0):
+    def __init__(self, rows, cols, U, d, m, hidden, q, rank=2, beta_max=1.0, conv=0, out_gate=False):
         super().__init__()
         M = rows * cols
         self.M, self.d, self.m, self.beta_max = M, d, m, beta_max
@@ -138,9 +138,22 @@ class Layer(nn.Module):
         self.W2 = nn.Parameter(torch.zeros(M, hidden, d)); self.P = p(M, d, q)
         self.lora_a = nn.Parameter(torch.randn(M, d + m, rank) / math.sqrt(d + m), requires_grad=False)
         self.lora_b = nn.Parameter(torch.zeros(M, rank, hidden), requires_grad=False)
+        # 快记忆生产配方（Kimi Linear / Gated DeltaNet，literature/cards/fast-memory.md 卡 1）：
+        # conv>0：k、v、q 投影后过长度 conv 的因果逐通道卷积（初值恒等，起步等于不卷积），状态里存前 conv−1 拍；
+        # out_gate：快记忆读出先 RMS 归一化，再乘 sigmoid(c·W_og) 的门。
+        self.conv, self.out_gate = conv, out_gate
+        if conv:
+            w = torch.zeros(M, 3 * m, conv); w[..., -1] = 1.0
+            self.conv_w = nn.Parameter(w)
+        if out_gate:
+            self.W_og = nn.Parameter(torch.zeros(M, d, m))
+
+    def init_state(self, b, device):
+        st = (torch.zeros(b, self.M, self.d, device=device), torch.zeros(b, self.M, self.m, self.m, device=device))
+        return st + ((torch.zeros(b, self.conv - 1, self.M, 3 * self.m, device=device),) if self.conv else ())
 
     def forward(self, u, state, active=None, reset=None, wbias=None):   # wbias: (b, T) 加到写入强度 β 的 logit（惊讶门控）；u: (b, T, M, U)；active: (b, M) 0/1，0 的模块本块冻结（RIMs 式稀疏更新）
-        c0, S = state                                          # reset: (b, T) 布尔，会话边界字节处清空 c 与 S
+        c0, S, *cs = state                                     # cs: 卷积缓存（conv>0 时）；reset: (b, T) 布尔，会话边界字节处清空 c 与 S
         d, m = self.d, self.m
         ga, gb = torch.einsum('btmu,mud->btmd', u, torch.cat([self.G, self.B], -1)).split(d, -1)   # 读 u 的两个投影合成一次
         a = torch.sigmoid(ga + self.b_a)
@@ -153,7 +166,13 @@ class Layer(nn.Module):
             a, inp = a * act + (1 - act), inp * act                           # 冻结：c 保持不变
         c, cT = scan(a, inp, c0)
         W = torch.cat([self.K, self.V, self.Qm, self.w_beta[..., None], self.w_gam[..., None]], -1)   # 读 c 的五个投影合成一次
-        k, v, qv, bl, gl = torch.einsum('btmd,mde->btme', c, W).split([m, m, m, 1, 1], -1)
+        kvq, bl, gl = torch.einsum('btmd,mde->btme', c, W).split([3 * m, 1, 1], -1)
+        new_cs = ()
+        if self.conv:                                      # 因果逐通道卷积：拼上前 conv−1 拍再滑窗
+            x = torch.cat([cs[0], kvq], 1)
+            kvq = sum(x[:, j:j + kvq.shape[1]] * self.conv_w[..., j] for j in range(self.conv))
+            new_cs = (x[:, -(self.conv - 1):],)
+        k, v, qv = kvq.split(m, -1)
         k = F.normalize(k, dim=-1)
         wb = 0.0 if wbias is None else wbias[..., None]
         beta = self.beta_max * torch.sigmoid(bl[..., 0] + self.b_beta + wb)  # beta_max=2：负特征值；门控在 logit 上，β 仍 ≤ beta_max
@@ -163,10 +182,12 @@ class Layer(nn.Module):
         if reset is not None:
             g = g.masked_fill(reset[..., None], -30.0)                         # α≈0：边界处清空快记忆
         r, S = delta_chunk(qv, k, v, beta, g, S)
+        if self.out_gate:
+            r = F.rms_norm(r, (m,)) * torch.sigmoid(torch.einsum('btmd,mde->btme', c, self.W_og))
         W1 = self.W1 + self.lora_a @ self.lora_b
         hid = F.gelu(torch.einsum('btmi,mih->btmh', torch.cat([c, r], -1), W1) + self.b1)
         h = c + torch.einsum('btmh,mhd->btmd', hid, self.W2)
-        return h, torch.einsum('btmd,mdq->btmq', h, self.P), (cT, S)
+        return h, torch.einsum('btmd,mdq->btmq', h, self.P), (cT, S) + new_cs
 
 
 class PredHead(nn.Module):
@@ -188,7 +209,8 @@ class DSPNLayered(nn.Module):
                  ws_slots=0, ws_dim=16, ws_block=64,
                  word_layers=0, word_d=256, word_hidden=512, word_m=32, word_q=32, word_mods=1,
                  td_layers=0, td_pc=0.1, td_target=1,
-                 pred_self=0.0, pred_nb=0.0, pred_down=0.0, local=False, surprise=False):
+                 pred_self=0.0, pred_nb=0.0, pred_down=0.0, local=False, surprise=False, pred_detach=False,
+                 conv=0, out_gate=False):
         super().__init__()
         M = rows * cols
         self.M, self.d, self.m, self.hub_after = M, d, m, hub_after
@@ -221,7 +243,8 @@ class DSPNLayered(nn.Module):
         W = 4 if ws_slots else 0
         hub_byte = hub_after and not word_layers
         U = lambda i: (emb if i == 0 else 2 * q + (hub_out if hub_byte and i == hub_after else 0)) + W
-        self.layers = nn.ModuleList([Layer(rows, cols, U(i), d, m, hidden, q, beta_max=beta_max) for i in range(layers)])
+        self.layers = nn.ModuleList([Layer(rows, cols, U(i), d, m, hidden, q, beta_max=beta_max, conv=conv, out_gate=out_gate)
+                                     for i in range(layers)])
         # 自上而下（第二扫，TSPH 式，设计 10.1）：上层用上一拍的输出预测下层本拍的消息 z，误差 e = z − 预测；
         # 再用 [预测, 误差] 跑 td_layers 层字节级“自上而下层”，其输出也进读出。两扫各自整段并行；
         # 预测头以 MSE（目标停梯度）训练，权重 td_pc。有词级时：词级预测字节顶层；没有时：字节顶层预测第 td_target 层。
@@ -235,6 +258,7 @@ class DSPNLayered(nn.Module):
         # 惊讶门控写入：第 i 层上一拍的自我预测与本拍消息的相对误差 s 是它此刻的惊讶度；
         # 第 i+1 层（与中枢）的写入强度 logit 加 a·(s − 1)，a 可学、初值 0（等于不门控）。上一拍的预测存在状态里。
         self.surprise, self.q = surprise, q
+        self.pred_detach = pred_detach                     # True：预测头只“旁观”（梯度不进主干），误差只作惊讶信号
         if surprise:
             assert pred_self and not word_layers, 'surprise 需要 pred_self，且只用于字节级'
             self.sg_a = nn.Parameter(torch.zeros(layers + 1))                  # 最后一个给中枢
@@ -254,7 +278,7 @@ class DSPNLayered(nn.Module):
 
     def init_state(self, b):
         z = lambda *s: torch.zeros(b, self.M, *s, device=self.emb.weight.device)
-        st = [(z(self.d), z(self.m, self.m)) for _ in self.layers]
+        st = [layer.init_state(b, self.emb.weight.device) for layer in self.layers]
         dev = self.emb.weight.device
         zw = lambda *s: torch.zeros(b, self.Mw, *s, device=dev)
         st += [(zw(self.word_d), zw(self.word_m, self.word_m)) for _ in self.wlayers]
@@ -321,7 +345,7 @@ class DSPNLayered(nn.Module):
             h, z, ns = layer(u, st, None, reset, wb)
             hs.append(h); new.append(ns); zs.append(z)
             if self.surprise:                              # 本层惊讶度：上一拍的预测 vs 本拍消息（相对误差，与批大小、T 无关）
-                pr = self.pred['self'][i](h)
+                pr = self.pred['self'][i](h.detach() if self.pred_detach else h)
                 prev = torch.cat([pp[i][:, None], pr[:, :-1]], 1)
                 s = (((prev - z) ** 2).sum(-1) / (z ** 2).sum(-1).clamp(min=1e-6)).mean(-1).detach()   # (b, T)
                 new_pp.append(pr[:, -1].detach())
@@ -367,7 +391,9 @@ class DSPNLayered(nn.Module):
             if tgt is None or h.shape[1] < 2:
                 continue
             tgt = tgt[:, 1:].detach()
-            err = (heads[i](h[:, :-1]) - tgt).square().mean(-1) / (tgt.var() + 1e-4)    # (b, T−1, M)
+            hin = h[:, :-1].detach() if self.pred_detach else h[:, :-1]
+            # 按目标均方值归一化并设下限：除以方差时，消息方差一缩小梯度就按 1/方差放大，S 档 pred_self 第 500 步 NaN（E45）
+            err = (heads[i](hin) - tgt).square().mean(-1) / tgt.square().mean().clamp(min=1e-2)    # (b, T−1, M)
             self.aux = self.aux + self.pred_w[k] * err.mean()
             self.pred_err[(k, i)] = err.detach()
 

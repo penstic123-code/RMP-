@@ -52,3 +52,18 @@ def test_surprise_gate_stream_equals_parallel():
     assert torch.allclose(full, torch.cat(outs, 1), atol=1e-4)
     m.zero_grad(); full.square().mean().backward()
     assert m.sg_a.grad.abs().sum() > 0
+
+
+def test_conv_and_out_gate_stream_equals_parallel():
+    torch.manual_seed(0)
+    m = DSPNLayered(**CFG, conv=4, out_gate=True)
+    with torch.no_grad():
+        m.readout.weight.normal_(0, 0.3)
+        for l in m.layers:
+            l.W2.normal_(0, 0.3); l.conv_w.normal_(0, 0.5); l.W_og.normal_(0, 0.3)
+    x = torch.randint(0, 256, (2, 20))
+    full, _ = m(x)
+    st, outs = None, []
+    for a, b in ((0, 3), (3, 4), (4, 13), (13, 20)):
+        lg, st = m(x[:, a:b], st); outs.append(lg)
+    assert torch.allclose(full, torch.cat(outs, 1), atol=1e-4)
