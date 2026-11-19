@@ -16,14 +16,17 @@
 - 工作方式：用户授权全自动推进（git 存档、结果为先、只和自己的上一版比，见 [v2.md](v2.md)“用户定的方向”）。仓库已是 git，每步本地提交。
 - 环境：conda 环境 `dspn`（Python 3.11，PyTorch 2.11 + CUDA 12.8，RTX 5060 Laptop 8 GB，Rtxpt.exe 已关，可用约 7 GB）。已装 triton-windows 3.6、fla-core 0.6、einops（均 --no-deps）。
 - 代码要点：[dspn_text.py](../../dspn_text.py)（模型与训练；选项 pred_self/pred_nb/pred_down、local、surprise、pred_detach、conv、out_gate、nb_count；训练 --stateful --bot_loss --sched wsd；DSPN_FLA=1 走 fla 融合内核）、[hub.py](../../hub.py)、[online.py](../../online.py)（睡眠：上下文蒸馏 distill + 旧语料锚定 old）、[episodic.py](../../episodic.py)（海马式情景记忆）、[tools/chat.py](../../tools/chat.py)（--episodic）、[tools/persist_probe.py](../../tools/persist_probe.py)、[tools/analyze_hierarchy.py](../../tools/analyze_hierarchy.py)。设计见 [design/README.md](../design/README.md)（v0.16）。
-- 数据：TinyStoriesV2；对话 data/chat3-*（当前，记忆对话 40%、带重现行），chat2-*（无重现行），chat-*（旧，
+- 数据：TinyStoriesV2；对话 data/chat3-*（当前，记忆对话 40%、带重现行），chat2-*（无重现行），chat-*（旧，
+
  换行，别再用）。make_chat_data.py 生成。
 - **demo**：最好的对话模型 runs/dspn-L_chat3.pt（E50；chat4 与之持平，E52）。试用：`python tools/chat.py runs/dspn-L_chat3.pt --size L --extra "<tools/queues/overnight.json 里的 extra>" --episodic`；/new /sleep /save /quit。跨会话约 5/8（靠情景记忆），名字复制常错、人名宠物名会混。
 - **正在跑**：无（GPU 空闲）。
 - **已采纳进下次预训练**（[v2.md](v2.md)“已确认采纳”）：pred_self=0.01（E51）、nb_count（E53）、--sched wsd（E53）。不采纳：out_gate、conv、pred_nb、local、surprise（E45、E49、E53）。
+- **v2 架构已选定**（2026-11-20，[design/candidates/20-dspn-v2.md](../design/candidates/20-dspn-v2.md)）：删持久头与网格代码，工作空间并入中枢块末广播，新奇信号管海马写入与在线可塑，睡眠加事实蒸馏（海马教皮层）。
 - **下一步（按顺序）**：
+  0. 实施 v2：先打 git 标签 v0.16；改代码与测试；S 档验证中枢广播 vs 工作空间（第 20.7 节）；新奇门控与事实蒸馏在现有 chat3 检查点上先试（不依赖预训练的部分）。
   1. fla 融合内核的长基准：L 档 2000 步 DSPN_FLA=1 vs 不开，比字节/秒（E53 的 500 步试跑含编译开销、不能下结论）。快就默认打开。
-  2. v2 预训练：L 档 overnight 配置 + pred_self 0.01 + nb_count + WSD，TinyStories，从零训（约 8 小时级；若 fla 快则加大到约 1000 万参数），每 500 步存检查点。
+  2. v2 预训练：v2 结构（第 20 章）+ L 档 overnight 配置 + pred_self 0.01 + nb_count + WSD，TinyStories，从零训（约 8 小时级；若 fla 快则加大到约 1000 万参数），每 500 步存检查点。
   3. 对话微调：新底座在 chat3 上 `--stateful --bot_loss`，再跑 `tools/chat.py … --script tools/chat_scripts/memory.txt --episodic`，与 E50/E52 比；登记进 docs/experiments/e41-.md。
   4. 其余见 [v2.md](v2.md) 任务队列与放大路线（持久头 9b、来源门、TSPH 对照等）。
 - 已定：不复现 E13 的莎士比亚结果。不在用户的话上做睡眠交叉熵（E44）。

@@ -31,6 +31,7 @@
 - [17　十套从零设计](candidates/17-overview.md)：海马-皮层、神经调质可塑、育儿、投票柱、笔记本睡眠、活权重、自研、克隆选择、卡尔曼写入、即时编译
 - [18　活柱网络 LiveColumns](candidates/18-live-columns.md)（[续](candidates/18-live-columns-plan.md)）：会长出新柱的神经调质可塑柱群
 - [19　定容活柱](candidates/19-fixed-budget-columns.md)：固定内存预算下的活柱
+- [20　DSPN v2：精简 + 各部件接通](candidates/20-dspn-v2.md)：**已选定、实施中**——删持久头与网格，工作空间并入中枢广播，新奇信号管海马写入与在线可塑，睡眠由海马教皮层
 
 （原第 5、6 节已移出：实验记录 → experiments/，验收与排期 → plan/。）
 
