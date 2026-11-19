@@ -16,7 +16,7 @@
 - 环境：conda 环境 `dspn`（Python 3.11，PyTorch CUDA 12.8 版，RTX 5060 Laptop 8 GB）。2026-11-19 起用户的渲染程序（Rtxpt.exe，原占约 4 GB）一直关闭，训练可用约 7 GB 显存（批 8 × 1024 时峰值 2.6 GB）。
 - 代码：[dspn_text.py](../../dspn_text.py)（DSPN：字节级网格 + 中枢 + 工作空间 + 可选词级层 `word_*`、自上而下层 `td_layers`、会话边界字节 SEP=30；训练 / 采样入口）、[hub.py](../../hub.py)、[online.py](../../online.py)、[evals.py](../../evals.py)、[tools/chat.py](../../tools/chat.py)（聊天 demo）、[tools/make_chat_data.py](../../tools/make_chat_data.py)（对话数据）、[tsph.py](../../tsph.py) + [tools/train_tsph.py](../../tools/train_tsph.py)（净室对照方案 TSPH，设计第 10 章；已过 CPU 测试，未在数据上训练）。
 - 数据：TinyStoriesV2-GPT4（训练 2.23 GB，验证 22.5 MB）；data/chat-train.txt、chat-valid.txt（SODA 双人对话 + 25% 模板记忆对话，一半跨会话，对话之间是 SEP 字节）。
-- **正在跑（独立进程，关窗口不影响）**：对话微调 dspn-L_chat，队列 [tools/queues/chat_only.json](../../tools/queues/chat_only.json)，日志 runs/chat_ft.log；从 runs/dspn-L_base2.pt 开始（预训练按用户决定在第 14500 步停，批 16，验证 bpc 0.782；E41），批 16 × 1024、1.5 万步、lr 3e-4 余弦到 0（兼作衰减段）；第一次因会话重置 bug 发散（E42，已修），01:50 重启，约 1 小时。另存 runs/dspn-L_base3.pt：衰减试跑 1500 步即停，bpc 0.778，未使用。
+- **正在跑（独立进程，关窗口不影响）**：对话微调 dspn-L_chat，队列 [tools/queues/chat_only.json](../../tools/queues/chat_only.json)，日志 runs/chat_ft.log；从 runs/dspn-L_base2.pt 开始（预训练按用户决定在第 14500 步停，批 16，验证 bpc 0.782；E41），批 16 × 1024、1.5 万步、lr 3e-4 余弦到 0（兼作衰减段）；第一次因会话重置 bug 发散（E42），第二次因工作空间环路爆炸发散（E43），均已修；02:23 第三次启动，约 1 小时。另存 runs/dspn-L_base3.pt：衰减试跑 1500 步即停，bpc 0.778，未使用。
 - **下一步（按顺序）**：
   1. 看 runs/chat_ft.log 末尾与生成的 runs/*_dspn-L_chat.json，在 docs/experiments/e30-.md 登记；`python dspn_text.py sample dspn --size L --tag _base2 --extra "<overnight.json 里的 extra>"` 看生成样本。
   2. 对话微调：正在跑（见上“正在跑”）；完成后跑生成样本。

@@ -174,8 +174,7 @@ class DSPNLayered(nn.Module):
     输出每个上层模块 4 维切片。"""
     def __init__(self, layers=4, rows=2, cols=4, d=32, m=16, hidden=64, q=8, emb=32, vocab=256,
                  hub_after=0, hub_heads=2, hub_dk=32, hub_window=0, beta_max=1.0, hub_out=4, hub_taus=None,
-                 ws_slots=0, ws_dim=16, ws_block=64, ws_topk=0, ws_read=False, ws_sparse=False,
-                 ws_lb=0.0, ws_pc=0.0, ws_ignite=False,
+                 ws_slots=0, ws_dim=16, ws_block=64,
                  word_layers=0, word_d=256, word_hidden=512, word_m=32, word_q=32, word_mods=1,
                  td_layers=0, td_pc=0.1, td_target=1):
         super().__init__()
@@ -197,31 +196,16 @@ class DSPNLayered(nn.Module):
         Uw = lambda j: (M * q + emb if j == 0 else 2 * wq + (hub_out if hub_after and j == hub_after else 0))
         self.wlayers = nn.ModuleList([Layer(1, Mw, Uw(j), word_d, word_m, word_hidden, wq, beta_max=beta_max)
                                       for j in range(word_layers)])
-        # 全局工作空间（设计 8.7）：每块末全部模块竞争写入 ws_slots 个槽位，下一块广播给所有层所有模块（每模块 4 维）。
-        # 可选机制：ws_topk 硬竞争（只有显著性前 k 的模块能写）；ws_lb 负载均衡损失权重；ws_ignite 点燃（保留门随写入内容变）；
-        # ws_read 各模块用注意力选择性读槽位；ws_sparse 只有胜出模块下一块更新状态（需 ws_topk）；
-        # ws_pc 预测编码损失权重（读到的内容预测本模块消息，向上传“消息 − 预测”）
+        # 全局工作空间（设计 8.7）：每块末全部模块软竞争写入 ws_slots 个槽位，下一块广播给所有层所有模块（每模块 4 维）。
+        # 完整版（硬竞争、选择性读、稀疏更新、点燃、预测编码）使训练锁死（E35），已删。
         self.ws_slots, self.ws_dim, self.ws_block = ws_slots, ws_dim, ws_block
-        self.ws_topk, self.ws_read, self.ws_sparse = ws_topk, ws_read, ws_sparse
-        self.ws_lb, self.ws_pc, self.ws_ignite = ws_lb, ws_pc, ws_ignite
         self.aux = 0.0                                                            # 辅助损失，每次前向重算，train 加进总损失
         if ws_slots:
             self.ws_id = nn.Parameter(torch.randn(layers * M, q) * 0.1)            # 模块身份，打分时区分来源
             self.ws_q = nn.Parameter(torch.randn(ws_slots, 16))
             self.ws_k = nn.Linear(q, 16, bias=False); self.ws_v = nn.Linear(q, ws_dim, bias=False)
             self.ws_keep = nn.Parameter(torch.zeros(ws_slots))                    # 槽位跨块保留门（维持）
-            if ws_topk:
-                self.ws_sal = nn.Linear(q, 1)
-            if ws_ignite:
-                self.ws_ig = nn.Linear(ws_dim, 1); nn.init.zeros_(self.ws_ig.weight)
-            if ws_read:
-                self.ws_rq = nn.Linear(q, 16, bias=False); self.ws_rk = nn.Linear(ws_dim, 16, bias=False)
-                self.ws_rv = nn.Linear(ws_dim, 4, bias=False); nn.init.zeros_(self.ws_rv.weight)   # 零初始：起步等于无工作空间
-            else:
-                self.ws_in = nn.Parameter(torch.zeros(layers, ws_slots * ws_dim, M * 4))
-            if ws_pc:
-                self.ws_pc_w = nn.Parameter(torch.zeros(layers, 4, q))
-                self.ws_pc_g = nn.Parameter(torch.full((layers,), -4.0))           # 起步几乎不减预测
+            self.ws_in = nn.Parameter(torch.zeros(layers, ws_slots * ws_dim, M * 4))   # 零初始：起步等于无工作空间
         W = 4 if ws_slots else 0
         hub_byte = hub_after and not word_layers
         U = lambda i: (emb if i == 0 else 2 * q + (hub_out if hub_byte and i == hub_after else 0)) + W
@@ -254,56 +238,41 @@ class DSPNLayered(nn.Module):
         st += [(z(self.d), z(self.m, self.m)) for _ in self.tdlayers]
         if self.tdlayers and not self.wlayers:             # 字节顶层上一拍的输出（自上而下预测的来源）
             st.append(torch.zeros(b, self.M * self.d, device=dev))
-        if self.ws_slots:      # (槽位, 各模块读到的 4 维, 各模块是否活跃, 已读字节数)；块边界按全局位置对齐，逐拍与整段一致
+        if self.ws_slots:      # (槽位, 各模块读到的 4 维, 已读字节数)；块边界按全局位置对齐，逐拍与整段一致
             dev, L = self.emb.weight.device, len(self.layers)
-            st.append((torch.zeros(b, self.ws_slots, self.ws_dim, device=dev), torch.zeros(b, L, self.M, 4, device=dev),
-                       torch.ones(b, L, self.M, device=dev), 0))
+            st.append((torch.zeros(b, self.ws_slots, self.ws_dim, device=dev), torch.zeros(b, L, self.M, 4, device=dev), 0))
         return st
 
     def forward(self, idx, state=None):
         state = state or self.init_state(idx.shape[0])
         self.aux = 0.0
         if not self.ws_slots:
-            lg, new, _ = self._run(idx, state, None, None)
+            lg, new, _ = self._run(idx, state, None)
             return lg, new
-        slots, reads, active, pos = state[-1]
+        slots, reads, pos = state[-1]
         st, outs, t, T = state[:-1], [], 0, idx.shape[1]
         while t < T:                                       # 块内整段并行，块间串行（槽位只在块边界更新）
             n = min(T - t, self.ws_block - pos % self.ws_block)
-            lg, st, zs = self._run(idx[:, t:t + n], st, reads, active if self.ws_sparse else None)
+            lg, st, zs = self._run(idx[:, t:t + n], st, reads)
             outs.append(lg); t += n; pos += n
             if pos % self.ws_block == 0:
-                slots, reads, active = self._ws_write(zs, slots)
-        return torch.cat(outs, 1), st + [(slots, reads, active, pos)]
+                slots, reads = self._ws_write(zs, slots)
+        return torch.cat(outs, 1), st + [(slots, reads, pos)]
 
     def _ws_write(self, zs, slots):
-        """各层各模块本块末拍的消息竞争每个槽位，写入内容与旧槽位按保留门混合；再算下一块各模块读到的内容与活跃集合。"""
+        """各层各模块本块末拍的消息软竞争每个槽位，写入内容与旧槽位按保留门混合；再算下一块各模块读到的内容。"""
         b, L = slots.shape[0], len(self.layers)
-        tok = torch.stack([z[:, -1] for z in zs], 1).flatten(1, 2) + self.ws_id          # (b, L·M, q)
+        tok = torch.stack([z[:, -1] for z in zs], 1).flatten(1, 2)                         # (b, L·M, q)
+        # 先归一化再写：槽位 → 下一块输入 → 消息 → 槽位是跨块的非线性环路，不归一化时增益过 1 会逐块指数爆炸（E43）
+        tok = F.rms_norm(tok, tok.shape[-1:]) + self.ws_id
         sc = torch.einsum('sk,bnk->bsn', self.ws_q, self.ws_k(tok)) / 4.0
-        v = self.ws_v(tok)
-        active = torch.ones(b, tok.shape[1], device=tok.device)
-        if self.ws_topk:                                   # 硬竞争：只有显著性前 k 的模块能写
-            sal = self.ws_sal(tok).squeeze(-1)
-            active = torch.zeros_like(sal).scatter_(1, sal.topk(self.ws_topk, -1).indices, 1.0)
-            sc = sc.masked_fill(active[:, None] == 0, float('-inf'))
-            v = v * torch.sigmoid(sal)[..., None]          # 让显著性得到梯度
-            if self.ws_lb:                                 # Switch 式负载均衡：选中频率 × 平均概率
-                self.aux = self.aux + self.ws_lb * sal.shape[1] * (active.mean(0) * torch.softmax(sal, -1).mean(0)).sum()
-        write = torch.softmax(sc, -1) @ v                  # (b, K, w)
-        keep = self.ws_keep[None, :, None]
-        if self.ws_ignite:                                 # 点燃：保留门随写入内容变，强写入替换、弱写入进不去（符号由学习决定）
-            keep = keep - self.ws_ig(write)
-        keep = torch.sigmoid(keep)
+        write = torch.softmax(sc, -1) @ self.ws_v(tok)                                   # (b, K, w)
+        keep = torch.sigmoid(self.ws_keep[None, :, None])
         slots = keep * slots + (1 - keep) * write
-        if self.ws_read:                                   # 选择性读：各模块用自己的消息作查询
-            att = torch.softmax(torch.einsum('bnk,bsk->bns', self.ws_rq(tok), self.ws_rk(slots)) / 4.0, -1)
-            reads = (att @ self.ws_rv(slots)).reshape(b, L, self.M, 4)
-        else:
-            reads = torch.einsum('bi,lio->blo', slots.flatten(1), self.ws_in).reshape(b, L, self.M, 4)
-        return slots, reads, active.reshape(b, L, self.M)
+        reads = torch.einsum('bi,lio->blo', slots.flatten(1), self.ws_in).reshape(b, L, self.M, 4)
+        return slots, reads
 
-    def _run(self, idx, state, reads, active):
+    def _run(self, idx, state, reads):
         b, T = idx.shape
         e = self.emb(idx)
         u = e[:, :, None, :].expand(b, T, self.M, -1)
@@ -313,14 +282,9 @@ class DSPNLayered(nn.Module):
         for i, (layer, st) in enumerate(zip(self.layers, state)):
             if reads is not None:
                 u = torch.cat([u, reads[:, i, None].expand(b, T, self.M, 4)], -1)
-            h, z, ns = layer(u, st, None if active is None else active[:, i], reset)
+            h, z, ns = layer(u, st, None, reset)
             hs.append(h); new.append(ns); zs.append(z)
-            up = z
-            if self.ws_pc and reads is not None:           # 预测编码：读到的内容预测本模块消息，向上传误差
-                pred = torch.einsum('bmr,rq->bmq', reads[:, i], self.ws_pc_w[i])[:, None]
-                self.aux = self.aux + self.ws_pc * ((pred - z.detach()) ** 2).mean()
-                up = z - torch.sigmoid(self.ws_pc_g[i]) * pred.detach()
-            u = torch.cat([up, torch.einsum('ij,btjq->btiq', layer.adj, up)], -1)
+            u = torch.cat([z, torch.einsum('ij,btjq->btiq', layer.adj, z)], -1)
             if self.hub is not None and not self.wlayers and i + 1 == self.hub_after:
                 o, hs_new = self.hub(torch.cat([z.reshape(b, T, -1), e], -1), state[L], reset)
                 u = torch.cat([u, o], -1)

@@ -15,24 +15,9 @@ def model(**kw):
         for l in m.layers:
             l.W2.normal_(0, 0.3)
         for k, p in m.named_parameters():          # 零初始的工作空间参数随机化，让各机制真正起作用
-            if k in ('ws_in', 'ws_rv.weight', 'ws_pc_w', 'ws_ig.weight'):
+            if k == 'ws_in':
                 p.normal_(0, 0.3)
     return m
-
-
-FULL = dict(ws_slots=2, ws_dim=4, ws_block=8, ws_topk=2, ws_read=True, ws_sparse=True, ws_lb=0.01, ws_pc=0.1, ws_ignite=True)
-
-
-def test_full_stream_equals_parallel_and_trains():
-    m = model(**FULL)
-    x = torch.randint(0, 256, (2, 21))
-    full = run(m, x, [])
-    assert torch.allclose(full, run(m, x, list(range(1, 21))), atol=1e-5)
-    assert torch.allclose(full, run(m, x, [5, 13]), atol=1e-5)
-    lg, st = m(x)
-    assert st[-1][2].sum(-1).sum(-1).eq(2).all()            # 每个样本恰好 2 个模块活跃
-    (lg.square().mean() + m.aux).backward()
-    assert m.ws_sal.weight.grad.abs().sum() > 0 and m.ws_pc_w.grad.abs().sum() > 0
 
 
 def run(m, x, cuts):
@@ -59,3 +44,13 @@ def test_workspace_matters_after_first_block():
     lg0, _ = m(x)
     assert torch.allclose(lg[:, :8], lg0[:, :8])          # 第一块槽位为零
     assert not torch.allclose(lg[:, 8:], lg0[:, 8:])
+
+
+def test_write_is_bounded():
+    """消息放大 1000 倍，写进槽位的内容不变：跨块环路不会自我放大（E43）。"""
+    m = model(ws_slots=2, ws_dim=4, ws_block=8)
+    zs = [torch.randn(2, 8, m.M, 4) for _ in m.layers]
+    s0 = torch.zeros(2, 2, 4)
+    a, _ = m._ws_write(zs, s0)
+    b, _ = m._ws_write([z * 1000 for z in zs], s0)
+    assert torch.allclose(a, b, atol=1e-4)
