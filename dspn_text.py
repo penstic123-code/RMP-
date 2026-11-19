@@ -173,7 +173,7 @@ class DSPNLayered(nn.Module):
     hub_after=k 时在第 k、k+1 层之间插入全局记忆中枢（hub.py，设计第 1.2 节），读第 k 层全部消息与本拍嵌入，
     输出每个上层模块 4 维切片。"""
     def __init__(self, layers=4, rows=2, cols=4, d=32, m=16, hidden=64, q=8, emb=32, vocab=256,
-                 hub_after=0, hub_heads=2, hub_dk=32, hub_window=0, beta_max=1.0, hub_out=4, hub_taus=None,
+                 hub_after=0, hub_heads=2, hub_dk=32, beta_max=1.0, hub_out=4, hub_taus=None,
                  ws_slots=0, ws_dim=16, ws_block=64,
                  word_layers=0, word_d=256, word_hidden=512, word_m=32, word_q=32, word_mods=1,
                  td_layers=0, td_pc=0.1, td_target=1):
@@ -191,7 +191,7 @@ class DSPNLayered(nn.Module):
         if hub_after:
             from hub import Hub
             n_in, M_out = (Mw * wq + emb, Mw) if word_layers else (M * q + emb, M)
-            self.hub = Hub(n_in, M_out, out_dim=hub_out, heads=hub_heads, dk=hub_dk, window=hub_window,
+            self.hub = Hub(n_in, M_out, out_dim=hub_out, heads=hub_heads, dk=hub_dk,
                            beta_max=beta_max, taus=hub_taus)
         Uw = lambda j: (M * q + emb if j == 0 else 2 * wq + (hub_out if hub_after and j == hub_after else 0))
         self.wlayers = nn.ModuleList([Layer(1, Mw, Uw(j), word_d, word_m, word_hidden, wq, beta_max=beta_max)
