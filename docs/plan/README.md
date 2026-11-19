@@ -22,7 +22,7 @@
   2. 对话微调：正在跑（见上“正在跑”）；完成后跑生成样本。
   3. 聊天 demo：`python tools/chat.py runs/dspn-L_chat.pt --size L --extra "<同上>"`（命令 /new 新会话只留持久记忆、/sleep 睡眠、/save 存权重、/reset 全清）；测试脚本已写好 [tools/chat_scripts/memory.txt](../../tools/chat_scripts/memory.txt)（会话内召回、/new 后跨会话召回、/sleep 后召回、模板外的“我哥哥叫…”），用 `--script tools/chat_scripts/memory.txt` 跑并把记录登记进实验记录，检验会话内与跨会话记忆。
   4. demo 之后：TSPH 在 S 档对照（`python tools/train_tsph.py --size S --data tiny --batch 16 --T 1024 --tag _x1`，比 E38 字节级 1.247），再按设计 10.5 做记忆与遗忘对比。
-  5. demo 之后按 [v2.md](v2.md) 的放大路线做：S 档配方对照 → 装融合内核 → 1000 万参数同墙钟筛选（含第 13 章两级方案与标准混合）→ 胜者 3000 万参数两天。
+  5. 自动任务队列见 [v2.md](v2.md)“任务队列”（2026-11-20 用户授权全自动推进，主线为自己的架构放大）。其后按 v2.md 的放大路线做：S 档配方对照 → 装融合内核 → 1000 万参数同墙钟筛选（含第 13 章两级方案与标准混合）→ 胜者 3000 万参数两天。
   6. 目标已定为“可用模型”（2026-11-19 用户确认；参数可以大，单次训练可跑约两天）：按 [design/candidates/13-usable-model.md](../design/candidates/13-usable-model.md) 13.6 的顺序做——装 triton-windows 与 flash-linear-attention 并做一次数值对照 → 约 1000 万参数三组各 2 小时同墙钟筛选（单级 / 两级固定边界 / 两级动态分块，基线 dspn-L_base）→ 开关自上而下预测 → 胜者放大到 3000 万–6000 万参数跑两天，再接对话续训与同一套聊天脚本。与第 4 项的 TSPH 对照可合并进同一轮筛选。
 - 已定：不复现 E13 的莎士比亚结果。
 - 第 4、5 阶段第一版的在线学习用“块内截断反传、只更新在线参数”的工程简化；设计中的对角痕迹与逐层反馈在 demo 跑通后替换，替换前后做对照。顺序：先对 c 的对角线性递推换成资格痕迹（可精确等于梯度，在线不存历史），再对 MLP 与跨层部分试逐层反馈或本地预测误差（预测编码）；每步比新词 bpc、旧数据遗忘与内存（理由见 design/current/3-learning.md 3.1）。

@@ -18,7 +18,7 @@
 - [7　研究依据](basis/7-references.md)：经典引用（近期文献按主题见 [literature/](../literature/README.md)）
 - [8　脑机制对照、层级与稀疏](basis/8-brain-hierarchy.md)：设计讨论结论，含全局工作空间（8.7）
 
-**候选方案（candidates/）**——未采纳，按各自的对照办法评估
+**候选方案（candidates/）**——全部未实验；2026-11-20 起主线是现有 DSPN 逐步放大，可借鉴的机制已提炼进 [plan/v2.md](../plan/v2.md)“候选章节提炼”，各章只作素材
 
 - [9　两级主干 + 三层记忆](candidates/9-redesign-candidate.md)：独立设计提案，部分已提前采纳（9.5）
 - [10　双扫预测层级网络 TSPH](candidates/10-tsph-cleanroom.md)：净室设计，demo 后按 10.5 对比
