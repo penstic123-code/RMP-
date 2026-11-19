@@ -1,0 +1,147 @@
+{
+ "ckpt": "runs/dspn-L_chat.pt",
+ "extra": {
+  "layers": 4,
+  "rows": 1,
+  "cols": 2,
+  "d": 320,
+  "hidden": 640,
+  "m": 48,
+  "q": 32,
+  "emb": 64,
+  "hub_after": 2,
+  "hub_heads": 4,
+  "hub_dk": 64,
+  "hub_out": 32,
+  "hub_taus": [
+   300,
+   3000,
+   30000,
+   1000000
+  ],
+  "beta_max": 2,
+  "ws_slots": 4
+ },
+ "learner": {
+  "lr": 0.003,
+  "replay": 0.25
+ },
+ "log": [
+  [
+   "My name is Tovaku.",
+   "Nice to meet you, Tovoka!"
+  ],
+  [
+   "I have a cat named Mirafe.",
+   "I like the name Mirafe."
+  ],
+  [
+   "My favorite color is purple.",
+   "I am a bit tired."
+  ],
+  [
+   "How are you today?",
+   "I am good, thank you. How about you?"
+  ],
+  [
+   "What is my name?",
+   "Your name is Tovoka."
+  ],
+  [
+   "What is my cat's name?",
+   "Your cat is called Tovoka."
+  ],
+  [
+   "What is my favorite color?",
+   "Your favorite color is purple."
+  ],
+  [
+   "/new",
+   "（新会话：短时记忆已清空，持久记忆与权重保留）"
+  ],
+  [
+   "Hi again!",
+   "Hello! Nice to see you again."
+  ],
+  [
+   "What is my name?",
+   "Your name is Dakoda."
+  ],
+  [
+   "What is my cat's name?",
+   "Your cat is called Tikako."
+  ],
+  [
+   "What is my favorite color?",
+   "Your favorite color is red."
+  ],
+  [
+   "/new",
+   "（新会话：短时记忆已清空，持久记忆与权重保留）"
+  ],
+  [
+   "My best friend is Zulino.",
+   "It is good to have a friend like Puli."
+  ],
+  [
+   "I like to eat noodles.",
+   "Yum, noodles is tasty."
+  ],
+  [
+   "It is sunny outside.",
+   "That sounds like a nice day."
+  ],
+  [
+   "/sleep",
+   "（睡眠：已巩固，旧对话 bpc 0.830→0.830）"
+  ],
+  [
+   "/new",
+   "（新会话：短时记忆已清空，持久记忆与权重保留）"
+  ],
+  [
+   "Hi again!",
+   "Hey, I'm looking for a new start. Maybe we can appreciate some of the world that we go to the beach and see it like we don't have?"
+  ],
+  [
+   "Who is my best friend?",
+   "Start sounds like a good place with your best friend to me. I want to be together sometime."
+  ],
+  [
+   "What do I like to eat?",
+   "I'm not really hungry anymore. I mean, hurt them or something. Um and I love some of those things that make people happy and make me happy. But I'm not happy about it or anything. I'm still happy to"
+  ],
+  [
+   "What is my name?",
+   "I'm sorry, I didn't have a negative method. I was often calling and I didn't want to make you see him anywhere."
+  ],
+  [
+   "/new",
+   "（新会话：短时记忆已清空，持久记忆与权重保留）"
+  ],
+  [
+   "My brother is called Kesaro.",
+   "Kesaroo, you have to come in and try to avoid him. That way you would let me have your best in your parents."
+  ],
+  [
+   "I went to the park.",
+   "Why did you enjoy the party of the party?"
+  ],
+  [
+   "What is my brother called?",
+   "He was wearing a little symptom of his brother and he would have a great computer. It looks beautiful and tidy. And it was a lot of work, but I could stick to her brother and forget about it. And the"
+  ],
+  [
+   "/new",
+   "（新会话：短时记忆已清空，持久记忆与权重保留）"
+  ],
+  [
+   "Hi again!",
+   "Hey! How are you today?"
+  ],
+  [
+   "What is my brother called?",
+   "Hi there! How are you today?"
+  ]
+ ]
+}
