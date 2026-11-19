@@ -17,11 +17,13 @@ class Chat:
         self.model, self.temp, self.max_reply = model, temp, max_reply
         self.L = OnlineLearner(model, **learner)
         self.heard = []                                    # 本次运行里用户说过的话（睡眠验收的新内容探针）
+        self.day = []                                      # 上次睡眠以来读过的全部字节（用户的话与模型的回答），睡眠时蒸馏
         self.probe_old = bytes(D.load_bytes('chat2')[1][:2048])
 
     @torch.no_grad()
     def _advance(self, data):
         """不学习地读入（Bot 前缀、模型自己的回答）：只推进状态。"""
+        self.day.append(bytes(data))
         ids = _ids(data, D.DEV)                            # 与 OnlineLearner 同约定：last 是还没输入模型的最后一个字节
         seq = ids if self.L.last is None else torch.cat([self.L.last, ids])
         if len(seq) > 1:
@@ -40,6 +42,7 @@ class Chat:
             out.append(nxt.item())
             lg, st = self.model(nxt.view(1, 1), st)
         self.L.state, self.L.last = st, torch.tensor([10], device=D.DEV)   # 换行已作为输入读入
+        self.day.append(bytes(out) + b'\n')
         return bytes(out).decode('utf-8', errors='replace').strip()
 
     def turn(self, line):
@@ -48,9 +51,12 @@ class Chat:
         if line == '/reset':
             self.L.reset_session(); return '（全部状态清零，只剩权重）'
         if line == '/sleep':
-            r = self.L.sleep(self.probe_old, '\n'.join(self.heard[-50:]).encode() or b'\n', anchor=1.0, lr=1e-4)   # 锚定睡眠（E36 唯一稳定提交的方式）
+            day = b''.join(self.day); self.day = []
+            # 上下文蒸馏 + 锚定，不在用户的话上做交叉熵（E44：那样把模型推向“像用户那样说话”）
+            r = self.L.sleep(self.probe_old, day[-4096:] or b'\n', anchor=1.0, lr=1e-4, distill=1.0, day=day[-8192:] or b'\n\n', ce=0.0)
             return f"（睡眠：{'已巩固' if r['committed'] else '回滚'}，旧对话 bpc {r['old_before']:.3f}→{r['old_after']:.3f}）"
         self.heard.append(f'User: {line}')
+        self.day.append(f'User: {line}\n'.encode())
         self.L.read(f'User: {line}\n'.encode())          # 学习只发生在这里
         return self._reply()
 

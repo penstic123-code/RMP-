@@ -168,19 +168,28 @@ class OnlineLearner:
                 b.zero_()
                 a.copy_(torch.randn_like(a) / math.sqrt(a.shape[-2]))
 
-    def sleep(self, probe_old, probe_new, steps=200, lr=3e-4, batch=8, old_tol=0.02, anchor=0.0, dream=0.0, n_dream=64):
+    def sleep(self, probe_old, probe_new, steps=200, lr=3e-4, batch=8, old_tol=0.02, anchor=0.0, dream=0.0, n_dream=64,
+              distill=0.0, day=None, ce=1.0, win=64):
         """先把低秩偏移精确并入慢权重（不损失），再在重放池上训 steps 步。
         anchor>0：加 KL(老师‖学生)，老师 = 并入后、重放前的模型，在重放片段上算（E31；但老师已带白天的遗忘，E32 前的第 8 轮显示锚越强旧知识越差）。
         dream>0：做梦式自蒸馏（设计阶段 5 第 1 项）——早晨模型（白天学习前）从池中片段开头自由生成 n_dream 段“梦”，
-        在梦上加 dream·KL(早晨模型‖学生)，保住旧分布；池上的交叉熵负责学新内容。"""
+        在梦上加 dream·KL(早晨模型‖学生)，保住旧分布；池上的交叉熵负责学新内容。
+        distill>0：上下文蒸馏（候选 17n1；Snell 等 2022）——老师 = 并入后的模型带着状态读完当天全部对话 day，记下每个位置的预测；
+        学生 = 同一模型从零状态只看 win 字节的窗口，在同样位置上学老师的分布。当天靠上下文 / 快记忆知道的事由此进权重。
+        ce：池上交叉熵的权重（聊天时池里只有用户的话，训它会把模型推向“像用户那样说话”，E44，故聊天用 0）。"""
         m = self.model
         backup = copy.deepcopy(m.state_dict())
         online_backup = [p.detach().clone() for p in self.online]   # GRU 适配器不在 state_dict 里
         flags = [(p, p.requires_grad) for p in m.parameters()]
         old0, new0 = bpc(m, probe_old), bpc(m, probe_new)
         self._merge_lora()
-        if not self.pool:                                  # 池空：只并入，不重放
+        if not self.pool and not distill:                  # 池空且不蒸馏：只并入
             steps = 0
+        if distill:
+            dids = _ids(day, _device(m))
+            with torch.no_grad():
+                day_lg = m(dids[None, :-1])[0][0]          # 老师：带状态读完一整天
+            win = min(win, len(dids) - 1)
         teacher = _frozen_copy(m) if anchor else None
         w = np.array([s[0] for s in self.pool]); w = w / w.sum() if self.priority else None
         if dream and steps:                                # 梦从换行自由生成：只代表旧知识（E36：从池中片段续写会教模型忘掉新词）
@@ -192,11 +201,20 @@ class OnlineLearner:
             p.requires_grad_(True)
         opt = torch.optim.Adam(slow, lr=lr)
         for _ in range(steps):
+            loss = 0.0
+            if distill:                                # 学生从零状态看窗口，学老师带全天上下文的分布
+                s = self.rng.integers(0, len(dids) - win, size=batch)
+                x = torch.stack([dids[i:i + win] for i in s])
+                tl = torch.stack([day_lg[i:i + win] for i in s]).flatten(0, 1)
+                sl = m(x)[0].flatten(0, 1)
+                loss = loss + distill * F.kl_div(F.log_softmax(sl, -1), F.log_softmax(tl, -1), log_target=True, reduction='batchmean')
+            if not self.pool:
+                opt.zero_grad(); loss.backward(); opt.step(); continue
             pick = self.rng.choice(len(self.pool), size=batch, p=w)
             xy = torch.from_numpy(np.stack([self.pool[i][2] for i in pick]).astype(np.int64)).to(_device(m))
             lg, _ = m(xy[:, :-1])                       # 从零状态预热
             lg = lg.reshape(-1, lg.shape[-1])
-            loss = F.cross_entropy(lg, xy[:, 1:].reshape(-1))
+            loss = loss + ce * F.cross_entropy(lg, xy[:, 1:].reshape(-1))
             if teacher is not None:
                 with torch.no_grad():
                     tl = teacher(xy[:, :-1])[0].reshape(-1, lg.shape[-1])
