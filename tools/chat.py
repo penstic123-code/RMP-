@@ -18,7 +18,9 @@ class Chat:
         self.L = OnlineLearner(model, **learner)
         self.heard = []                                    # 本次运行里用户说过的话（睡眠验收的新内容探针）
         self.day = []                                      # 上次睡眠以来读过的全部字节（用户的话与模型的回答），睡眠时蒸馏
-        self.probe_old = bytes(D.load_bytes('chat2')[1][:2048])
+        va = D.load_bytes('chat2')[1]
+        self.probe_old = bytes(va[:2048])                   # 睡眠验收：旧对话
+        self.old = bytes(va[4096:4096 + 65536])            # 睡眠锚定用的旧对话（与验收探针不重叠）
 
     @torch.no_grad()
     def _advance(self, data):
@@ -53,7 +55,7 @@ class Chat:
         if line == '/sleep':
             day = b''.join(self.day); self.day = []
             # 上下文蒸馏 + 锚定，不在用户的话上做交叉熵（E44：那样把模型推向“像用户那样说话”）
-            r = self.L.sleep(self.probe_old, day[-4096:] or b'\n', anchor=1.0, lr=1e-4, distill=1.0, day=day[-8192:] or b'\n\n', ce=0.0)
+            r = self.L.sleep(self.probe_old, day[-4096:] or b'\n', anchor=1.0, lr=1e-4, distill=1.0, day=day[-8192:] or b'\n\n', ce=0.0, old=self.old)
             return f"（睡眠：{'已巩固' if r['committed'] else '回滚'}，旧对话 bpc {r['old_before']:.3f}→{r['old_after']:.3f}）"
         self.heard.append(f'User: {line}')
         self.day.append(f'User: {line}\n'.encode())

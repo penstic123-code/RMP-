@@ -47,5 +47,5 @@ def test_anchor_runs():
 def test_distill_runs_without_pool_ce():
     m, L = _learner()
     day = b'User: My cat is Mirafe.\nBot: Nice name.\nUser: What is my cat?\nBot: Mirafe.\n' * 3
-    r = L.sleep(TEXT[:256], day, steps=3, batch=2, anchor=1.0, distill=1.0, day=day, ce=0.0, win=32)
+    r = L.sleep(TEXT[:256], day, steps=3, batch=2, anchor=1.0, distill=1.0, day=day, ce=0.0, win=32, old=TEXT)
     assert set(r) >= {'committed', 'old_after', 'new_after'}

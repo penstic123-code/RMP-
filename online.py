@@ -169,13 +169,14 @@ class OnlineLearner:
                 a.copy_(torch.randn_like(a) / math.sqrt(a.shape[-2]))
 
     def sleep(self, probe_old, probe_new, steps=200, lr=3e-4, batch=8, old_tol=0.02, anchor=0.0, dream=0.0, n_dream=64,
-              distill=0.0, day=None, ce=1.0, win=64):
+              distill=0.0, day=None, ce=1.0, win=64, old=None):
         """先把低秩偏移精确并入慢权重（不损失），再在重放池上训 steps 步。
         anchor>0：加 KL(老师‖学生)，老师 = 并入后、重放前的模型，在重放片段上算（E31；但老师已带白天的遗忘，E32 前的第 8 轮显示锚越强旧知识越差）。
         dream>0：做梦式自蒸馏（设计阶段 5 第 1 项）——早晨模型（白天学习前）从池中片段开头自由生成 n_dream 段“梦”，
         在梦上加 dream·KL(早晨模型‖学生)，保住旧分布；池上的交叉熵负责学新内容。
         distill>0：上下文蒸馏（候选 17n1；Snell 等 2022）——老师 = 并入后的模型带着状态读完当天全部对话 day，记下每个位置的预测；
         学生 = 同一模型从零状态只看 win 字节的窗口，在同样位置上学老师的分布。当天靠上下文 / 快记忆知道的事由此进权重。
+        old：旧语料字节；给了时锚定 KL 改在旧语料的随机窗口上算（候选 11 §3.3：只在旧数据上拉住，新内容不受锚的阻挡）。
         ce：池上交叉熵的权重（聊天时池里只有用户的话，训它会把模型推向“像用户那样说话”，E44，故聊天用 0）。"""
         m = self.model
         backup = copy.deepcopy(m.state_dict())
@@ -185,6 +186,7 @@ class OnlineLearner:
         self._merge_lora()
         if not self.pool and not distill:                  # 池空且不蒸馏：只并入
             steps = 0
+        oids = _ids(old, _device(m)) if old is not None else None
         if distill:
             dids = _ids(day, _device(m))
             with torch.no_grad():
@@ -208,7 +210,13 @@ class OnlineLearner:
                 tl = torch.stack([day_lg[i:i + win] for i in s]).flatten(0, 1)
                 sl = m(x)[0].flatten(0, 1)
                 loss = loss + distill * F.kl_div(F.log_softmax(sl, -1), F.log_softmax(tl, -1), log_target=True, reduction='batchmean')
-            if not self.pool:
+            if anchor and old is not None:             # 锚在旧语料上：学生不偏离睡前模型对旧数据的预测
+                o = torch.stack([oids[i:i + win] for i in self.rng.integers(0, len(oids) - win, size=batch)])
+                with torch.no_grad():
+                    tl = teacher(o)[0].flatten(0, 1)
+                sl = m(o)[0].flatten(0, 1)
+                loss = loss + anchor * F.kl_div(F.log_softmax(sl, -1), F.log_softmax(tl, -1), log_target=True, reduction='batchmean')
+            if not self.pool or old is not None and not ce:
                 opt.zero_grad(); loss.backward(); opt.step(); continue
             pick = self.rng.choice(len(self.pool), size=batch, p=w)
             xy = torch.from_numpy(np.stack([self.pool[i][2] for i in pick]).astype(np.int64)).to(_device(m))
