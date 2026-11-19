@@ -1,7 +1,6 @@
 """DSPN 字节级语言模型：分层模块网格（门控对角线性循环 c + 快记忆 S + 局部 MLP），离线训练入口。
 
 设计见 docs/design/README.md；排期见 docs/plan/README.md。v0.14 原型原样保存在 legacy/dspn_text_v014.py。
-与设计文档的已知差异：读出接所有层的 h（设计为最上层），经瓶颈与嵌入 E 共享。
 
 用法：
   python dspn_text.py train dspn --size S --data tiny --iters 3000
@@ -29,7 +28,7 @@ SEP = 30   # 会话边界字节（ASCII 记录分隔符）：清空 c、快记�
 SIZES = {   # 约 0.3M / 0.9M / 3.4M 参数
     'S': dict(layers=4, rows=2, cols=4, d=32, m=16, hidden=64, q=8, emb=32),
     'M': dict(layers=6, rows=4, cols=4, d=32, m=16, hidden=64, q=8, emb=32),
-    'L': dict(layers=6, rows=4, cols=8, d=48, m=16, hidden=96, q=8, emb=48),
+    'L': dict(layers=4, rows=1, cols=2, d=320, m=48, hidden=640, q=32, emb=64),   # 通宵 dspn-L_base 的主干（中枢等见 tools/queues/overnight.json）
 }
 
 
@@ -282,10 +281,14 @@ class DSPNLayered(nn.Module):
         st, outs, t, T = state[:-1], [], 0, idx.shape[1]
         while t < T:                                       # 块内整段并行，块间串行（槽位只在块边界更新）
             n = min(T - t, self.ws_block - pos % self.ws_block)
-            lg, st, zs = self._run(idx[:, t:t + n], st, reads)
+            seg = idx[:, t:t + n]
+            lg, st, zs = self._run(seg, st, reads)
             outs.append(lg); t += n; pos += n
+            fresh = (seg == SEP).any(1)                    # 本块含会话边界：旧槽位作废（与 c、快记忆、短时头一致）
+            slots = slots * (~fresh)[:, None, None]
             if pos % self.ws_block == 0:
                 slots, reads = self._ws_write(zs, slots)
+            reads = reads * (~fresh)[:, None, None, None] if pos % self.ws_block else reads
         return torch.cat(outs, 1), st + [(slots, reads, pos)]
 
     def _ws_write(self, zs, slots):
@@ -311,8 +314,9 @@ class DSPNLayered(nn.Module):
         reset = idx == SEP
         pp, new_pp, s = (state[-1], [], None) if self.surprise else (None, None, None)
         for i, (layer, st) in enumerate(zip(self.layers, state)):
-            if reads is not None:
-                u = torch.cat([u, reads[:, i, None].expand(b, T, self.M, 4)], -1)
+            if reads is not None:                          # 会话边界之后本块不再读旧槽位
+                alive = (reset.cumsum(1) == 0).float()[:, :, None, None]
+                u = torch.cat([u, reads[:, i, None].expand(b, T, self.M, 4) * alive], -1)
             wb = None if s is None else self.sg_a[i] * (s - 1)
             h, z, ns = layer(u, st, None, reset, wb)
             hs.append(h); new.append(ns); zs.append(z)

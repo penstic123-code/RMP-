@@ -186,7 +186,8 @@ class OnlineLearner:
         if dream and steps:                                # 梦从换行自由生成：只代表旧知识（E36：从池中片段续写会教模型忘掉新词）
             prompts = torch.full((n_dream, 1), 10, dtype=torch.long, device=_device(m))
             dreams = _dream(self.morning, prompts, self.chunk)
-        slow = [p for k, p in m.named_parameters() if 'lora' not in k]   # 睡眠只训慢权重；低秩偏移刚清零，留给第二天
+        # 睡眠只训慢权重；低秩偏移刚清零，留给第二天。嵌入 / 读出不动：改读出是遗忘主因（E29）
+        slow = [p for k, p in m.named_parameters() if 'lora' not in k and not k.startswith(('emb.', 'readout.', 'bias', 'norm.'))]
         for p in slow:
             p.requires_grad_(True)
         opt = torch.optim.Adam(slow, lr=lr)

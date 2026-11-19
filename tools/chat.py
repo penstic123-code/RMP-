@@ -17,7 +17,7 @@ class Chat:
         self.model, self.temp, self.max_reply = model, temp, max_reply
         self.L = OnlineLearner(model, **learner)
         self.heard = []                                    # 本次运行里用户说过的话（睡眠验收的新内容探针）
-        self.probe_old = bytes(D.load_bytes('chat')[1][:2048])
+        self.probe_old = bytes(D.load_bytes('chat2')[1][:2048])
 
     @torch.no_grad()
     def _advance(self, data):

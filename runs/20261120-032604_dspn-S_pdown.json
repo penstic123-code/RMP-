@@ -1,0 +1,80 @@
+{
+ "name": "dspn-S_pdown",
+ "kind": "dspn",
+ "size": "S",
+ "extra": {
+  "layers": 3,
+  "rows": 1,
+  "cols": 2,
+  "d": 90,
+  "hidden": 180,
+  "q": 16,
+  "hub_after": 2,
+  "hub_heads": 4,
+  "hub_dk": 32,
+  "hub_out": 16,
+  "hub_taus": [
+   300,
+   3000,
+   30000,
+   1000000
+  ],
+  "beta_max": 2,
+  "ws_slots": 4,
+  "pred_down": 0.1
+ },
+ "params": 360572,
+ "data": "tiny",
+ "device": "cuda",
+ "batch": 16,
+ "T": 1024,
+ "iters": 3000,
+ "lr": 0.003,
+ "seed": 0,
+ "stateful": false,
+ "bot_loss": false,
+ "init": null,
+ "code_sha": "4d1131d1b077",
+ "seconds": 219,
+ "train_bytes_per_sec": 228153,
+ "peak_gpu_mb": 1368,
+ "val_bpc": 1.6346,
+ "log": [
+  [
+   500,
+   43,
+   2.45,
+   2.507
+  ],
+  [
+   1000,
+   77,
+   1.872,
+   1.858
+  ],
+  [
+   1500,
+   113,
+   1.808,
+   1.749
+  ],
+  [
+   2000,
+   148,
+   1.618,
+   1.671
+  ],
+  [
+   2500,
+   183,
+   1.674,
+   1.602
+  ],
+  [
+   3000,
+   219,
+   1.581,
+   1.592
+  ]
+ ]
+}

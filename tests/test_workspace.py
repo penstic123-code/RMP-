@@ -54,3 +54,19 @@ def test_write_is_bounded():
     a, _ = m._ws_write(zs, s0)
     b, _ = m._ws_write([z * 1000 for z in zs], s0)
     assert torch.allclose(a, b, atol=1e-4)
+
+
+def test_session_boundary_clears_workspace():
+    """会话边界之后，工作空间不额外泄漏边界前的信息：开 / 关工作空间时，两段不同前文造成的输出差异相同。
+    （c 在边界处保留 1%，scan 的已知近似，所以差异本身不为零。）"""
+    from dspn_text import SEP
+    m = model(ws_slots=2, ws_dim=4, ws_block=8)
+    g = torch.Generator().manual_seed(1)
+    pre = lambda: torch.randint(0, SEP, (1, 20), generator=g)
+    tail = torch.randint(0, SEP, (1, 20), generator=g)
+    a = torch.cat([pre(), torch.tensor([[SEP]]), tail], 1); b = torch.cat([pre(), torch.tensor([[SEP]]), tail], 1)
+    d_on = (m(a)[0] - m(b)[0])[:, 21:]
+    with torch.no_grad():
+        m.ws_in.zero_()
+    d_off = (m(a)[0] - m(b)[0])[:, 21:]
+    assert d_on.abs().max() <= 1.1 * d_off.abs().max() + 1e-5

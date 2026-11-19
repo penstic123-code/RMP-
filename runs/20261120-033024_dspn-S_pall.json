@@ -1,0 +1,82 @@
+{
+ "name": "dspn-S_pall",
+ "kind": "dspn",
+ "size": "S",
+ "extra": {
+  "layers": 3,
+  "rows": 1,
+  "cols": 2,
+  "d": 90,
+  "hidden": 180,
+  "q": 16,
+  "hub_after": 2,
+  "hub_heads": 4,
+  "hub_dk": 32,
+  "hub_out": 16,
+  "hub_taus": [
+   300,
+   3000,
+   30000,
+   1000000
+  ],
+  "beta_max": 2,
+  "ws_slots": 4,
+  "pred_self": 0.1,
+  "pred_nb": 0.1,
+  "pred_down": 0.1
+ },
+ "params": 378044,
+ "data": "tiny",
+ "device": "cuda",
+ "batch": 16,
+ "T": 1024,
+ "iters": 3000,
+ "lr": 0.003,
+ "seed": 0,
+ "stateful": false,
+ "bot_loss": false,
+ "init": null,
+ "code_sha": "4d1131d1b077",
+ "seconds": 244,
+ "train_bytes_per_sec": 205149,
+ "peak_gpu_mb": 1447,
+ "val_bpc": 2.3154,
+ "log": [
+  [
+   500,
+   47,
+   3.041,
+   3.036
+  ],
+  [
+   1000,
+   86,
+   2.833,
+   2.812
+  ],
+  [
+   1500,
+   125,
+   2.765,
+   2.689
+  ],
+  [
+   2000,
+   165,
+   3.254,
+   3.262
+  ],
+  [
+   2500,
+   204,
+   2.385,
+   2.302
+  ],
+  [
+   3000,
+   244,
+   2.263,
+   2.269
+  ]
+ ]
+}
