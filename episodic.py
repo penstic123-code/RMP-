@@ -16,7 +16,7 @@ def feats(text):
 
 
 class Episodic:
-    def __init__(self, top=2, min_score=0.6):
+    def __init__(self, top=2, min_score=0.4):
         self.items, self.df, self.session = [], Counter(), 0
         self.top, self.min_score = top, min_score
 
