@@ -28,6 +28,12 @@
 - [Hash Layers](https://arxiv.org/abs/2106.04426)（Roller 等，NeurIPS 2021，未核实）：按 token 固定哈希到专家，无路由参数、无均衡损失，与 Switch、BASE 等学出的路由持平或更好；平衡哈希、只看局部特征的最好。含义：第 23 章的学到地址必须赢过哈希对照才算有用。
 - [Spatially embedded RNNs（seRNN）](https://www.nature.com/articles/s42256-023-00748-9)（Achterberg 等，Nature Machine Intelligence 2023，未核实）：连接代价正比于三维距离，网络收敛到模块化小世界、功能相近的单元在空间上聚集，类似灵长类皮层。后续：[arXiv 2409.17693](https://arxiv.org/abs/2409.17693)。含义：空间位置规则（23.8 的 D）有类脑依据，可测拓扑图涌现。
 
+### 几何生成连接与分工条件（2026-11-21 用户提出，均未核实，只看了摘要）
+
+- [Resonant Sparse Geometry Networks](https://arxiv.org/abs/2601.18064)（Hays，2026 预印本）：节点嵌在学到的双曲空间，连接强度随测地距离衰减，按输入动态稀疏（二手总结约 2% 节点激活）；快：梯度传激活，慢：类 Hebbian 改结构。规模很小（4 万参数、合成任务），无独立复现。含义：双曲空间天然编码层级（离中心的远近 = 层级），可试“双曲地址”替代 23.9 的秩 + 分波。
+- [Dynamics of specialization in neural modules under resource constraints](https://arxiv.org/abs/2106.02626)（Béna、Goodman，Nature Communications）：结构模块化不保证功能分工；分工只在特征可分且资源受限（模块间连接稀疏、带宽窄）时出现，且随训练过程变化。含义：E67 的分工可能来自 k 选 N 与窄残差流；可扫 D、k 检验，并在训练中途的检查点上跑 rmp_emergence 看分工的动态。
+- [Training Neural Networks by Optimizing Neuron Positions](https://arxiv.org/abs/2506.13410)（Erb 等，2025）：神经元坐标是训练参数，权重由距离导出；MNIST 与常规网络相当，脉冲网络也验证。后续 [Space as Time](https://arxiv.org/abs/2511.01632) 用距离定突触延迟。难点：动一个神经元会改它所有的距离（与 E69 改一个地址劫持路由同类）。含义：23.8 规则 D 的更彻底版本；可比“地址用梯度学”与现行竞争学习。
+
 ### 持续学习：路由漂移是主要遗忘来源
 
 - [LLaVA-DyMoE](https://arxiv.org/abs/2603.27481)（2026，未核实）、[StaR-MoE](https://arxiv.org/pdf/2605.17571)（2026，未核实）、[LLaVA-CMoE](https://arxiv.org/html/2503.21227v1)（2025，未核实）：即使冻结旧专家，训练新部分时路由器的共享参数变了，旧输入被分去别的专家，照样遗忘。
