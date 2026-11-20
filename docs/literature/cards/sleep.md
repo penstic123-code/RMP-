@@ -1,5 +1,7 @@
 # 实现卡：睡眠、回放与可塑性
 
+> 与主线 RMP 相关：第 6 张卡（标 【主线 RMP】），见 [23.10](../../design/candidates/23-routed-pool.md)。
+
 “[V]”= 打开原文或代码确认；“[S]”= 搜索片段。目录见 [README](../README.md)。
 
 检索日期 2026-11-19。四项都只改 [online.py](../../../online.py) 或在已训模型上操作，均不需要重训主干。
@@ -35,6 +37,7 @@ for s, p in zip(self.slow, low): s.lerp_(p.detach(), 1 - self.ema)
 **不需要重训**。
 
 ## 6. 稀疏记忆微调（SMF）：类 TF-IDF 选槽
+> 【主线 RMP】乘积键记忆层（23.8 T2）；按访问频率选槽 ≈ RMP 按负载选空闲模块。
 
 **规则**（[arXiv 2510.15103](https://arxiv.org/abs/2510.15103)，[V]）：
 - 记忆层（[Memory Layers at Scale](https://arxiv.org/abs/2412.09764)）替换 1.3B 模型第 12 层 FFN：1M 槽、4 个记忆头、每头 top-k=32、值维 1024、乘积键查表。

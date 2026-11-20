@@ -1,5 +1,7 @@
 # 新型序列架构
 
+> 与主线 RMP 相关：Jamba、Mixture-of-Recursions 两条（标 【主线 RMP】），见 [23.10](../../design/candidates/23-routed-pool.md)。
+
 “已核实”= 代理打开原文或 arXiv 摘要页确认；“未核实”= 只看了搜索片段或二手来源。检索日期 2026-11-19。目录与总结论见 [README](../README.md)。
 
 已在 [fast-memory.md](fast-memory.md)（KDA、GDN、RWKV-7、xLSTM Scaling Laws、LFM2）和 [hierarchy-topdown.md](hierarchy-topdown.md)（H-Net、BLT）写过的不重复。
@@ -30,7 +32,7 @@
 
 ### 混合架构
 
-- [Jamba](https://arxiv.org/abs/2403.19887)（AI21，2024-03，已核实）：Transformer / Mamba 层交错 + MoE，256K 上下文。
+- [Jamba](https://arxiv.org/abs/2403.19887)（AI21，2024-03，已核实）：Transformer / Mamba 层交错 + MoE，256K 上下文。 【主线 RMP】MoE 与序列层交错，RMP 的“稀疏专家 + 状态模块”前例。
 - [Zamba](https://arxiv.org/abs/2405.16712)（Zyphra，2024-05，已核实）：Mamba 主干 + 单个全局共享注意力块，7B。含义：共享一个模块到处复用，和我们的全局中枢思路同构。
 - [Samba](https://arxiv.org/abs/2406.07522)（微软，ICLR 2025，已核实）：逐层 Mamba + 滑窗注意力，3.8B；4K 训练外推到 256K 密钥检索。
 - [Hymba](https://arxiv.org/abs/2411.13676)（NVIDIA，2024-11，已核实）：同层并行的注意力头与 SSM 头 + 可学习 meta tokens + 跨层 KV 共享；1.5B 超过 Llama-3.2-3B。meta tokens ≈ 我们的工作空间槽。
@@ -44,7 +46,7 @@
 - [TRM](https://arxiv.org/abs/2510.04871)（Jolicoeur-Martineau，Samsung SAIL，2025-10，已核实）：单个 2 层网络递归更新潜状态 z 和答案 y；7M 在 ARC-AGI-1 45%、ARC-AGI-2 8%。Sudoku-Extreme 消融（表 1）：TRM 87.4%（5M）；1 步梯度 56.5%（**完整反传穿过一次递归是最大因素**）；分开 f_H、f_L 82.4%（10M）；去 EMA 79.9%；4 层 n=3 79.5%；自注意力代替 MLP 74.7%；T=2、n=2 73.7%；ACT 86.1%。作者：加层伤泛化，2 层 + 多次递归最好，猜测是小数据下过拟合，无理论。
 - 后续检验：[TRM on ARC-AGI-1](https://arxiv.org/abs/2512.11847)（2025-12，已核实）：换掉 puzzle ID 正确率归零；多数正确率在第 1 次递归就达到，几次后饱和；1000 样本投票 +11 点——结论是任务条件化 + 测试时算力，而非深度推理。[Tiny Autoregressive Recursive Models](https://arxiv.org/abs/2603.08082)（van der Schaar 组，ICLR 2026 workshop，已核实）：从 Transformer 逐级变到自回归 TRM，字符级算法任务、算力对齐：完整 TRM 无可靠收益、常大幅变差，部分两级精炼基线很强。[HRM-LM](https://arxiv.org/abs/2604.14442)（单作者，2026-04，已核实）：OpenWebText、约 1.2B，快慢两速共享权重远胜扁平共享的 UniTF（CE 4.18 vs 约 7.6），对独立层堆叠则随调参而定（同超参输 0.20 nats，各自搜参赢 0.23 nats，单种子）。
 - [Looped Transformer](https://arxiv.org/abs/2502.17416)（Saunshi 等，Google，ICLR 2025，已核实）：k 层循环 L 次在加法、p-hop 归纳上接近 kL 层，明显好于 k 层；LM 推理任务上有竞争力；循环正则可兼顾记忆与推理。
-- [Mixture-of-Recursions](https://arxiv.org/abs/2507.10524)（2025-07，已核实）：共享层栈 + 路由器为每个 token 选递归深度；135M–1.7B 同 FLOPs 帕累托更优，167M 胜 315M 基线。
+- [Mixture-of-Recursions](https://arxiv.org/abs/2507.10524)（2025-07，已核实）：共享层栈 + 路由器为每个 token 选递归深度；135M–1.7B 同 FLOPs 帕累托更优，167M 胜 315M 基线。 【主线 RMP】路由器为每个 token 选深度，对应 R2 的空波跳过 / 按需深度。
 - [Huginn](https://arxiv.org/abs/2502.05171)（Geiping … Goldstein，2025-02，已核实）：3.5B、800B token，递归块推理时可加到等效 50B 参数的计算。只有大规模。
 - [Energy-Based Transformers](https://arxiv.org/abs/2507.02092)（Gladstone … Du，2025-07，已核实）：按能量梯度下降做预测，自报扩展速率最高快 35%、推理期加算力收益多 29%；无小规模字节结果，训练代价高。
 - 含义：HRM/TRM 起作用的是“同一小网络反复迭代 + 完整反传 + 每轮都监督 + 增广”，不是“慢模块管快模块”；TRM 里合并 f_H、f_L 反而更好。E38/E40 把参数分给新层级会失败，与此一致。可试的是不加参数的权重共享迭代，见文末结论。

@@ -1,5 +1,7 @@
 # 认知理论与自我改进（哥德尔机、侯世达、丹尼特、全局工作空间）
 
+> 与主线 RMP 相关：Shared Global Workspace 一条（标 【主线 RMP】），见 [23.10](../../design/candidates/23-routed-pool.md)。
+
 “已核实”= 代理打开 arXiv 摘要页确认；“未核实”= 只看了搜索片段或二手来源。检索日期 2026-11-19。目录与总结论见 [README](../README.md)。
 
 ### 哥德尔机与自我改进
@@ -31,7 +33,7 @@
 
 ### 丹尼特与全局工作空间
 
-- [Shared Global Workspace](https://arxiv.org/abs/2103.01197)（Goyal、Bengio 等，ICLR 2022，已核实摘要）：专家模块竞争写入容量有限的工作空间，再广播给所有模块，促进分工。含义：我们 4 槽工作空间方向对，写入应是竞争式（top-k），而不是平均。
+- [Shared Global Workspace](https://arxiv.org/abs/2103.01197)（Goyal、Bengio 等，ICLR 2022，已核实摘要）：专家模块竞争写入容量有限的工作空间，再广播给所有模块，促进分工。含义：我们 4 槽工作空间方向对，写入应是竞争式（top-k），而不是平均。 【主线 RMP】专家模块竞争、稀疏通信，与 RIMs 同族；RMP 用残差流代替容量受限的工作空间。
 - Identifying indicators of consciousness in AI systems（Butlin、Long、Bengio、Chalmers 等，Trends in Cognitive Sciences 2025-11，未核实）：从理论推出的内部指标，GWT-1 到 GWT-4 为并行专家、有限容量工作空间、全局广播、依状态的注意（按需查询模块）。可作工作空间设计的检查清单。
 - [Can We Test Consciousness Theories on AI?](https://arxiv.org/abs/2512.19155)（Phua 2025-12，已核实）：去掉自我模型后元认知校准消失、任务表现不变；缩小工作空间则访问能力逐渐下降；广播会放大内部噪声，使代理变脆。含义：广播加门槛（“点燃”），并在注入噪声下测试。
 - 多重草稿、大脑中的名声、乔伊斯式虚拟机、Pandemonium：没找到近期机器学习实现。最接近的做法是让多个候选竞争，“名声”= 持续影响工作空间的时长。只是思路，无证据。

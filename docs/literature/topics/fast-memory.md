@@ -1,5 +1,7 @@
 # 快记忆规则与线性注意力层
 
+> 与主线 RMP 相关：Sparse Delta Memory 一条（标 【主线 RMP】），见 [23.10](../../design/candidates/23-routed-pool.md)。
+
 “已核实”= 代理打开原文或 arXiv 摘要页确认；“未核实”= 只看了搜索片段或二手来源。检索日期 2026-11-19。目录与总结论见 [README](../README.md)。
 
 ### 生产级混合线性注意力 / delta 规则
@@ -8,7 +10,7 @@
 - [Qwen3-Next](https://www.alibabacloud.com/blog/602580)：Gated DeltaNet 与门控注意力 3:1；注意力输出门消除 attention sink 与巨激活；零中心 RMSNorm 并对 norm 权重做 weight decay。
 - [RWKV-7](https://arxiv.org/abs/2503.14456)：推广的 delta 规则（向量门控、上下文学习率、擦除键与写入键解耦）。
 - [混合线性注意力系统分析](https://arxiv.org/abs/2507.06457)：语言建模对配比不敏感，召回依赖全注意力层占比；推荐 3:1–6:1。
-- 2026 下半年：[Sparse Delta Memory](https://arxiv.org/abs/2607.07386)（稀疏读写大显式记忆，召回与上下文学习更好）；[Complex KDA](https://arxiv.org/abs/2609.24797)（门取 [-1,1]、β 取 [0,2]，状态追踪更强）；[混合模型中的巨激活](https://arxiv.org/abs/2608.12149)（输出门压低激活幅度）；[长程检索主要由全注意力承担](https://arxiv.org/abs/2606.15378)。
+- 2026 下半年：[Sparse Delta Memory](https://arxiv.org/abs/2607.07386)（稀疏读写大显式记忆，召回与上下文学习更好）；[Complex KDA](https://arxiv.org/abs/2609.24797)（门取 [-1,1]、β 取 [0,2]，状态追踪更强）；[混合模型中的巨激活](https://arxiv.org/abs/2608.12149)（输出门压低激活幅度）；[长程检索主要由全注意力承担](https://arxiv.org/abs/2606.15378)。 【主线 RMP】稀疏读写大记忆，对应 RMP 只更新被选模块的快记忆。
 - 含义：快记忆层可照搬生产配方（短卷积、通道级衰减门、输出 RMSNorm + sigmoid 门、q/k 归一化），均有量化收益，下一次训练前采纳。
 
 ### 其他新序列架构

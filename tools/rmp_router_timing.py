@@ -49,7 +49,7 @@ module_ms = timeit(lambda: F.gelu(torch.cat([(x @ W[0])[:, :d], x[:, :8]], -1) @
 out = {'device': dev, 'queries': Q, 'qr': qr, 'k': k, 'one_module_ms': round(module_ms, 4), 'rows': []}
 for N in (8, 32, 128, 512, 2048, 4096):
     addr = F.normalize(torch.randn(N, qr, device=dev), dim=-1)
-    s = int(math.ceil(math.sqrt(N)))
+    s = max(k, int(math.ceil(math.sqrt(N))))                              # 每半至少 k 个子键
     k1, k2 = torch.randn(s, qr // 2, device=dev), torch.randn(s, qr // 2, device=dev)
     row = {'N': N, 'full_ms': round(timeit(lambda: full(addr)), 4), 'pkey_ms': round(timeit(lambda: pkey(k1, k2)), 4)}
     row['full_over_k_modules'] = round(row['full_ms'] / (k * module_ms), 3)   # 路由耗时 / 被选 k 个模块的计算耗时

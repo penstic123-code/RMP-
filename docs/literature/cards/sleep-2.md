@@ -1,5 +1,7 @@
 # 实现卡：睡眠、回放与接受检验（第二批）
 
+> 与主线 RMP 相关：第 10 张卡（标 【主线 RMP】），见 [23.10](../../design/candidates/23-routed-pool.md)。
+
 “[V]”= 打开原文或代码确认；“[S]”= 搜索片段。目录见 [README](../README.md)。
 
 检索日期 2026-11-19。代码一律读 GitHub 原文件；论文页没给仓库的写“未确认”。编号接 [cards-sleep.md](sleep.md)。
@@ -21,6 +23,7 @@ sleep(dream=10.0, batch_dream=batch//4)        # 按原文 λ 与 1:4 配比
 **不需要重训**。
 
 ## 10. Language Models Need Sleep（Behrouz 等，arXiv 2606.03979）
+> 【主线 RMP】睡眠中扩展专家 ≈ RMP 新奇分配 / 分裂（E69、E71）；做梦随机挑专家 ≈ RMP 睡眠做梦（E70）。
 
 **Knowledge Seeding**（[V]，HTML 公式部分乱码，下式按文意转写）：老师 = 带已累积低秩专家的当前模型，学生 = 发送块专家清零、接收块新增低秩专家 {A∈ℝ^{d×d_low}, B} 的模型。GKD 式：`L = (1−λ)E_{(x,y)~D}[F(θ‖θ_exp)] + λE_{x~D}E_{y~学生}[F(θ‖θ_exp)]`，采样不回传梯度。模仿 RL：从老师的梦里取前缀让学生续写，奖励 `r = γ r_sem + (1−γ) r_abs`，其中 `r_abs = 1 − Lev(ŷ,y)/max(|ŷ|,|y|)`（距离 ≤ z₀ 时，否则为 0）；`L_KS = (1−α)E[r] − α E[D(θ‖θ_exp)]`。旧专家随后清零（“突触修剪”）；第 ℓ 级在 C^(ℓ)·b 步触发。
 **Dreaming**（[V]）：从上下文 C 采 m 个梦（路由随机挑一个专家，混入无关知识）；按 `g = ∇L_SFT(梦)` 选 top-k，再加 b 个随机梦；每个梦在隔离副本上做 LoRA-SFT，任务 τ 变好则 r=1，否则 r=0；外层用 ReST-EM（同 SEAL）。

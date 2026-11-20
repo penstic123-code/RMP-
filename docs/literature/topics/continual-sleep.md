@@ -1,6 +1,6 @@
 # 持续学习、睡眠巩固与选择性写入
 
-> 与主线 RMP 相关：做梦式自蒸馏用于 RMP 睡眠（E70），见 [23.10](../../design/candidates/23-routed-pool.md)。
+> 与主线 RMP 相关：做梦式自蒸馏用于 RMP 睡眠（E70）；Memory Layers at Scale、BDH 两条标 【主线 RMP】，见 [23.10](../../design/candidates/23-routed-pool.md)。
 
 “已核实”= 代理打开原文或 arXiv 摘要页确认；“未核实”= 只看了搜索片段或二手来源。检索日期 2026-11-19。目录与总结论见 [README](../README.md)。
 
@@ -25,7 +25,7 @@
 ### 持久记忆与选择性写入
 
 - [Sparse Memory Finetuning](https://arxiv.org/abs/2510.15103)（Meta 2025；[复现](https://arxiv.org/abs/2605.03229)）：只更新本批访问频率明显高于背景语料的少数记忆槽（类 TF-IDF）；学新事实时 NQ 遗忘：全量微调 89%、LoRA 71%、本方法 11%。
-- [Memory Layers at Scale](https://arxiv.org/abs/2412.09764)（Meta 2024）：可训练稀疏 KV 查表，加参数不加计算。
+- [Memory Layers at Scale](https://arxiv.org/abs/2412.09764)（Meta 2024）：可训练稀疏 KV 查表，加参数不加计算。 【主线 RMP】乘积键查表加参数不加计算，是 23.8 T2 路由计时里 product key 的来源。
 - [M+](https://arxiv.org/abs/2502.00592)（ICML 2025）；[Larimar](https://arxiv.org/abs/2403.11901)（ICML 2024，一次性编辑与选择性遗忘）。
 - [Delayed Supervision for Test-Time LMs](https://arxiv.org/abs/2609.32312)（2026-09）：隔开很多无关事件后再对早先事实提问并监督，DeltaNet、RWKV-7 等在 BABILong、RULER 上提升（本项目跨会话记忆对话即属此类）。
 - [TRC²](https://arxiv.org/abs/2602.22479)（2026）：延迟惊奇写入 + 回放巩固 + 按实测遗忘自适应回放。
@@ -33,7 +33,7 @@
 
 ### 与 demo 整体相近的系统（2026-11-20 查）
 
-- [Dragon Hatchling / BDH](https://arxiv.org/abs/2509.26507)（Pathway 2025）：神经元 + 突触的无标度图，状态在突触上、靠 Hebbian 局部更新，有 GPU 友好写法；10M–1B 与 GPT-2 同参数同数据持平，激活稀疏为正、模块度高。与 DSPN 最像（局部可塑、非 Transformer、涌现模块），可借：激活取正 + 稀疏，作为快记忆写入前的门。
+- [Dragon Hatchling / BDH](https://arxiv.org/abs/2509.26507)（Pathway 2025）：神经元 + 突触的无标度图，状态在突触上、靠 Hebbian 局部更新，有 GPU 友好写法；10M–1B 与 GPT-2 同参数同数据持平，激活稀疏为正、模块度高。与 DSPN 最像（局部可塑、非 Transformer、涌现模块），可借：激活取正 + 稀疏，作为快记忆写入前的门。 【主线 RMP】规则生成的稀疏图 + 局部更新，“连接由规则生成”的另一种做法。
 - [EM-LLM](https://arxiv.org/abs/2407.09450)（ICLR 2025）：按惊奇（token NLL）切事件边界，再按块内凝聚度修正；召回 = 相似度 + 时间邻接（顺带取前后事件）。可借进 episodic.py：按惊奇决定写不写，召回时带上相邻那句。
 - [Nested Learning / HOPE](https://arxiv.org/abs/2512.24695)（Google，NeurIPS 2025）：多个更新频率不同的记忆模块组成连续谱（CMS），模型学自己的更新规则。对应 DSPN 的中枢 τ 300/3k/30k/1e6 与睡眠慢权重；区别是 HOPE 的慢层也在推理时按频率更新。
 - [Continuous Memory Machines](https://arxiv.org/abs/2610.07907)（Sakana，2026-10）：CTM 的滑窗短时记忆 + 显式长时记忆，每步用一个小 Transformer 联合更新；只在算法任务上测过。
