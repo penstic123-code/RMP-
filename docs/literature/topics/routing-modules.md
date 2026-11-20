@@ -15,6 +15,11 @@
 - [The Expert Strikes Back](https://arxiv.org/abs/2604.02178)（2026，未核实）：专家多是细粒度“操作”专家（如闭合括号），既非领域专家也非单个 token。
 - 含义：小规模下预计先出现字节 / token 级分工，所以 Q1 必须测“当前字节之外”的选择性，否则过关没有意义。
 
+### 规则生成的连接
+
+- [Hash Layers](https://arxiv.org/abs/2106.04426)（Roller 等，NeurIPS 2021，未核实）：按 token 固定哈希到专家，无路由参数、无均衡损失，与 Switch、BASE 等学出的路由持平或更好；平衡哈希、只看局部特征的最好。含义：第 23 章的学到地址必须赢过哈希对照才算有用。
+- [Spatially embedded RNNs（seRNN）](https://www.nature.com/articles/s42256-023-00748-9)（Achterberg 等，Nature Machine Intelligence 2023，未核实）：连接代价正比于三维距离，网络收敛到模块化小世界、功能相近的单元在空间上聚集，类似灵长类皮层。后续：[arXiv 2409.17693](https://arxiv.org/abs/2409.17693)。含义：空间位置规则（23.8 的 D）有类脑依据，可测拓扑图涌现。
+
 ### 持续学习：路由漂移是主要遗忘来源
 
 - [LLaVA-DyMoE](https://arxiv.org/abs/2603.27481)（2026，未核实）、[StaR-MoE](https://arxiv.org/pdf/2605.17571)（2026，未核实）、[LLaVA-CMoE](https://arxiv.org/html/2503.21227v1)（2025，未核实）：即使冻结旧专家，训练新部分时路由器的共享参数变了，旧输入被分去别的专家，照样遗忘。
