@@ -48,6 +48,16 @@ def _nll(model, data, chunk, state=None, last=None):
     return tot, n, state
 
 
+def _cores(model):
+    """各层里真正的模块层（Layer）：路由模块池 RMP 的池层把模块放在 .core 里。"""
+    return [getattr(l, 'core', l) for l in model.layers]
+
+
+def _pools(model):
+    """RMP 的池层（有地址与 plastic 开关）。DSPN 没有。"""
+    return [l for l in model.layers if hasattr(l, 'plastic')]
+
+
 def _frozen_copy(model):
     return copy.deepcopy(model).requires_grad_(False)
 
@@ -87,9 +97,9 @@ class OnlineLearner:
         self.eprop = params == 'eprop'
         assert not (self.eprop and replay), 'e-prop 的资格迹按单条流延续，不混重放批'
         if self.eprop:
-            low = [p for l in model.layers for p in (l.B, l.G, l.b_a)]
+            low = [p for l in _cores(model) for p in (l.B, l.G, l.b_a)]
         else:
-            low = [p for l in model.layers for p in (l.lora_a, l.lora_b)]
+            low = [p for l in _cores(model) for p in (l.lora_a, l.lora_b)]
         shared = list(model.readout.parameters()) + [model.bias]
         if params in ('lora', 'eprop'):
             shared = []
@@ -195,7 +205,7 @@ class OnlineLearner:
 
     def _merge_lora(self):
         with torch.no_grad():
-            pairs = [(l.W1, l.lora_a, l.lora_b) for l in self.model.layers]
+            pairs = [(l.W1, l.lora_a, l.lora_b) for l in _cores(self.model)]
             for W, a, b in pairs:
                 W += a @ b
                 b.zero_()
@@ -235,6 +245,9 @@ class OnlineLearner:
         for p in slow:
             p.requires_grad_(True)
         opt = torch.optim.Adam(slow, lr=lr)
+        plastic = [(pl, pl.plastic) for pl in _pools(m)]
+        for pl, _ in plastic:                              # RMP：地址与均衡偏置只在睡眠中更新（第 23.3 节）
+            pl.plastic = True
         for _ in range(steps):
             loss = 0.0
             if distill:                                # 学生从零状态看窗口，学老师带全天上下文的分布
@@ -269,6 +282,8 @@ class OnlineLearner:
             opt.zero_grad(); loss.backward(); opt.step()
         for p, f in flags:
             p.requires_grad_(f)
+        for pl, f in plastic:
+            pl.plastic = f
         old1, new1 = bpc(m, probe_old), bpc(m, probe_new)
         ok = new1 <= new0 + 1e-3 and old1 - old0 <= old_tol     # 1e-3：只并入不训练时两者应相等，留浮点误差
         if not ok:
