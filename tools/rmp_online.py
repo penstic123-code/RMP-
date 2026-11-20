@@ -25,7 +25,8 @@ extra = json.loads(a.extra)
 
 def load(mode):
     m = D.build('dspn', a.size, **extra).to(D.DEV)
-    m.load_state_dict(torch.load(ROOT / f'runs/dspn-{a.size}{a.tag}.pt', map_location=D.DEV))
+    r = m.load_state_dict(torch.load(ROOT / f'runs/dspn-{a.size}{a.tag}.pt', map_location=D.DEV), strict=False)
+    assert not r.unexpected_keys and all(k.endswith('.moved') for k in r.missing_keys), r   # 早期检查点没有 moved（只在移波时用）
     for pl in O._pools(m):
         pl.plastic = mode == 'plastic'
     return m

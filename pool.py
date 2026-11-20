@@ -112,6 +112,7 @@ class WavePool(nn.Module):
         self.register_buffer('wave', w0)
         self.register_buffer('aff', torch.zeros(N, G))           # 各模块与各波查询的平均余弦（EMA）
         self.register_buffer('step', torch.zeros((), dtype=torch.long))
+        self.capture = None                                          # 分析用：设成列表时每波追加 (波号, sel, 混合权重)
         self.register_buffer('moved', torch.zeros(N))               # 上次移波的模块：下一次前向开头清空它们的状态
         self.plastic = True
 
@@ -135,6 +136,8 @@ class WavePool(nn.Module):
             idx = (cos + self.bias).masked_fill(~cand, -1e9).topk(self.k, -1).indices
             sel = torch.zeros_like(cos).scatter_(-1, idx, 1.0) * cand.float()
             wt = torch.softmax((cos / self.temp).masked_fill(sel == 0, -1e9), -1) * sel
+            if self.capture is not None:
+                self.capture.append((w, sel.detach(), wt.detach()))
             h, z, state = self.core(x[:, :, None].expand(b, T, self.N, D), state, reset, sel)
             hw = wt.to(h.dtype)[..., None]
             hs.append((hw * h).sum(2)); x = x + (hw * z).sum(2)
