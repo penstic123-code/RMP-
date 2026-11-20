@@ -5,6 +5,7 @@
 3. 剪除特异性：逐个排除负载最高的 n 个模块（偏置设成极小，不再被选），看各字节类别的损失升幅；
    某类升幅 ≥ 其余类平均升幅的 2 倍记为“特异”。
 4. 各波的负载熵 / log(波内模块数)。
+5. 来源选择性（--data task4 时）：被选模块与该字节所属来源（故事 / 说明文 / 维基 / 对话）的互信息 / H(来源)，即按任务分工的程度。
 样本：被选的（拍, 模块）对按混合权重计权。按波分别算，再按样本数平均。
 用法：python tools/rmp_emergence.py --tag _wspread --extra '{...}' [--random]
 """
@@ -20,7 +21,7 @@ ap = argparse.ArgumentParser()
 ap.add_argument('--tag', default='_wspread'); ap.add_argument('--size', default='S')
 ap.add_argument('--extra', default='{}'); ap.add_argument('--random', action='store_true')
 ap.add_argument('--rows', type=int, default=16); ap.add_argument('--T', type=int, default=1024)
-ap.add_argument('--ablate', type=int, default=8)
+ap.add_argument('--ablate', type=int, default=8); ap.add_argument('--data', default='tiny')
 a = ap.parse_args()
 extra = json.loads(a.extra)
 torch.manual_seed(0)
@@ -30,8 +31,10 @@ if not a.random:
     assert not r.unexpected_keys and all(k.endswith(('.moved', '.active', '.ogain')) for k in r.missing_keys), r
 pool = m.layers[1]
 
-val = D.load_bytes('tiny')[1]
+val = D.load_bytes(a.data)[1]
 pos = np.linspace(0, len(val) - a.T - 2, a.rows).astype(np.int64)
+srcf = ROOT / D.DATASETS[a.data][1].replace('.txt', '.src') if D.DATASETS[a.data][1] else None
+src = np.stack([np.fromfile(srcf, np.uint8)[p:p + a.T] for p in pos]).astype(np.int64) if srcf and srcf.exists() else None
 xy = torch.from_numpy(np.stack([val[p:p + a.T + 1] for p in pos]).astype(np.int64)).to(D.DEV)
 x, y = xy[:, :-1], xy[:, 1:]
 xb = x.cpu().numpy()
@@ -67,7 +70,7 @@ with torch.no_grad():
     ce = F.cross_entropy(lg.reshape(-1, 256), y.reshape(-1), reduction='none').view(x.shape).cpu().numpy()
 
 res = {'tag': a.tag, 'random': a.random, 'waves': []}
-tot_w, sel_byte, sel_ctx, load_ent = 0.0, 0.0, 0.0, 0.0
+tot_w, sel_byte, sel_ctx, load_ent, sel_src = 0.0, 0.0, 0.0, 0.0, 0.0
 for w, sel, wt, _ in caps:
     wt = wt.cpu().numpy()                                               # (b, T, N)
     mods = np.where(np.asarray(pool.wave.cpu()) == w)[0]
@@ -88,9 +91,15 @@ for w, sel, wt, _ in caps:
     ctx_sel = cmi / max(hctx, 1e-9)
     load = (sel.cpu().numpy()[..., mods]).mean((0, 1)); load = load / load.sum()
     le = H(load) / math.log(n) if n > 1 else 1.0
-    res['waves'].append({'wave': int(w), 'modules': n, 'byte_sel': round(byte_sel, 4), 'ctx_sel_given_byte': round(ctx_sel, 4), 'load_entropy': round(le, 3)})
-    s = W.sum(); tot_w += s; sel_byte += s * byte_sel; sel_ctx += s * ctx_sel; load_ent += s * le
+    src_sel = 0.0
+    if src is not None:
+        js = np.stack([W[src == c].sum(0) for c in range(4)], 1)
+        src_sel = mi(js) / max(H(js.sum(0) / js.sum()), 1e-9)
+    res['waves'].append({'wave': int(w), 'modules': n, 'byte_sel': round(byte_sel, 4), 'ctx_sel_given_byte': round(ctx_sel, 4),
+                         'src_sel': round(src_sel, 4), 'load_entropy': round(le, 3)})
+    s = W.sum(); tot_w += s; sel_byte += s * byte_sel; sel_ctx += s * ctx_sel; load_ent += s * le; sel_src += s * src_sel
 res['byte_sel'] = round(sel_byte / tot_w, 4); res['ctx_sel_given_byte'] = round(sel_ctx / tot_w, 4); res['load_entropy'] = round(load_ent / tot_w, 3)
+res['src_sel'] = round(sel_src / tot_w, 4) if src is not None else None
 
 # 剪除特异性：负载最高的模块逐个排除
 loads = np.concatenate([c[1].cpu().numpy().mean((0, 1))[None] for c in caps]).sum(0)
@@ -109,7 +118,7 @@ with torch.no_grad():
                      'others_mean': round(float(others), 4), 'specific': bool(rise[j] > 0 and rise[j] >= 2 * max(others, 1e-6))})
 res['ablation'] = spec; res['n_specific'] = sum(s['specific'] for s in spec)
 res['val_bpc'] = round(float(ce.mean() / math.log(2)), 4)
-print(json.dumps({k: res[k] for k in ('tag', 'random', 'val_bpc', 'byte_sel', 'ctx_sel_given_byte', 'load_entropy', 'n_specific')}, ensure_ascii=False, default=float))
+print(json.dumps({k: res[k] for k in ('tag', 'random', 'val_bpc', 'byte_sel', 'ctx_sel_given_byte', 'src_sel', 'load_entropy', 'n_specific')}, ensure_ascii=False, default=float))
 p = ROOT / f'runs/{time.strftime("%Y%m%d-%H%M%S")}_rmp-emergence{a.tag}{"_random" if a.random else ""}.json'
 json.dump(res, open(p, 'w'), ensure_ascii=False, indent=1, default=float)
 print('→', p.name)

@@ -22,6 +22,7 @@ DATASETS = {
     'chat2': ('data/chat2-train.txt', 'data/chat2-valid.txt'),          # make_chat_data.py --memory_frac 0.25 --out chat2（无重现行）
     'chat3': ('data/chat3-train.txt', 'data/chat3-valid.txt'),          # make_chat_data.py 现版：记忆对话 40%，跨会话一半带重现行
     'mix': ('data/mix-train.txt', 'data/mix-valid.txt'),                # tools/prepare_data.py：TinyStories + Cosmopedia + Simple Wikipedia + SODA
+    'task4': ('data/task4-train.txt', 'data/task4-valid.txt'),          # tools/make_task_mix.py：四源 4KB 块交错，逐字节来源标签在 .src（RMP 按任务分工）
 }
 SEP = 30   # 会话边界字节（ASCII 记录分隔符）：清空 c、快记忆与中枢，强制开块
 

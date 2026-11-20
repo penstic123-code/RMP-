@@ -154,3 +154,20 @@ def test_ctx_routing_chunked_equals_whole():
     assert torch.allclose(lg, torch.cat([a, b], 1), atol=1e-4)
     m.train(); lg, _ = m(idx); lg.sum().backward()
     assert m.layers[1].Wr.grad.abs().sum() > 0
+
+
+def test_window_counts_tau_prior_and_pred_loss():
+    from pool import window_counts
+    idx = torch.tensor([[1, 2, 2, 3, 1]])
+    wc = window_counts(idx, 2)                              # 第 t 拍之后 2 个字节
+    assert wc.shape == (1, 3, 256)
+    assert wc[0, 0, 2] == 1.0 and wc[0, 1, 2] == 0.5 and wc[0, 1, 3] == 0.5 and wc[0, 2, 1] == 0.5
+    m = D.build('dspn', 'S', net='wave', N=8, k=2, G=2, D=8, pd=8, pm=4, phidden=16, init='spread', tau_prior=4.0, pred_w=0.1)
+    pool = m.layers[1]
+    tau = 1 / (1 - torch.sigmoid(pool.core.b_a))
+    w1 = (pool.wave == 1).nonzero()[0, 0]; w0 = (pool.wave == 0).nonzero()[0, 0]
+    assert torch.allclose(tau[w1, :5], 4 * tau[w0, :5], rtol=1e-3)   # 第 1 波时间常数是第 0 波的 4 倍
+    m.train(); lg, _ = m(torch.randint(0, 256, (2, 20)))
+    assert torch.is_tensor(m.aux) and m.aux > 0
+    (lg.sum() + m.aux).backward()
+    assert m.pheads[1].weight.grad.abs().sum() > 0

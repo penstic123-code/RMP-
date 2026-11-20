@@ -13,6 +13,8 @@
 - [Recurrent Independent Mechanisms（RIMs）](https://arxiv.org/abs/1909.10893)（Goyal 等，ICLR 2021，未核实）：N 个独立的循环模块，按对输入的注意力选 top-k 更新，其余模块状态不变，模块间经注意力通信。**与第 23 章最像**：区别只在我们用时间尺度给路由定方向、地址醒时冻结、用 MoE 的稳态均衡。
 - [Fast and Slow Learning of RIMs](https://arxiv.org/abs/2105.08710)（Madan 等，ICLR 2021，未核实）：模块参数学得快、注意力（路由）学得慢，迁移更好。支持“路由慢、模块快”，与 23.3 一致。
 
+- [Brain-Inspired Hierarchical Modularity for General Continual Learning](https://arxiv.org/abs/2609.25146)（2026，已核实摘要片段）：仿果蝇嗅觉系统的持续学习，五个专家、每个专家三个不同时间尺度的预测头；专家混合与多时间尺度互补。【主线 RMP】与 23.11“各波预测不同时间尺度”同思路；它建在预训练特征上、不是语言模型底座，也没有路由池层级。
+
 ### 负载均衡与分工
 
 - [Auxiliary-Loss-Free Load Balancing](https://arxiv.org/abs/2408.15664)（DeepSeek，2024，未核实）：每个专家一个偏置，按近期负载调；**偏置只影响选谁，混合权重用不带偏置的分数**；比辅助损失好，因为不引入干扰梯度。后续把它解释为原始-对偶法（[arXiv 2512.03915](https://arxiv.org/html/2512.03915v2)）。
@@ -67,12 +69,14 @@
 ### 层级与深度
 
 - [Emergence of Functional Hierarchy in a Multiple Timescale Network（MTRNN）](https://www.oist.jp/sites/default/files/2024-03/cnru_PLoSCB_2008_corrected_0.pdf)（Yamashita、Tani，PLoS CB 2008，未核实）：只靠快、慢两类神经元的时间常数差，不分模块，就自组织出功能层级。支持 R2 用时间尺度定方向。
+- [Emergence of hierarchical structure mirroring linguistic composition in a recurrent neural network](https://doi.org/10.1016/j.neunet.2011.02.009)（Hinoshita、Tani 等，Neural Networks 2011，未核实）：MTRNN 用在语言上：只给快、慢两组时间常数，读字符序列后快层自组织出“词”、慢层自组织出“句子”的表示。【主线 RMP】23.11 结构先验“越深越慢”（`tau_prior`）的直接依据；区别是我们的深度由模块按波分配，不固定两层。
 - [Mixture-of-Depths](https://arxiv.org/abs/2404.02258)（Raposo 等，DeepMind 2024，未核实）：每块 top-k 选 token 计算，其余走残差跳过；k 固定所以计算图静态；可与 MoE 叠加。含义：R2 的每跳加一个“跳过”选项，深度可变而计算图不变。
 
 ### 深度生长
 
 - [On the Inductive Bias of Stacking（MIDAS）](https://arxiv.org/abs/2409.19044)（Saunshi 等，NeurIPS 2024，未核实）：逐步堆叠加深，复制小模型中间块初始化大模型；训练快约 40%，困惑度持平，推理类下游更好；1B–8B 验证。
 - [Curriculum-Guided Layer Scaling](https://arxiv.org/abs/2506.11389)（2025，未核实）：加深与数据由易到难同步，泛化与零样本更好。
+- [Dynamic Nested Hierarchies（DNH）](https://arxiv.org/abs/2511.14823)（Jafari 等，arXiv 2025-11，已核实摘要）：在 Nested Learning 上让模型自己增减优化层级、改各层更新频率，按元损失阈值加层（类比成年神经发生），面向非平稳数据持续学习；对比 EWC、DER++ 等。【主线 RMP】与 R2 深度生长目标最近；它增减的是“优化层级 / 更新频率”，不是 top-k 有状态模块池，结果只有作者自报。
 - 含义：第 23 章深度从 1 波长起，既为层级涌现，也让前期训练更快；区别是按地址匹配自己往后挪，而非按时间表复制层。
 
 ### 实现

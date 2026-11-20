@@ -116,7 +116,7 @@ class WavePool(nn.Module):
     深度生长（grow_every=P > 0）：每 P 个训练步，模块可移到相邻波（最多移到当前最深波之后一波），条件是那一波的平均查询
     与它地址的平均余弦比本波高出 margin；每次最多移 N/8 个，移出后本波至少留 k 个。init='flat' 全在第 0 波，'spread' 均分到 G 波。"""
     def __init__(self, N, k, G, D, d, m, hidden, qr=32, beta_max=1.0, temp=0.1, eta_a=0.01, eta_b=1e-3,
-                 init='flat', grow_every=0, margin=0.02, spare=0, rule='addr', grow_until=0, ctx_decay=0.97):
+                 init='flat', grow_every=0, margin=0.02, spare=0, rule='addr', grow_until=0, ctx_decay=0.97, tau_prior=0.0):
         super().__init__()
         self.N, self.k, self.G, self.temp, self.eta_a, self.eta_b = N, k, G, temp, eta_a, eta_b
         self.grow_every, self.margin = grow_every, margin
@@ -136,6 +136,12 @@ class WavePool(nn.Module):
         self.register_buffer('load_ema', torch.full((N,), 1.0 / N))
         w0 = torch.zeros(N, dtype=torch.long) if init == 'flat' else torch.arange(N) * G // N
         self.register_buffer('wave', w0)
+        if tau_prior > 1:                                            # 结构先验：越深的波时间常数越长（第 w 波 ×tau_prior^w，上限 1e4 步），不规定语义
+            with torch.no_grad():
+                a0 = torch.sigmoid(self.core.b_a)
+                tau = (1 / (1 - a0) * tau_prior ** w0.float()[:, None]).clamp(max=1e4)
+                a1 = 1 - 1 / tau
+                self.core.b_a.copy_(torch.log(a1 / (1 - a1)))
         # 空闲模块（第 23.3 节 O2）：每波留 spare 个，预训练时不参与选择与均衡（active = 0），在线遇到新内容时才启用
         act = torch.ones(N)
         for w in range(G):
@@ -238,18 +244,29 @@ class WavePool(nn.Module):
         self.core.compile_parts()
 
 
+def window_counts(idx, H, vocab=256):
+    """(b, T) 字节 → (b, T−H, vocab)：第 t 拍之后 H 个字节（t+1 … t+H）的直方图 / H。"""
+    C = F.pad(F.one_hot(idx, vocab).float().cumsum(1), (0, 0, 1, 0))     # C[t] = 前 t 个字节的计数
+    T = idx.shape[1]
+    return (C[:, H + 1:T + 1] - C[:, 1:T - H + 1]) / H
+
+
 class WaveNet(nn.Module):
     """第 23 章最新设计的 S 级原型：字节嵌入 → 稠密编码层（现行模块，M 个）→ 投影到残差流 → 波池（R2）→ 读出。
     读出拼接编码层 h 与各波混合 h（空波为 0），同现行 DSPN 的读出。
     R3（fb=W > 0）：序列按 W 拍分块依次算；每块开头把上一块最后一拍的各波 h 经零初始投影加到残差流起点（按块延迟的自上而下反馈）。"""
     def __init__(self, M=2, d=90, m=16, hidden=180, q=16, emb=32, vocab=256, beta_max=1.0,
-                 N=48, k=4, G=0, D=32, pd=64, pm=16, phidden=128, qr=32, temp=0.1, init='flat', grow_every=0, margin=0.02, fb=0, spare=0, rule='addr', grow_until=0, ctx_decay=0.97, **_):
+                 N=48, k=4, G=0, D=32, pd=64, pm=16, phidden=128, qr=32, temp=0.1, init='flat', grow_every=0, margin=0.02, fb=0, spare=0, rule='addr', grow_until=0, ctx_decay=0.97, tau_prior=0.0, pred_w=0.0, **_):
         super().__init__()
         self.M, self.fb, self.chunk, self.pool = M, fb, 0, N
         G = G or N // k                                    # 不另设深度上限：最多 N/k 波（每波至少要有 k 个可选），只受模块数限制
         self.emb = nn.Embedding(vocab, emb)
         enc = Layer(M, emb, d, m, hidden, q, beta_max=beta_max)
-        self.layers = nn.ModuleList([enc, WavePool(N, k, G, D, pd, pm, phidden, qr, beta_max, temp, init=init, grow_every=grow_every, margin=margin, spare=spare, rule=rule, grow_until=grow_until, ctx_decay=ctx_decay)])
+        self.layers = nn.ModuleList([enc, WavePool(N, k, G, D, pd, pm, phidden, qr, beta_max, temp, init=init, grow_every=grow_every, margin=margin, spare=spare, rule=rule, grow_until=grow_until, ctx_decay=ctx_decay, tau_prior=tau_prior)])
+        # 分层预测（第 23 章 23.11）：第 w 波另有一个头，预测此后 2·4^w 个字节的分布（越深看得越远、越粗），权重 pred_w
+        self.pred_w, self.pred_H = pred_w, [2 * 4 ** w for w in range(G)]
+        if pred_w:
+            self.pheads = nn.ModuleList([nn.Linear(pd, vocab) for _ in range(G)])
         self.win = nn.Linear(M * q, D)
         n_read = M * d + G * pd
         if fb:
@@ -258,6 +275,17 @@ class WaveNet(nn.Module):
         self.readout = nn.Linear(n_read, emb); nn.init.zeros_(self.readout.weight)
         self.bias = nn.Parameter(torch.zeros(vocab))
         self.aux, self.stats = 0.0, {}
+
+    def _pred_loss(self, hw, idx):
+        """hw: (b, T, G·pd) 各波混合 h；软目标交叉熵，各波平均（窗口超出本段的拍不算）。"""
+        G, T, loss, n = len(self.pheads), idx.shape[1], 0.0, 0
+        for w, (hd, H) in enumerate(zip(self.pheads, self.pred_H)):
+            if H >= T:
+                continue
+            tgt = window_counts(idx, H)
+            lp = F.log_softmax(hd(hw[:, :T - H, w * hw.shape[-1] // G:(w + 1) * hw.shape[-1] // G]).float(), -1)
+            loss = loss + -(tgt * lp).sum(-1).mean(); n += 1
+        return loss / max(n, 1)
 
     def init_state(self, b):
         dev = self.emb.weight.device
@@ -289,5 +317,7 @@ class WaveNet(nn.Module):
                 hc, s0, s1, last = self._seg(e[:, t0:t0 + self.fb], idx[:, t0:t0 + self.fb], s0, s1, fbv)
                 outs.append(hc); fbv = last.float()
             hcat, new = torch.cat(outs, 1), [s0, s1, fbv]
+        if self.pred_w and self.training:
+            self.aux = self.pred_w * self._pred_loss(hcat[..., self.M * self.layers[0].d:], idx)
         y = self.readout(self.norm(hcat))
         return y @ self.emb.weight.t().to(y.dtype) + self.bias, new
