@@ -64,13 +64,15 @@ def _acc(h, dist):
     return out
 
 
-def train_mqar(model, iters, b, T, pairs, lr, device, filler='space'):
+def train_mqar(model, iters, b, T, pairs, lr, device, filler='space', warm=(0, 0, 0)):
+    """warm = (步数, T, 批)：先在短序列上学会任务再拉长（长序列、小批时从零学不会，E60）。"""
     gen = torch.Generator().manual_seed(0)
     model.to(device).train()
     from dspn_text import param_groups
     opt = torch.optim.AdamW(param_groups(model), lr=lr)
-    for it in range(1, iters + 1):
-        x, y, mask = (t.to(device) for t in mqar_batch(b, T, pairs, gen, filler))
+    for it in range(1, warm[0] + iters + 1):
+        bt, Tt = (warm[2], warm[1]) if it <= warm[0] else (b, T)
+        x, y, mask = (t.to(device) for t in mqar_batch(bt, Tt, pairs, gen, filler))
         lg, _ = model(x)
         loss = F.cross_entropy(lg[mask], y[mask])
         opt.zero_grad(set_to_none=True); loss.backward()
@@ -132,11 +134,12 @@ if __name__ == '__main__':
     ap.add_argument('--iters', type=int, default=2000); ap.add_argument('--batch', type=int, default=64)
     ap.add_argument('--T', type=int, default=256); ap.add_argument('--pairs', type=int, default=16)
     ap.add_argument('--lr', type=float, default=1e-3)
+    ap.add_argument('--warm', default='0,0,0', help='mqar 课程：先跑 步数,T,批 的短序列')
     ap.add_argument('--filler', default='space', choices=['space', 'sym'], help='mqar 填充：空格 / 随机符号（长间隔测试）')
     a = ap.parse_args()
     model = D.build(a.kind, a.size, **json.loads(a.extra))
     if a.cmd == 'mqar':
-        res = train_mqar(model, a.iters, a.batch, a.T, a.pairs, a.lr, D.DEV, a.filler)
+        res = train_mqar(model, a.iters, a.batch, a.T, a.pairs, a.lr, D.DEV, a.filler, tuple(int(v) for v in a.warm.split(',')))
     else:
         model.load_state_dict(torch.load(D.ROOT / f'runs/{a.kind}-{a.size}{a.tag}.pt', map_location=D.DEV))
         res = name_recall(model, D.DEV)
