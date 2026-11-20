@@ -1,0 +1,68 @@
+{
+ "tag": "_wspread",
+ "size": "S",
+ "extra": {
+  "net": "wave",
+  "N": 24,
+  "k": 4,
+  "G": 4,
+  "D": 32,
+  "pd": 32,
+  "pm": 8,
+  "phidden": 64,
+  "init": "spread"
+ },
+ "sleep": {},
+ "learner": {
+  "lr": 0.001,
+  "replay": 0.25,
+  "allocate": 1
+ },
+ "frozen": {
+  "new_word": {
+   "learner": {
+    "lr": 0.001,
+    "replay": 0.25,
+    "allocate": 1
+   },
+   "day_bytes": 32768,
+   "test_before": 2.6009019113944145,
+   "old_before": 1.1827597699085048,
+   "old_after_day": 1.8907898785026593,
+   "test_online": 2.95484242921598,
+   "test_reset": 2.9673670382260493,
+   "old_online": 1.9114868951368067,
+   "sleep_args": {},
+   "sleep": {
+    "committed": true,
+    "old_before": 1.9266191658661571,
+    "old_after": 1.6528007020111715,
+    "new_before": 2.536660703746407,
+    "new_after": 1.1660139420804714
+   },
+   "test_sleep_reset": 1.8435385410099923,
+   "old_sleep": 1.619405103820699,
+   "alloc_log": [
+    {
+     "chunk": 46,
+     "loss": 1.073054313659668,
+     "ema": 0.8419024115084913,
+     "modules": [
+      1,
+      6,
+      15,
+      18
+     ]
+    }
+   ]
+  },
+  "sequential": {
+   "old_before": 1.1827597699085048,
+   "chat_before": 2.962821193227129,
+   "old_after": 1.9611906328360411,
+   "chat_after": 3.0108218438944263,
+   "old_rise": 0.7784308629275363,
+   "chat_drop": -0.04800065066729742
+  }
+ }
+}

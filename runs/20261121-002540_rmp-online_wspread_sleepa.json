@@ -1,0 +1,42 @@
+{
+ "tag": "_wspread",
+ "size": "S",
+ "extra": {
+  "net": "wave",
+  "N": 24,
+  "k": 4,
+  "G": 4,
+  "D": 32,
+  "pd": 32,
+  "pm": 8,
+  "phidden": 64,
+  "init": "spread"
+ },
+ "sleep": {},
+ "frozen": {
+  "new_word": {
+   "learner": {
+    "lr": 0.001,
+    "replay": 0.25
+   },
+   "day_bytes": 32768,
+   "test_before": 2.6009019113944145,
+   "old_before": 1.1827597699085048,
+   "old_after_day": 1.190411727342192,
+   "test_online": 1.911556197863931,
+   "test_reset": 1.9228963318236851,
+   "old_online": 1.2534438649662127,
+   "sleep_args": {},
+   "sleep": {
+    "committed": false,
+    "old_before": 1.2216012561324914,
+    "old_after": 1.3721690863783558,
+    "new_before": 1.3325262397396052,
+    "new_after": 0.9954242525722325
+   },
+   "test_sleep_reset": 1.9228963318236851,
+   "old_sleep": 1.2534438649662127
+  },
+  "sequential": null
+ }
+}
