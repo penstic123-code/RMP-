@@ -120,3 +120,10 @@ def test_wavenet_runs_grows_and_feedback():
         _, _, (c, S) = pool(torch.randn(1, 5, 8), st)
     moved = (c != st[0]).any(-1)[0]
     assert moved.sum() <= 8 and moved.sum() >= 2           # 第 0 波 8 个模块里，5 拍内只有被选过的变
+
+
+def test_routing_rules_run():
+    for rule in ('hash', 'gate'):
+        m = D.build('dspn', 'S', net='wave', N=8, k=2, G=2, D=8, pd=8, pm=4, phidden=16, rule=rule)
+        m.train(); lg, _ = m(torch.randint(0, 256, (2, 10)))
+        assert lg.shape == (2, 10, 256)

@@ -117,7 +117,7 @@ class OnlineLearner:
         pools = _pools(model)
         self.spare_mode = bool(allocate and pools and (pools[0].active == 0).any())
         if self.spare_mode:
-            grow = [p for n, p in pools[0].core.named_parameters() if 'lora' not in n]
+            grow = [p for n, p in pools[0].core.named_parameters() if 'lora' not in n] + [pools[0].ogain]
             for p in grow:
                 p.requires_grad_(True)
             self.groups.append({'params': grow, 'weight_decay': 0.0}); self.online += grow
@@ -141,7 +141,7 @@ class OnlineLearner:
                         continue
                     top = tok.topk(min(self.top_pos, len(tok))).indices
                     pool.addr[mods] = F.normalize(r[0, top].float().mean(0), dim=-1)
-                    pool.active[mods] = 1; pool.bias[mods] = self.spare_bias
+                    pool.active[mods] = 1; pool.bias[mods] = self.spare_bias; pool.ogain[mods] = 0.0
                     chosen += mods.tolist(); continue
                 mods = (pool.wave == w).nonzero()[:, 0]
                 if len(mods) == 0:
