@@ -14,6 +14,7 @@
 | 对话数据 | [chat-data.md](topics/chat-data.md) | TinyDialogues、TinyChat15M、小模型指令数据 |
 | 认知理论与自我改进 | [cognition-selfimprove.md](topics/cognition-selfimprove.md) | 哥德尔机系列、SRWM、Nested Learning、SEAL、侯世达与类比、丹尼特、全局工作空间指标 |
 | 元胞自动机与 Wolfram（只作参考） | [cellular-automata.md](topics/cellular-automata.md) | NCA 数据预预训练、混沌边缘、TextNCA、NCA 其他方向、Wolfram 最小模型与计算不可约性 |
+| 路由模块与稀疏专家 | [routing-modules.md](topics/routing-modules.md) | RIMs、无辅助损失均衡、专家分工实测、MoE 持续学习的路由漂移、路由放大规律与细粒度、PEER、MoE-Mamba、MTRNN、Mixture-of-Depths、MegaBlocks（服务第 23 章） |
 
 ## 实现卡（cards/）
 
