@@ -259,11 +259,11 @@ class DSPNLayered(nn.Module):
     块序列定长 K = ⌈2T/N⌉，边界排前、其余为冻结的补齐位；超出 K 的边界并入第 K 块（记为溢出）。"""
     def __init__(self, layers=4, M=2, d=32, m=16, hidden=64, q=8, emb=32, vocab=256,
                  hub_after=0, hub_heads=2, hub_dk=32, beta_max=1.0, hub_out=4, hub_taus=None,
-                 local=False, grad_ckpt=False, chunk=0, head_w=0.1, lmax=3, theta_lr=0.1, d_io=None, hidden_io=None,
+                 local=False, grad_ckpt=False, chunk=0, head_w=0.1, head_detach=True, lmax=3, theta_lr=0.1, d_io=None, hidden_io=None, fm_tau=0,
                  attn_layer=0, attn_window=512, attn_heads=4, attn_hd=64, attn_out=64):
         super().__init__()
         self.M, self.d, self.m, self.q, self.hub_after, self.chunk = M, d, m, q, hub_after, chunk
-        self.head_w, self.lmax, self.theta_lr = head_w, lmax * chunk, theta_lr
+        self.head_w, self.head_detach, self.lmax, self.theta_lr = head_w, head_detach, lmax * chunk, theta_lr
         # 分块时编码层与解码层（字节分辨率）可以更窄：d_io、hidden_io；参数主要放在块层（H-Net：两头小、中间大）
         io = chunk and d_io
         self.dl = [d_io if io and i in (0, layers - 1) else d for i in range(layers)]
@@ -287,6 +287,12 @@ class DSPNLayered(nn.Module):
             self.head = nn.Linear(M * self.dl[0], vocab)
             self.register_buffer('theta', torch.zeros(()))   # 惊讶跃升阈值：不是状态，冷启动、清零状态都不动它
         self.layers = nn.ModuleList([Layer(M, U[i], self.dl[i], m, hl[i], q, beta_max=beta_max) for i in range(layers)])
+        if fm_tau:                                         # 快记忆保持时长初值在 64 到 fm_tau 步间对数铺开（块层各模块；第 22.4 节 D 组，删中枢时由它接管长程）
+            mid = self.layers[1:-1] if chunk else self.layers
+            tau = torch.logspace(math.log10(64), math.log10(fm_tau), len(mid) * M)
+            with torch.no_grad():
+                for j, l in enumerate(mid):
+                    l.b_gam.copy_(torch.log(1 / (tau[j * M:(j + 1) * M] - 1)))
         # local=True：层间消息（含进中枢的）停梯度，每层只由自己的读出路径训练（SOLO 式局部学习）。
         self.local, self.grad_ckpt = local, grad_ckpt
         self.aux, self.stats = 0.0, {}                     # 辅助损失（局部头，每次前向重算，train 加进总损失）；分块统计
@@ -374,7 +380,7 @@ class DSPNLayered(nn.Module):
         L, N = len(self.layers), self.chunk
         lp_prev, s_prev, n_prev, held_prev = state[L + (self.hub is not None)]
         h0, new0, m0 = self._stack(0, 1, u0, state, reset, e)                   # 编码层（字节）
-        lp = F.log_softmax(self.head(h0[0].detach()).float(), -1)              # 局部头读停梯度的 h0：辅助损失不改主干
+        lp = F.log_softmax(self.head(h0[0].detach() if self.head_detach else h0[0]).float(), -1)   # 默认读停梯度的 h0：辅助损失不改主干
         if T > 1:
             self.aux = self.aux + self.head_w * F.nll_loss(lp[:, :-1].reshape(-1, lp.shape[-1]), idx[:, 1:].reshape(-1))
         learn = self.training and torch.is_grad_enabled()

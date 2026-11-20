@@ -27,7 +27,7 @@ class Hub(nn.Module):
         return (torch.zeros(b, self.heads, self.dk, self.dk, device=device),)
 
     def forward(self, x, state, reset=None, keep=None):
-        """返回 (逐拍输出 (b, T, M_out, out_dim), 新状态, 逐拍读出 (b, T, heads·dk)——末拍供窗口级广播)。"""
+        """返回 (逐拍输出 (b, T, M_out, out_dim), 新状态, 逐拍读出 (b, T, heads·dk))。"""
         b, T, _ = x.shape
         H, dk = self.heads, self.dk
         heads = lambda t: t.reshape(b, T, H, dk)
