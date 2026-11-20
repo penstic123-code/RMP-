@@ -19,8 +19,17 @@ import online as O
 ap = argparse.ArgumentParser()
 ap.add_argument('--tag', default='_wspread'); ap.add_argument('--size', default='S')
 ap.add_argument('--extra', default='{}'); ap.add_argument('--seq_bytes', type=int, default=65536)
+ap.add_argument('--modes', default='frozen,plastic'); ap.add_argument('--sleep', default='{}', help='睡眠参数 JSON，如 {"dream": 1.0, "rewire": false}')
+ap.add_argument('--no_seq', action='store_true', help='只跑生造词'); ap.add_argument('--name', default='')
+ap.add_argument('--learner', default='{}', help='OnlineLearner 额外参数 JSON，如 {"allocate": 1}')
 a = ap.parse_args()
 extra = json.loads(a.extra)
+LK = {'lr': 1e-3, 'replay': 0.25, **json.loads(a.learner)}
+LAST = {}
+_init0 = O.OnlineLearner.__init__
+def _keep(self, model, **kw):                              # 记下最近建的学习器（读分配日志）
+    _init0(self, model, **kw); LAST['L'] = self
+O.OnlineLearner.__init__ = _keep
 
 
 def load(mode):
@@ -47,7 +56,7 @@ def sequential(mode):
     old = bytes(val[:4096])
     ctr, cva = D.load_bytes('chat3')
     new_probe = bytes(cva[:4096])
-    L = O.OnlineLearner(m, lr=1e-3, replay=0.25)
+    L = O.OnlineLearner(m, **LK)
     if mode == 'plastic':
         unfreeze_router(m, L)
     r = {'old_before': O.bpc(m, old), 'chat_before': O.bpc(m, new_probe)}
@@ -65,21 +74,21 @@ def new_word(mode):
             init(self, model, **kw); unfreeze_router(model, self)
         O.OnlineLearner.__init__ = patched
         try:
-            return O.demo_new_word(m, D.DEV, day_bytes=32768, lr=1e-3, replay=0.25)
+            return O.demo_new_word(m, D.DEV, day_bytes=32768, sleep=json.loads(a.sleep), **LK)
         finally:
             O.OnlineLearner.__init__ = init
-    return O.demo_new_word(m, D.DEV, day_bytes=32768, lr=1e-3, replay=0.25)
+    return O.demo_new_word(m, D.DEV, day_bytes=32768, sleep=json.loads(a.sleep), **LK)
 
 
-out = {'tag': a.tag, 'size': a.size, 'extra': extra}
-for mode in ('frozen', 'plastic'):
+out = {'tag': a.tag, 'size': a.size, 'extra': extra, 'sleep': json.loads(a.sleep), 'learner': LK}
+for mode in a.modes.split(','):
     torch.manual_seed(0)
-    nw = new_word(mode); nw.pop('samples', None)
-    out[mode] = {'new_word': nw, 'sequential': sequential(mode)}
-    s, w = out[mode]['sequential'], nw
+    nw = new_word(mode); nw.pop('samples', None); nw['alloc_log'] = getattr(LAST.get('L'), 'alloc_log', None)
+    out[mode] = {'new_word': nw, 'sequential': None if a.no_seq else sequential(mode)}
+    s, w = out[mode]['sequential'] or {'chat_drop': float('nan'), 'old_rise': float('nan')}, nw
     print(mode, f"生造词 测试 bpc 学前 {w['test_before']:.3f} → 在线 {w['test_online']:.3f} → 睡后 {w['test_sleep_reset']:.3f}；"
           f"旧数据 {w['old_before']:.3f} → 在线后 {w['old_online']:.3f} → 睡后 {w['old_sleep']:.3f}（提交 {w['sleep']['committed']}）；"
           f"顺序任务 对话 bpc 降 {s['chat_drop']:.3f}，故事旧数据升 {s['old_rise']:.3f}", flush=True)
-p = ROOT / f'runs/{time.strftime("%Y%m%d-%H%M%S")}_rmp-online{a.tag}.json'
+p = ROOT / f'runs/{time.strftime("%Y%m%d-%H%M%S")}_rmp-online{a.tag}{a.name}.json'
 json.dump(out, open(p, 'w'), ensure_ascii=False, indent=1, default=float)
 print('→', p.name)

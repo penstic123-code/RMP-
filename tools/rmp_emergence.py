@@ -68,7 +68,7 @@ with torch.no_grad():
 
 res = {'tag': a.tag, 'random': a.random, 'waves': []}
 tot_w, sel_byte, sel_ctx, load_ent = 0.0, 0.0, 0.0, 0.0
-for w, sel, wt in caps:
+for w, sel, wt, _ in caps:
     wt = wt.cpu().numpy()                                               # (b, T, N)
     mods = np.where(np.asarray(pool.wave.cpu()) == w)[0]
     if len(mods) == 0:

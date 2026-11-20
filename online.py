@@ -82,7 +82,7 @@ def bpc(model, text_bytes, chunk=256):
 
 class OnlineLearner:
     def __init__(self, model, lr=1e-3, chunk=64, pool_bytes=65536, priority=True, seed=0,
-                 params='lora', replay=0.0, wd=0.0):
+                 params='lora', replay=0.0, wd=0.0, allocate=0, novel_ratio=1.25, warm_chunks=16):
         """params='lora'（默认）：只更新低秩偏移，不碰共享读出（E29：改读出是遗忘主因）；'all' 连读出一起改；replay：每次更新混入池中片段的损失权重；
         wd：低秩偏移向 0 的权重衰减（MIRAS 式保留正则，连续版睡眠下调），读出不衰减。"""
         self.model, self.chunk, self.lr = model, chunk, lr
@@ -108,7 +108,42 @@ class OnlineLearner:
         for p in self.online:
             p.requires_grad_(not self.eprop)               # e-prop 的梯度手算，不让 autograd 沿时间反传
         self.opt = torch.optim.AdamW(self.groups, lr=lr)
+        # RMP 新奇触发的地址分配（第 23.3 节 O2）：某段损失超过近期均值的 novel_ratio 倍时，每波取 allocate 个最少用的模块，
+        # 把地址写成该段在这一波的平均查询；此后在线学习只改被分配模块的低秩偏移（编码层与其余模块不动）。
+        self.allocate, self.novel_ratio, self.warm_chunks = allocate, novel_ratio, warm_chunks
+        self.loss_ema, self.n_chunks, self.allocated, self.alloc_log = None, 0, None, []
         self.reset_session()
+
+    def _alloc_step(self, caps, loss):
+        """读完一段后：判断新奇，必要时分配地址（只分配一次）。"""
+        self.n_chunks += 1
+        novel = self.loss_ema is not None and self.n_chunks > self.warm_chunks and loss > self.novel_ratio * self.loss_ema
+        self.loss_ema = loss if self.loss_ema is None else 0.95 * self.loss_ema + 0.05 * loss
+        if not novel or self.allocated is not None:
+            return
+        pool = _pools(self.model)[0]
+        chosen = []
+        with torch.no_grad():
+            for w, sel, wt, r in caps:
+                mods = (pool.wave == w).nonzero()[:, 0]
+                if len(mods) == 0:
+                    continue
+                pick = mods[pool.load_ema[mods].argsort()[:self.allocate]]
+                pool.addr[pick] = F.normalize(r[0].float().mean(0), dim=-1)
+                chosen += pick.tolist()
+        self.allocated = torch.tensor(chosen, device=pool.addr.device)
+        self.alloc_log.append({'chunk': self.n_chunks, 'loss': loss, 'ema': self.loss_ema, 'modules': chosen})
+
+    def _mask_alloc_grads(self):
+        """分配后：只留被分配模块的低秩偏移梯度。"""
+        pool = _pools(self.model)[0]
+        keep = torch.zeros(pool.N, device=pool.addr.device)
+        if self.allocated is not None:
+            keep[self.allocated] = 1
+        for l in _cores(self.model):
+            for p in (l.lora_a, l.lora_b):
+                if p.grad is not None:
+                    p.grad *= keep.view(-1, 1, 1) if l is pool.core else 0
 
     def reset_session(self):
         self.state, self.last, self.traces = None, None, None
@@ -166,8 +201,14 @@ class OnlineLearner:
             if self.eprop:
                 for l in self.model.layers:
                     l.rec = []
+            alloc = self.allocate and _pools(self.model)
+            if alloc:
+                _pools(self.model)[0].capture = []
             lg, st = self.model(seq[None, :-1], self.state)
             loss = F.cross_entropy(lg[0], seq[1:])
+            if alloc:
+                caps, _pools(self.model)[0].capture = _pools(self.model)[0].capture, None
+                self._alloc_step(caps, loss.item())
             tot += loss.item() * (len(seq) - 1); n += len(seq) - 1
             total = loss
             if self.replay and self.pool:                  # 混入池中旧片段（从零状态），抵消只看新内容造成的遗忘
@@ -186,6 +227,8 @@ class OnlineLearner:
                 self._eprop_grads(recs)
             else:
                 total.backward()
+            if self.allocate and _pools(self.model):
+                self._mask_alloc_grads()
             if gate > 0:
                 self.opt.step()
             self.state = _detach(st)
@@ -212,7 +255,7 @@ class OnlineLearner:
                 a.copy_(torch.randn_like(a) / math.sqrt(a.shape[-2]))
 
     def sleep(self, probe_old, probe_new, steps=200, lr=3e-4, batch=8, old_tol=0.02, anchor=0.0, dream=0.0, n_dream=64,
-              distill=0.0, day=None, ce=1.0, win=64, old=None):
+              distill=0.0, day=None, ce=1.0, win=64, old=None, rewire=True):
         """先把低秩偏移精确并入慢权重（不损失），再在重放池上训 steps 步。
         anchor>0：加 KL(老师‖学生)，老师 = 并入后、重放前的模型，在重放片段上算（E31；但老师已带白天的遗忘，E32 前的第 8 轮显示锚越强旧知识越差）。
         dream>0：做梦式自蒸馏（设计阶段 5 第 1 项）——早晨模型（白天学习前）从池中片段开头自由生成 n_dream 段“梦”，
@@ -246,8 +289,8 @@ class OnlineLearner:
             p.requires_grad_(True)
         opt = torch.optim.Adam(slow, lr=lr)
         plastic = [(pl, pl.plastic) for pl in _pools(m)]
-        for pl, _ in plastic:                              # RMP：地址与均衡偏置只在睡眠中更新（第 23.3 节）
-            pl.plastic = True
+        for pl, _ in plastic:                              # RMP：地址与均衡偏置只在睡眠中更新（第 23.3 节）；rewire=False 时睡眠也不动
+            pl.plastic = rewire
         for _ in range(steps):
             loss = 0.0
             if distill:                                # 学生从零状态看窗口，学老师带全天上下文的分布
