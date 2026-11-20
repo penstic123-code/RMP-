@@ -150,3 +150,24 @@ S 级第一轮实验（E63–E71）改了本章的几处设计。数字见实验
 - WaveNet 选项：`N`、`k`、`G`（默认 N/k）、`init`（flat 从 1 波长起 / spread 均分）、`grow_every`、`grow_until`、`fb`（R3 块延迟反馈）、`spare`（每波空闲模块数）、`rule`（addr / hash / gate，23.8 的 A、B、C）。
 - 在线学习与睡眠：[online.py](../../../online.py)（`allocate`、睡眠 `rewire`、`dream`）；工具 tools/rmp_online.py、rmp_emergence.py、rmp_router_timing.py。
 - 未实现：按地址的选择性跨级读、时间尺度先验 λ、压缩版（变长打包只算被选模块）、E01 映射切换任务。
+
+### 23.10　与主线相关的文档，以及怎么相关（2026-11-21）
+
+RMP 是当前主线（[plan/README.md](../../plan/README.md)“RMP 线当前状态”）。下列文档开头都加了一行回指本节。
+
+| 文档 | 怎么相关 |
+|---|---|
+| [current/1-runtime.md](../current/1-runtime.md) 1.0 | RMP 的每个模块就是这里的现行模块（慢通道、快记忆、局部 MLP、消息） |
+| [current/3-learning.md](../current/3-learning.md)、[4-memory.md](../current/4-memory.md) | 在线低秩偏移、e-prop、睡眠巩固与做梦式自蒸馏原样复用；RMP 只加“醒时冻结路由、睡眠不改地址、新奇分配” |
+| [basis/8-brain-hierarchy.md](../basis/8-brain-hierarchy.md) 8.3–8.5 | 层级涌现、连接方式、稀疏与动态的早期讨论；RMP 是“模块同构 + 稀疏激活 + 涌现层级”的具体化 |
+| [12 萤火网络](12-firefly-brain.md) | 柱内胜者通吃 + 稳态阈值；**储备细胞**（童年不参与竞争、成年后逐夜放出）= RMP 的空闲模块（E71） |
+| [14 统一块 + 涌现层级 + 自上而下](14-predictive-hierarchy.md) | 同构块、层级涌现、自上而下误差；对应 R2（秩与深度生长）、R3（块延迟反馈） |
+| [17-N4 千脑投票柱](17n4-voting-columns.md) | 很多小专家、预测准的说话和学习；都预测不好就长新柱，睡眠修剪合并——对应新奇分配 / 分裂与睡眠中的结构整理 |
+| [18 活柱](18-live-columns.md)、[19 定容活柱](19-fixed-budget-columns.md) | 会长新柱的神经调质可塑柱群；19 加了固定内存预算，与 RMP 的固定 N、空闲模块一致 |
+| [21 迹柱 TraceCols](21-tracecols.md) | RMP 借来的部分：原型余弦路由、竞争学习、稳态偏置、“醒时只动权重” |
+| [22 DSPN 精简](22-dspn-lean.md) 22.8 | 线性自上而下预测作学习信号无收益（E60），所以 R3 改作输入通路 |
+| [literature/topics/routing-modules.md](../../literature/topics/routing-modules.md) | 主线文献：MoM、RIMs、MoE 均衡与漂移、PEER、Hash Layers、几何连接（RSGN、神经元位置、HyperNEAT）、生长（GNG、RigL）、分工条件（Béna）、SC-ML |
+| [literature/topics/continual-sleep.md](../../literature/topics/continual-sleep.md) | 做梦式自蒸馏、回放：E70 的睡眠设置来自这里 |
+| [literature/topics/hierarchy-topdown.md](../../literature/topics/hierarchy-topdown.md) | H-Net、BLT、自上而下反馈：R2、R3 的背景 |
+| 实验 E01、E19、E31、E59、E60 | E01 换边有效（23.8 T3 的参照）；E19 层级度量；E31 在线学习协议（P3 沿用）；E59、E60 删中枢与自上而下预测 |
+| 实验 E63–E74 | RMP 本身的结果（[e56-e71.md](../../experiments/e56-e71.md)、[e72-.md](../../experiments/e72-.md)） |

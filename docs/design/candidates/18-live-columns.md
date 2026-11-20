@@ -1,5 +1,7 @@
 ## 18　活柱网络 LiveColumns：会长出新柱的神经调质可塑柱群（2026-11-20，N2 + N4 合成，未实施）
 
+> 与主线 RMP 相关：会长新柱的柱群，与 RMP 空闲模块、分配相关，见 [23.10](23-routed-pool.md)。
+
 来源：用户选定 [17-N2 神经调质三因子可塑性](17n2-neuromod-plastic.md) 与 [17-N4 千脑投票柱](17n4-voting-columns.md) 合并。依据、验证顺序与风险见 [18-live-columns-plan.md](18-live-columns-plan.md)。所有吞吐、显存都是估算，没有实测。
 
 ### 18.1　一句话
