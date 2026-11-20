@@ -187,7 +187,7 @@ class Layer(nn.Module):
         k, v, qv = kvq.split(m, -1)
         beta = self.beta_max * torch.sigmoid(bl[..., 0] + self.b_beta)      # beta_max=2：允许负特征值
         g = F.logsigmoid(-(gl[..., 0] + self.b_gam).float())                 # log α = log(1 − γ)
-        return F.normalize(k, dim=-1), v, qv, beta, g
+        return F.normalize(k, dim=-1), v, F.normalize(qv, dim=-1), beta, g   # q 也归一化（同 Gated DeltaNet）：读出 r = S·q 受 S 限住，不归一化时 XL5 编码层 h0 曾爆到 4.6e5（E61）
 
     def mlp(self, c, r):
         W1 = self.W1 + self.lora_a @ self.lora_b
@@ -394,7 +394,7 @@ class DSPNLayered(nn.Module):
             bnd, s_last, n_new = self._boundaries(idx, lp.detach(), lp_prev, s_prev, n_prev, reset)
             rate = bnd.float().mean()
             if learn:                                      # 分位数追踪：块率高于 1/N 就抬高 θ（原地改 buffer，CUDA Graph 下可用）
-                self.theta.add_(self.theta_lr * (rate - 1 / N))
+                self.theta.add_(self.theta_lr * (rate - 1 / N)).clamp_(0.0, 10.0)   # 上限：出故障时不跟着失控（E61 曾追到 112）
         K = min(T, max(1, math.ceil(self.k_mult * T / N)))
         prevb = torch.cat([idx.new_zeros(b, 1), idx[:, :-1]], 1)
         self.stats = {'rate': rate, 'word': (bnd & self.wbound(prevb)).sum() / bnd.sum().clamp(min=1),
@@ -513,10 +513,11 @@ def train(kind, size, data, iters, b, T, lr, seed, tag, extra, init=None, statef
     cuda = DEV == 'cuda'
     lr_t = torch.tensor(lr, device=DEV)                    # 张量学习率：CUDA Graph 回放时原地改
     opt = torch.optim.AdamW(param_groups(model), lr=lr_t, capturable=cuda)
+    warm = min(2000, max(200, iters // 100))              # 预热：短跑 200 步，长训练最多 2000 步（E61）
     if sched == 'wsd':                                     # 恒定 + 最后 20% 线性降到 0：中途停下也能随时补一段衰减
-        lrf = lambda it: min(1, it / 200) * min(1.0, (iters - it) / (0.2 * iters))
-    else:                                                  # 预热 200 步后余弦衰减
-        lrf = lambda it: min(1, it / 200) * 0.5 * (1 + math.cos(math.pi * it / iters))
+        lrf = lambda it: min(1, it / warm) * min(1.0, (iters - it) / (0.2 * iters))
+    else:                                                  # 预热后余弦衰减
+        lrf = lambda it: min(1, it / warm) * 0.5 * (1 + math.cos(math.pi * it / iters))
     name = f'{kind}-{size}{tag}'
     print(f'{name}: {nparam:,} 参数，{DEV}，批 {b} × {T} 字节，{iters} 步', flush=True)
     sx, sy = batch(tr, b, T)                               # 固定地址的输入，每步原地拷入新批
@@ -540,7 +541,7 @@ def train(kind, size, data, iters, b, T, lr, seed, tag, extra, init=None, statef
             copy_state_(st, new)
         return loss.detach()                               # 不留计算图引用，否则会干扰 CUDA Graph 录制
 
-    log, t0, eval_secs, graph = [], time.time(), 0.0, None
+    log, t0, eval_secs, graph, best = [], time.time(), 0.0, None, float('inf')
     for it in range(1, iters + 1):
         lr_t.fill_(lr * lrf(it))
         x, y = stream_batch(tr, pos, T) if stateful else batch(tr, b, T)
@@ -572,11 +573,14 @@ def train(kind, size, data, iters, b, T, lr, seed, tag, extra, init=None, statef
             log.append((it, round(time.time() - t0), round(loss.item() / math.log(2), 3), round(v, 3)))
             if getattr(model, 'chunk', 0):
                 log[-1] += cs + (round(float(model.theta), 3),)
-            if not math.isfinite(loss.item()):              # 发散就立刻停，不白跑一晚，也不用 nan 覆盖上一份检查点
-                raise SystemExit(f'{name}: 第 {it} 步损失不是有限值，训练停止')
+            print(log[-1], flush=True)
+            if not math.isfinite(loss.item()) or v > best + 0.5:   # 发散就立刻停，不白跑，也不用坏权重覆盖检查点（E61：没有 NaN 也会崩）
+                raise SystemExit(f'{name}: 第 {it} 步发散（流式验证 {v:.3f}，最好 {best:.3f}），训练停止')
             (ROOT / 'runs').mkdir(exist_ok=True)
             torch.save(model.state_dict(), ROOT / f'runs/{name}.pt')   # 每次评估都存，长训练中途出事不至于全丢
-            print(log[-1], flush=True)
+            if v < best:
+                best = v
+                torch.save(model.state_dict(), ROOT / f'runs/{name}_best.pt')
     if DEV == 'cuda':
         torch.cuda.synchronize()                            # GPU 异步执行，计时前等它算完
     secs = time.time() - t0

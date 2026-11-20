@@ -21,7 +21,7 @@
 
  换行，别再用）。make_chat_data.py 生成。
 - **demo**：最好的对话模型 runs/dspn-L_chat3.pt（E50；chat4 与之持平，E52），只能在 git 标签 v0.16 的代码下运行（`git worktree add ../dspn016 v0.16`）。试用：`python tools/chat.py runs/dspn-L_chat3.pt --size L --extra "<tools/queues/overnight.json 里的 extra>" --episodic`；/new /sleep /save /quit。跨会话约 5/8（靠情景记忆），名字复制常错、人名宠物名会混。
-- **正在跑（2026-11-20 17:49 起，约 2 天）**：XL5 预训练 `python dspn_text.py train dspn --size XL5 --data mix --iters 1000000 --batch 8 --T 1024 --lr 6e-4 --compile --tag _v2`（独立进程，日志 runs/xl5_v2.log，检查点 runs/dspn-XL5_v2.pt 每 500 步覆盖）。iters 按估计速度定，第 1000 步时核对，偏差大则重开。
+- **正在跑（2026-11-20 18:24 起，约 38–40 小时）**：XL5 预训练 `python dspn_text.py train dspn --size XL5 --data mix --iters 1000000 --batch 8 --T 1024 --lr 4e-4 --compile --tag _v2`（独立进程，日志 runs/xl5_v2.log，检查点 runs/dspn-XL5_v2.pt 每 500 步覆盖、最好的另存 _best.pt）。17:49 的首跑在第 2500 步发散，修复后重开（E61）。
 - **已采纳进下次预训练**（[v2.md](v2.md)“已确认采纳”）：nb_count（E53）、--sched wsd（E53）；pred_self=0.01（E51）在 v0.18 删除，由 C5 把关决定是否恢复。不采纳：out_gate、conv、pred_nb、local、surprise（E45、E49、E53）。
 - **v2 架构已选定**（2026-11-20，[design/candidates/20-dspn-v2.md](../design/candidates/20-dspn-v2.md)）：删持久头与网格代码，工作空间并入中枢块末广播，新奇信号管海马写入与在线可塑，睡眠加事实蒸馏（海马教皮层）。
 - **已完成（2026-11-20，v0.17，E54、E55）**：fast-clean A0–A5 与 B1（删重复部件、窗口级广播、fla 全内核、bf16、torch.compile），动态分块（chunk=N，默认关），在线 e-prop 的代码与精确性测试（tests/test_eprop.py）。L 档稳态约 17 万字节/秒（E41 的约 2.4 倍），显存约 2 GB。动态分块快约 24% 但 bpc 差 0.065，暂不用。
