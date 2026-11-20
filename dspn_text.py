@@ -497,7 +497,7 @@ def copy_state_(dst, src):
             copy_state_(d, s)
 
 
-def train(kind, size, data, iters, b, T, lr, seed, tag, extra, init=None, stateful=True, bot_loss=False, sched='wsd', bf16=True, compile=False):
+def train(kind, size, data, iters, b, T, lr, seed, tag, extra, init=None, stateful=True, bot_loss=False, sched='wsd', bf16=True, compile=False, resume=None, skip=0):
     torch.manual_seed(seed)
     tr, va = load_bytes(data)
     model = build(kind, size, **extra).to(DEV)
@@ -516,6 +516,8 @@ def train(kind, size, data, iters, b, T, lr, seed, tag, extra, init=None, statef
     warm = min(2000, max(200, iters // 100))              # 预热：短跑 200 步，长训练最多 2000 步（E61）
     if sched == 'wsd':                                     # 恒定 + 最后 20% 线性降到 0：中途停下也能随时补一段衰减
         lrf = lambda it: min(1, it / warm) * min(1.0, (iters - it) / (0.2 * iters))
+    elif sched == 'decay':                                 # 只跑衰减段：给 WSD 恒定段的检查点收尾（配 --init）；200 步预热让新建的 AdamW 矩估计先就位
+        lrf = lambda it: min(1, it / 200) * (iters - it) / iters
     else:                                                  # 预热后余弦衰减
         lrf = lambda it: min(1, it / warm) * 0.5 * (1 + math.cos(math.pi * it / iters))
     name = f'{kind}-{size}{tag}'
@@ -523,6 +525,8 @@ def train(kind, size, data, iters, b, T, lr, seed, tag, extra, init=None, statef
     sx, sy = batch(tr, b, T)                               # 固定地址的输入，每步原地拷入新批
     # stateful：每行是一条连续流，状态跨批次延续（截断反传），模型才练得到“记住 T 字节以前的事”（持久头、跨会话记忆）
     pos = np.random.default_rng(seed).integers(0, len(tr) - T - 1, b) if stateful else None
+    for _ in range(skip if stateful else 0):               # 跳过已读的数据：接只有权重的检查点时，流位置推到原训练停下的地方
+        pos[pos + T + 1 >= len(tr)] = 0; pos += T
     st = model.init_state(b) if stateful else None
     smask = torch.ones(b, T, device=DEV)                   # bot_loss：只在 Bot 轮次的字节上算损失
     skeep = torch.ones(b, device=DEV)                      # stateful：每步约 2% 的行整行清零，免得模型只会“热”状态（E45）
@@ -541,8 +545,16 @@ def train(kind, size, data, iters, b, T, lr, seed, tag, extra, init=None, statef
             copy_state_(st, new)
         return loss.detach()                               # 不留计算图引用，否则会干扰 CUDA Graph 录制
 
-    log, t0, eval_secs, graph, best = [], time.time(), 0.0, None, float('inf')
-    for it in range(1, iters + 1):
+    log, t0, eval_secs, graph, best, start = [], time.time(), 0.0, None, float('inf'), 0
+    if resume:                                             # 原样续跑：权重、优化器、步数、流位置、流状态、日志
+        ck = torch.load(ROOT / resume, map_location=DEV, weights_only=False)
+        model.load_state_dict(ck['model']); opt.load_state_dict(ck['opt'])
+        for g in opt.param_groups:
+            g['lr'] = lr_t                                 # 保持张量学习率的同一个对象（CUDA Graph 里引用的是它）
+        start, log, best = ck['it'], ck['log'], ck['best']
+        if stateful:
+            pos[:] = ck['pos']; copy_state_(st, ck['state'])
+    for it in range(start + 1, iters + 1):
         lr_t.fill_(lr * lrf(it))
         x, y = stream_batch(tr, pos, T) if stateful else batch(tr, b, T)
         sx.copy_(x); sy.copy_(y)
@@ -581,6 +593,8 @@ def train(kind, size, data, iters, b, T, lr, seed, tag, extra, init=None, statef
             if v < best:
                 best = v
                 torch.save(model.state_dict(), ROOT / f'runs/{name}_best.pt')
+            torch.save({'model': model.state_dict(), 'opt': opt.state_dict(), 'it': it, 'log': log, 'best': best,
+                        'pos': pos, 'state': st}, ROOT / f'runs/{name}_resume.pt')   # --resume 用
     if DEV == 'cuda':
         torch.cuda.synchronize()                            # GPU 异步执行，计时前等它算完
     secs = time.time() - t0
@@ -589,9 +603,9 @@ def train(kind, size, data, iters, b, T, lr, seed, tag, extra, init=None, statef
     torch.save(model.state_dict(), ROOT / f'runs/{name}.pt')   # 每个名字只留最新一份检查点
     out = ROOT / f'runs/{time.strftime("%Y%m%d-%H%M%S")}_{name}.json'
     json.dump({'name': name, 'kind': kind, 'size': size, 'extra': extra, 'params': nparam, 'data': data,
-               'device': DEV, 'batch': b, 'T': T, 'iters': iters, 'lr': lr, 'seed': seed, 'stateful': stateful, 'bot_loss': bot_loss, 'sched': sched, 'bf16': bf16, 'compile': compile, 'init': init,
+               'device': DEV, 'batch': b, 'T': T, 'iters': iters, 'lr': lr, 'seed': seed, 'stateful': stateful, 'bot_loss': bot_loss, 'sched': sched, 'bf16': bf16, 'compile': compile, 'init': init, 'resume': resume, 'skip': skip,
                'code_sha': hashlib.sha256((ROOT / 'dspn_text.py').read_bytes()).hexdigest()[:12],
-               'seconds': round(secs), 'train_bytes_per_sec': round(iters * b * T / (secs - eval_secs)),
+               'seconds': round(secs), 'train_bytes_per_sec': round((iters - start) * b * T / (secs - eval_secs)),
                'peak_gpu_mb': round(torch.cuda.max_memory_allocated() / 2**20) if DEV == 'cuda' else None,
                'val_bpc_stream': round(final, 4), 'log': log}, open(out, 'w'), ensure_ascii=False, indent=1)
     print(f'{name} 完成：流式验证 bpc {final:.4f} → {out.name}', flush=True)
@@ -630,11 +644,13 @@ if __name__ == '__main__':
     ap.add_argument('--bot_loss', action='store_true', help='对话数据只在 Bot 轮次的字节上算损失')
     ap.add_argument('--bf16', action=argparse.BooleanOptionalAction, default=True, help='bf16 自动混合精度（门、状态、递推 fp32）')
     ap.add_argument('--compile', action='store_true', help='torch.compile 融合门、投影、MLP 的逐元素运算')
-    ap.add_argument('--sched', default='wsd', choices=['cos', 'wsd'], help='学习率调度：余弦 / 恒定 + 末段线性衰减')
+    ap.add_argument('--sched', default='wsd', choices=['cos', 'wsd', 'decay'], help='学习率调度：余弦 / 恒定 + 末段线性衰减 / 只跑衰减段（配 --init）')
+    ap.add_argument('--resume', default=None, help='从 runs/<名字>_resume.pt 原样续跑（优化器、步数、流位置都接上）')
+    ap.add_argument('--skip', type=int, default=0, help='流位置先前移这么多步，接只有权重的检查点时不重读数据')
     a = ap.parse_args()
     extra = json.loads(a.extra)
     if a.cmd == 'train':
         lr = a.lr or 3e-3
-        train(a.kind, a.size, a.data, a.iters, a.batch, a.T, lr, a.seed, a.tag, extra, a.init, a.stateful, a.bot_loss, a.sched, a.bf16, a.compile)
+        train(a.kind, a.size, a.data, a.iters, a.batch, a.T, lr, a.seed, a.tag, extra, a.init, a.stateful, a.bot_loss, a.sched, a.bf16, a.compile, a.resume, a.skip)
     else:
         print(sample(a.kind, a.size, a.tag, a.prompt, extra))
