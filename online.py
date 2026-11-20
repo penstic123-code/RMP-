@@ -82,7 +82,7 @@ def bpc(model, text_bytes, chunk=256):
 
 class OnlineLearner:
     def __init__(self, model, lr=1e-3, chunk=64, pool_bytes=65536, priority=True, seed=0,
-                 params='lora', replay=0.0, wd=0.0, allocate=0, novel_ratio=1.25, warm_chunks=16, top_pos=4, spare_bias=-0.2):
+                 params='lora', replay=0.0, wd=0.0, allocate=0, novel_ratio=1.25, warm_chunks=16, top_pos=4, spare_bias=-0.2, alloc_mode='new'):
         """params='lora'（默认）：只更新低秩偏移，不碰共享读出（E29：改读出是遗忘主因）；'all' 连读出一起改；replay：每次更新混入池中片段的损失权重；
         wd：低秩偏移向 0 的权重衰减（MIRAS 式保留正则，连续版睡眠下调），读出不衰减。"""
         self.model, self.chunk, self.lr = model, chunk, lr
@@ -111,7 +111,7 @@ class OnlineLearner:
         # RMP 新奇触发的地址分配（第 23.3 节 O2）：某段损失超过近期均值的 novel_ratio 倍时，每波取 allocate 个最少用的模块，
         # 把地址写成该段在这一波的平均查询；此后在线学习只改被分配模块的低秩偏移（编码层与其余模块不动）。
         self.allocate, self.novel_ratio, self.warm_chunks = allocate, novel_ratio, warm_chunks
-        self.top_pos, self.spare_bias = top_pos, spare_bias
+        self.top_pos, self.spare_bias, self.alloc_mode = top_pos, spare_bias, alloc_mode   # alloc_mode='split'：GNG 式分裂（复制父模块）
         self.loss_ema, self.n_chunks, self.allocated, self.alloc_log = None, 0, None, []
         # 第二版：池里有空闲模块（active = 0）时，启用它们而不是改旧模块的地址；新模块的全部参数在线可训（新生神经元），其余不动
         pools = _pools(model)
@@ -140,7 +140,19 @@ class OnlineLearner:
                     if len(mods) == 0:
                         continue
                     top = tok.topk(min(self.top_pos, len(tok))).indices
-                    pool.addr[mods] = F.normalize(r[0, top].float().mean(0), dim=-1)
+                    rq = F.normalize(r[0, top].float().mean(0), dim=-1)
+                    if self.alloc_mode == 'split':       # GNG 式分裂：本段在新内容上承担损失最多的启用模块当父，整份复制给空闲模块，地址取父与新查询的中点
+                        blame = (wt[0].float() * tok[:, None]).sum(0) * (pool.wave == w).float() * (pool.active > 0).float()
+                        par = int(blame.argmax())
+                        for c in mods.tolist():
+                            for n, prm in pool.core.named_parameters():
+                                prm[c] = prm[par]
+                            pool.addr[c] = F.normalize(pool.addr[par] + rq, dim=-1)
+                            pool.bias[c] = pool.bias[par] + self.spare_bias; pool.ogain[c] = pool.ogain[par]
+                            pool.load_ema[c] = pool.load_ema[par]
+                        pool.active[mods] = 1
+                        chosen += mods.tolist(); continue
+                    pool.addr[mods] = rq
                     pool.active[mods] = 1; pool.bias[mods] = self.spare_bias; pool.ogain[mods] = 0.0
                     chosen += mods.tolist(); continue
                 mods = (pool.wave == w).nonzero()[:, 0]

@@ -34,6 +34,14 @@
 - [Dynamics of specialization in neural modules under resource constraints](https://arxiv.org/abs/2106.02626)（Béna、Goodman，Nature Communications）：结构模块化不保证功能分工；分工只在特征可分且资源受限（模块间连接稀疏、带宽窄）时出现，且随训练过程变化。含义：E67 的分工可能来自 k 选 N 与窄残差流；可扫 D、k 检验，并在训练中途的检查点上跑 rmp_emergence 看分工的动态。
 - [Training Neural Networks by Optimizing Neuron Positions](https://arxiv.org/abs/2506.13410)（Erb 等，2025）：神经元坐标是训练参数，权重由距离导出；MNIST 与常规网络相当，脉冲网络也验证。后续 [Space as Time](https://arxiv.org/abs/2511.01632) 用距离定突触延迟。难点：动一个神经元会改它所有的距离（与 E69 改一个地址劫持路由同类）。含义：23.8 规则 D 的更彻底版本；可比“地址用梯度学”与现行竞争学习。
 
+### 结构生长与生成式连接的经典方法（2026-11-21 用户提出；凭已有知识整理，未重新核对原文）
+
+- **HyperNEAT**（Stanley 等 2009）：神经元有坐标，小网络 CPPN 由两端坐标生成连接权重（间接编码，权重不单独存）。“连接由规则生成”的源头；可作长期方向：由地址生成模块间连接乃至模块权重。
+- **ES-HyperNEAT**（Risi、Stanley 2012）：还决定神经元放在哪——在 CPPN 输出变化大（信息密）的区域按四叉树细分放更多隐藏神经元。对应“新模块放哪”。
+- **Growing Neural Gas**（Fritzke 1995）：节点在输入空间竞争学习，在累积误差最大的节点与其误差最大的邻居之间插入新节点、误差重分配，老边老节点删除。与 23.3 的地址竞争学习几乎同构；其插入规则启发了新奇分配第四版“分裂”（复制父模块、地址取中点），对症 E69、E71 的失败原因。
+- **NISPA**（Gurbuz、Dovrolis，ICML 2022）：稀疏网络持续学习，按重要性把单元分为稳定（冻结）与可塑，可塑单元的连接删减再长。对应“在线只改部分模块”，可按重要性选可改模块。
+- **RigL**（Evci 等，ICML 2020）：固定稀疏度的动态稀疏训练，定期删最小权重、在梯度最大处长新连接。可借“按梯度决定往哪长”指导移波与地址更新。
+
 ### 持续学习：路由漂移是主要遗忘来源
 
 - [LLaVA-DyMoE](https://arxiv.org/abs/2603.27481)（2026，未核实）、[StaR-MoE](https://arxiv.org/pdf/2605.17571)（2026，未核实）、[LLaVA-CMoE](https://arxiv.org/html/2503.21227v1)（2025，未核实）：即使冻结旧专家，训练新部分时路由器的共享参数变了，旧输入被分去别的专家，照样遗忘。
