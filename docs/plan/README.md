@@ -25,7 +25,7 @@
 - **已采纳进下次预训练**（[v2.md](v2.md)“已确认采纳”）：pred_self=0.01（E51）、nb_count（E53）、--sched wsd（E53）。不采纳：out_gate、conv、pred_nb、local、surprise（E45、E49、E53）。
 - **v2 架构已选定**（2026-11-20，[design/candidates/20-dspn-v2.md](../design/candidates/20-dspn-v2.md)）：删持久头与网格代码，工作空间并入中枢块末广播，新奇信号管海马写入与在线可塑，睡眠加事实蒸馏（海马教皮层）。
 - **已完成（2026-11-20，v0.17，E54、E55）**：fast-clean A0–A5 与 B1（删重复部件、窗口级广播、fla 全内核、bf16、torch.compile），动态分块（chunk=N，默认关），在线 e-prop 的代码与精确性测试（tests/test_eprop.py）。L 档稳态约 17 万字节/秒（E41 的约 2.4 倍），显存约 2 GB。动态分块快约 24% 但 bpc 差 0.065，暂不用。
-- **2026-11-20 午**：用户决定直接上约 3000 万参数（XL 档，分块 + 滑窗注意力，第 20.8 节第 2、3 档都已融合）、英文混合数据（data/mix，48 亿字节，E56）。XL 首次试跑发散，已加 pre-norm 修好（E56）。用户出门，**预训练尚未启动**，GPU 空闲（另有一个会话在跑 tracecols 实验，runs/tc-*.json 不是本线的）。
+- **2026-11-20 午**：用户决定直接上约 3000 万参数（XL 档，分块 + 滑窗注意力，第 20.8 节第 2、3 档都已融合）、英文混合数据（data/mix，48 亿字节，E57）。XL 首次试跑发散，已加 pre-norm 修好（E57）。用户出门，**预训练尚未启动**，GPU 空闲（另有一个会话在跑 tracecols 实验，runs/tc-*.json 不是本线的）。
 - **下一步（按顺序）**：
   1. 启动 XL 预训练（约 2 天）：`python dspn_text.py train dspn --size XL --data mix --batch 8 --T 1024 --lr 6e-4 --compile --iters <按实测速度定> --tag _v2`。先跑 1000 步看编译后的字节/秒，再定 iters 使总时长约 48 小时；每 500 步存检查点。
   2. 新底座上做 B3（新奇信号接入聊天）、B4（E31 协议比 lora 与 e-prop，输的删）、B5（事实蒸馏），然后对话微调（chat3，--bot_loss）与记忆脚本，与 dspn-L_chat3 比。
