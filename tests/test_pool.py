@@ -96,3 +96,27 @@ def test_model_builds_and_runs():
     assert lg.shape == (2, 12, 256)
     lg.sum().backward()
     assert m.layers[1].Wr.grad is not None and m.layers[1].Wr.grad.abs().sum() > 0
+
+
+def test_wavenet_runs_grows_and_feedback():
+    from pool import WaveNet
+    torch.manual_seed(0)
+    for fb in (0, 4):
+        m = D.build('dspn', 'S', net='wave', N=16, k=2, G=3, D=8, pd=8, pm=4, phidden=16, fb=fb, grow_every=1, margin=-1.0)
+        torch.nn.init.normal_(m.readout.weight, std=0.1)
+        m.train()
+        idx = torch.randint(0, 256, (2, 12))
+        lg, st = m(idx)
+        assert lg.shape == (2, 12, 256)
+        lg.sum().backward()
+        assert m.layers[1].Wr.grad.abs().sum() > 0
+        assert m.layers[1].wave.max() >= 1                 # margin = −1：首步即从平的第 0 波长出第 1 波
+        lg2, _ = m(idx, st)                                # 状态可接续
+    # 只有本波被选的模块改状态：把波全设成 0 以外的空波，状态不应变
+    m = D.build('dspn', 'S', net='wave', N=8, k=2, G=2, D=8, pd=8, pm=4, phidden=16)
+    m.eval(); pool = m.layers[1]
+    st = pool.init_state(1, 'cpu'); st = (torch.randn_like(st[0]), torch.randn_like(st[1]))
+    with torch.no_grad():
+        _, _, (c, S) = pool(torch.randn(1, 5, 8), st)
+    moved = (c != st[0]).any(-1)[0]
+    assert moved.sum() <= 8 and moved.sum() >= 2           # 第 0 波 8 个模块里，5 拍内只有被选过的变

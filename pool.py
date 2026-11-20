@@ -89,3 +89,147 @@ class PoolLayer(nn.Module):
 
     def compile_parts(self):
         self.core.compile_parts()
+
+
+class WavePool(nn.Module):
+    """R2：一个池，N 个模块各属一波（buffer wave，0..G−1），按波依次算；波 w 读残差流 x_w（含此前所有波的输出，跨级可见）。
+    全部波共享一个地址空间（同一 W_r、同一组地址）。每波只在本波模块里选前 k；空波输出 0（等于“跳过”）。
+    原型：每波把 N 个模块都算一遍、只让本波被选的模块改状态，所以每个模块每拍只更新一次（在自己的波里）；G 波的计算图固定，
+    改波只改 buffer，CUDA Graph 不用重录。
+    深度生长（grow_every=P > 0）：每 P 个训练步，模块可移到相邻波（最多移到当前最深波之后一波），条件是那一波的平均查询
+    与它地址的平均余弦比本波高出 margin；每次最多移 N/8 个，移出后本波至少留 k 个。init='flat' 全在第 0 波，'spread' 均分到 G 波。"""
+    def __init__(self, N, k, G, D, d, m, hidden, qr=32, beta_max=1.0, temp=0.1, eta_a=0.01, eta_b=1e-3,
+                 init='flat', grow_every=0, margin=0.02):
+        super().__init__()
+        self.N, self.k, self.G, self.temp, self.eta_a, self.eta_b = N, k, G, temp, eta_a, eta_b
+        self.grow_every, self.margin = grow_every, margin
+        self.core = Layer(N, D, d, m, hidden, D, beta_max=beta_max)
+        self.Wr = nn.Parameter(torch.randn(D, qr) / math.sqrt(D))
+        self.register_buffer('addr', F.normalize(torch.randn(N, qr), dim=-1))
+        self.register_buffer('bias', torch.zeros(N))
+        self.register_buffer('load_ema', torch.full((N,), 1.0 / N))
+        w0 = torch.zeros(N, dtype=torch.long) if init == 'flat' else torch.arange(N) * G // N
+        self.register_buffer('wave', w0)
+        self.register_buffer('aff', torch.zeros(N, G))           # 各模块与各波查询的平均余弦（EMA）
+        self.register_buffer('step', torch.zeros((), dtype=torch.long))
+        self.plastic = True
+
+    def init_state(self, b, device):
+        return self.core.init_state(b, device)
+
+    def forward(self, x, state, reset=None):
+        """x: (b, T, D) 残差流起点。返回各波混合 h 的列表（每个 (b, T, d)）、最终残差流、新状态。"""
+        b, T, D = x.shape
+        learn = self.training and torch.is_grad_enabled() and self.plastic
+        addr = self.addr.clone()
+        hs, cnt_all, sum_r, aff_new = [], [], [], []
+        for w in range(self.G):
+            r = F.normalize(F.rms_norm(x, (D,)) @ self.Wr, dim=-1)
+            cos = (r @ addr.t().to(r.dtype)).float()                          # (b, T, N)
+            cand = (self.wave == w)
+            idx = (cos + self.bias).masked_fill(~cand, -1e9).topk(self.k, -1).indices
+            sel = torch.zeros_like(cos).scatter_(-1, idx, 1.0) * cand.float()
+            wt = torch.softmax((cos / self.temp).masked_fill(sel == 0, -1e9), -1) * sel
+            h, z, state = self.core(x[:, :, None].expand(b, T, self.N, D), state, reset, sel)
+            hw = wt.to(h.dtype)[..., None]
+            hs.append((hw * h).sum(2)); x = x + (hw * z).sum(2)
+            if learn:
+                with torch.no_grad():
+                    rd = r.detach().float()
+                    cnt_all.append(sel.sum((0, 1))); sum_r.append(torch.einsum('btn,btq->nq', sel, rd))
+                    aff_new.append(cos.mean((0, 1)))
+        if learn:
+            self._adapt(torch.stack(cnt_all).sum(0), torch.stack(sum_r).sum(0), torch.stack(aff_new, 1), b * T)
+        return hs, x, state
+
+    @torch.no_grad()
+    def _adapt(self, cnt, sum_r, aff, ticks):
+        mean_r = sum_r / cnt.clamp(min=1)[:, None]
+        self.addr.copy_(F.normalize(self.addr + self.eta_a * (cnt > 0).float()[:, None] * (mean_r - self.addr), dim=-1))
+        size = F.one_hot(self.wave, self.G).sum(0).float()                    # 各波模块数
+        target = self.k / size[self.wave].clamp(min=self.k)                   # 本波内的目标负载
+        load = cnt / ticks
+        self.bias.add_(self.eta_b * torch.sign(target - load))
+        self.load_ema.mul_(0.99).add_(0.01 * load / target)                  # 相对目标的负载（1 = 刚好）
+        self.aff.mul_(0.99).add_(0.01 * aff)
+        self.step.add_(1)
+        if self.grow_every:
+            self._grow(size)
+
+    @torch.no_grad()
+    def _grow(self, size):
+        """张量化的移波（无 Python 分支，CUDA Graph 可录）：只在 step % P == 0 时生效。"""
+        do = (self.step % self.grow_every == 0)
+        wv = torch.arange(self.G, device=self.wave.device)
+        deepest = (self.wave.max() + 1).clamp(max=self.G - 1)
+        allowed = ((wv[None] - self.wave[:, None]).abs() <= 1) & (wv[None] <= deepest)
+        score = self.aff.masked_fill(~allowed, -1e9)
+        best = score.argmax(1)
+        gain = score.gather(1, best[:, None])[:, 0] - self.aff.gather(1, self.wave[:, None])[:, 0]
+        cap = max(1, self.N // 8)
+        ok = do & (gain > self.margin) & (best != self.wave) & (size[self.wave] > self.k + cap)
+        rank = torch.argsort(torch.argsort(-(gain * ok.float()), descending=False))
+        move = ok & (rank < cap)
+        self.wave.copy_(torch.where(move, best, self.wave))
+
+    def stats(self):
+        """（深度 = 非空波数，死模块比例 = 相对负载 < 0.1，各波模块数）。"""
+        size = F.one_hot(self.wave, self.G).sum(0)
+        return int((size > 0).sum()), round(float((self.load_ema < 0.1).float().mean()), 3), tuple(int(s) for s in size)
+
+    def compile_parts(self):
+        self.core.compile_parts()
+
+
+class WaveNet(nn.Module):
+    """第 23 章最新设计的 S 级原型：字节嵌入 → 稠密编码层（现行模块，M 个）→ 投影到残差流 → 波池（R2）→ 读出。
+    读出拼接编码层 h 与各波混合 h（空波为 0），同现行 DSPN 的读出。
+    R3（fb=W > 0）：序列按 W 拍分块依次算；每块开头把上一块最后一拍的各波 h 经零初始投影加到残差流起点（按块延迟的自上而下反馈）。"""
+    def __init__(self, M=2, d=90, m=16, hidden=180, q=16, emb=32, vocab=256, beta_max=1.0,
+                 N=48, k=4, G=4, D=32, pd=64, pm=16, phidden=128, qr=32, temp=0.1, init='flat', grow_every=0, margin=0.02, fb=0, **_):
+        super().__init__()
+        self.M, self.fb, self.chunk, self.pool = M, fb, 0, N
+        self.emb = nn.Embedding(vocab, emb)
+        enc = Layer(M, emb, d, m, hidden, q, beta_max=beta_max)
+        self.layers = nn.ModuleList([enc, WavePool(N, k, G, D, pd, pm, phidden, qr, beta_max, temp, init=init, grow_every=grow_every, margin=margin)])
+        self.win = nn.Linear(M * q, D)
+        n_read = M * d + G * pd
+        if fb:
+            self.fbp = nn.Linear(G * pd, D); nn.init.zeros_(self.fbp.weight); nn.init.zeros_(self.fbp.bias)
+        self.norm = nn.LayerNorm(n_read)
+        self.readout = nn.Linear(n_read, emb); nn.init.zeros_(self.readout.weight)
+        self.bias = nn.Parameter(torch.zeros(vocab))
+        self.aux, self.stats = 0.0, {}
+
+    def init_state(self, b):
+        dev = self.emb.weight.device
+        st = [l.init_state(b, dev) for l in self.layers]
+        if self.fb:
+            st.append(torch.zeros(b, self.layers[1].G * self.layers[1].core.d, device=dev))
+        return st
+
+    def _seg(self, e, idx, st_enc, st_pool, fbv):
+        reset = idx == 30
+        M = self.M
+        h0, z0, ns0 = self.layers[0](e[:, :, None].expand(*e.shape[:2], M, e.shape[-1]), st_enc, reset)
+        x = self.win(z0.flatten(2))
+        if fbv is not None:
+            x = x + self.fbp(fbv.to(x.dtype))[:, None]
+        hs, _, ns1 = self.layers[1](x, st_pool, reset)
+        return torch.cat([h0.flatten(2)] + hs, -1), ns0, ns1, torch.cat(hs, -1)[:, -1]
+
+    def forward(self, idx, state=None):
+        state = state or self.init_state(idx.shape[0])
+        e = self.emb(idx)
+        T = idx.shape[1]
+        if not self.fb:
+            hcat, ns0, ns1, _ = self._seg(e, idx, state[0], state[1], None)
+            new = [ns0, ns1]
+        else:                                                # 按块依次算：块内并行，块间传反馈
+            s0, s1, fbv, outs = state[0], state[1], state[2], []
+            for t0 in range(0, T, self.fb):
+                hc, s0, s1, last = self._seg(e[:, t0:t0 + self.fb], idx[:, t0:t0 + self.fb], s0, s1, fbv)
+                outs.append(hc); fbv = last.float()
+            hcat, new = torch.cat(outs, 1), [s0, s1, fbv]
+        y = self.readout(self.norm(hcat))
+        return y @ self.emb.weight.t().to(y.dtype) + self.bias, new

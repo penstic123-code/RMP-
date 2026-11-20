@@ -447,7 +447,11 @@ def count(model):
 
 def build(kind='dspn', size='S', **extra):
     assert kind == 'dspn', '只保留 DSPN（v2：只和自己的上一版比）'
-    return DSPNLayered(**{**SIZES[size], **extra})
+    cfg = {**SIZES[size], **extra}
+    if cfg.get('net') == 'wave':                          # 路由模块池 RMP 最新设计（第 23 章 R2 / R3，S 级原型）
+        from pool import WaveNet
+        return WaveNet(**cfg)
+    return DSPNLayered(**cfg)
 
 @torch.no_grad()
 def evaluate_stream(model, data, b=8, T=1024, n=8):
