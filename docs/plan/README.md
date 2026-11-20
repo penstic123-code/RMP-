@@ -34,7 +34,7 @@
   1. （已被第 0 条取代）原 XL 预训练命令：`python dspn_text.py train dspn --size XL --data mix --batch 8 --T 1024 --lr 6e-4 --compile --iters <按实测速度定> --tag _v2`。先跑 1000 步看编译后的字节/秒，再定 iters 使总时长约 48 小时；每 500 步存检查点。
   2. 新底座上做 B3（新奇信号接入聊天）、B4（E31 协议比 lora 与 e-prop，输的删）、B5（事实蒸馏），然后对话微调（chat3，--bot_loss）与记忆脚本，与 dspn-L_chat3 比。
   3. 每个检查点跑涌现指标（时间尺度层级、自发切词、复制相变等，v2.md 第 14 条）。
-  4. 路由模块池（[第 23 章](../design/candidates/23-routed-pool.md)，测试用）：XL5 训练期间写 P0 代码与 CPU 测试，训完按 [research-lines.md](research-lines.md)“路由模块池线”P1–P6 跑。
+  4. 路由模块池 RMP（[第 23 章](../design/candidates/23-routed-pool.md)，测试用，不和 DSPN 比）：S 级 P1 过（E63）、P2 分工过（E67）、P3 冻结路由遗忘约为不冻结的 1/3 但绝对门槛未过（E66）、深度生长会自停但比固定 4 波差（E64、E65）。下一步：新内容导向空闲模块、睡眠验收、衰减段停止移波、P2b 连接规则。
 - 已定：不复现 E13 的莎士比亚结果。不在用户的话上做睡眠交叉熵（E44）。
 
 ## 快速路线（2026-11-19 用户决定：少跑实验，尽快做出能对话、有记忆、会学习的 demo；优先于下表的逐阶段验收）

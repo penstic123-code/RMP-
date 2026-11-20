@@ -109,7 +109,7 @@ with torch.no_grad():
                      'others_mean': round(float(others), 4), 'specific': bool(rise[j] > 0 and rise[j] >= 2 * max(others, 1e-6))})
 res['ablation'] = spec; res['n_specific'] = sum(s['specific'] for s in spec)
 res['val_bpc'] = round(float(ce.mean() / math.log(2)), 4)
-print(json.dumps({k: res[k] for k in ('tag', 'random', 'val_bpc', 'byte_sel', 'ctx_sel_given_byte', 'load_entropy', 'n_specific')}, ensure_ascii=False))
+print(json.dumps({k: res[k] for k in ('tag', 'random', 'val_bpc', 'byte_sel', 'ctx_sel_given_byte', 'load_entropy', 'n_specific')}, ensure_ascii=False, default=float))
 p = ROOT / f'runs/{time.strftime("%Y%m%d-%H%M%S")}_rmp-emergence{a.tag}{"_random" if a.random else ""}.json'
-json.dump(res, open(p, 'w'), ensure_ascii=False, indent=1)
+json.dump(res, open(p, 'w'), ensure_ascii=False, indent=1, default=float)
 print('→', p.name)
