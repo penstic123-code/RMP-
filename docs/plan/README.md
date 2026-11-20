@@ -21,7 +21,7 @@
 
  换行，别再用）。make_chat_data.py 生成。
 - **demo**：最好的对话模型 runs/dspn-L_chat3.pt（E50；chat4 与之持平，E52），只能在 git 标签 v0.16 的代码下运行（`git worktree add ../dspn016 v0.16`）。试用：`python tools/chat.py runs/dspn-L_chat3.pt --size L --extra "<tools/queues/overnight.json 里的 extra>" --episodic`；/new /sleep /save /quit。跨会话约 5/8（靠情景记忆），名字复制常错、人名宠物名会混。
-- **正在跑（2026-11-20 18:24 起，约 38–40 小时）**：XL5 预训练 `python dspn_text.py train dspn --size XL5 --data mix --iters 1000000 --batch 8 --T 1024 --lr 4e-4 --compile --tag _v2`（独立进程，日志 runs/xl5_v2.log，检查点 runs/dspn-XL5_v2.pt 每 500 步覆盖、最好的另存 _best.pt）。17:49 的首跑在第 2500 步发散，修复后重开（E61）。
+- **XL5 基线已完成（2026-11-20 22:38，E62）**：恒定段跑到 7.7 万步后经用户同意提前停，接 1.55 万步衰减收尾，流式 bpc 1.4405，检查点 runs/dspn-XL5_v2d.pt。切词与时间尺度层级涌现，照抄与记名字没有（结构瓶颈）。GPU 空闲。训练新增 `--resume`（每 500 步存 runs/<名字>_resume.pt）、`--sched decay`、`--skip`。
 - **已采纳进下次预训练**（[v2.md](v2.md)“已确认采纳”）：nb_count（E53）、--sched wsd（E53）；pred_self=0.01（E51）在 v0.18 删除，由 C5 把关决定是否恢复。不采纳：out_gate、conv、pred_nb、local、surprise（E45、E49、E53）。
 - **v2 架构已选定**（2026-11-20，[design/candidates/20-dspn-v2.md](../design/candidates/20-dspn-v2.md)）：删持久头与网格代码，工作空间并入中枢块末广播，新奇信号管海马写入与在线可塑，睡眠加事实蒸馏（海马教皮层）。
 - **已完成（2026-11-20，v0.17，E54、E55）**：fast-clean A0–A5 与 B1（删重复部件、窗口级广播、fla 全内核、bf16、torch.compile），动态分块（chunk=N，默认关），在线 e-prop 的代码与精确性测试（tests/test_eprop.py）。L 档稳态约 17 万字节/秒（E41 的约 2.4 倍），显存约 2 GB。动态分块快约 24% 但 bpc 差 0.065，暂不用。
@@ -30,7 +30,7 @@
 - **2026-11-20 傍晚**：用户让先做 v0.18。C1–C4 已实施（删广播、预测头族、可导路由、冷启动评估；惊讶跃升 + 最大块长分块），42 个测试全过；C 档冒烟 1000 步不发散、编译后约 13.6 万字节/秒、切词约 2.4 倍基准率（E58）。旧 v0.17 检查点不能加载（设计快照 archive/design_v0.17）。
 - **C5 把关已跑（E59）**：v0.18 过关（bpc 差 0.015、快约 14%、涌现无明显退化）。删中枢（D 组）与 v0.18 持平，但本轮 MQAR 饱和、测不到长程，删不删等长间隔 MQAR。复制与 MQAR 本轮无区分力。
 - **下一步（按顺序）**：
-  0. XL5 预训练进行中（E59、E60 定的结构：v0.18、无中枢、K = 1.5T/N）。训完：涌现五项（tools/emergence.py）、与 XL / C 档比规模曲线；C6 新奇信号在新底座上做。
+  0. 下一版 v0.19（用户已同意方向）：字节级抄写通路（注意力能看到字节细节，或加宽层间消息）+ 残差流替代 8 层拼接读出 + 提速（训完前先在 XL5_v2d 上剖析一次）。在同样约 9.25 万步、同样衰减下与 E62 比 bpc、复制、记名字；胜者再跑长训练。C6 新奇信号在选定底座上做。
   1. （已被第 0 条取代）原 XL 预训练命令：`python dspn_text.py train dspn --size XL --data mix --batch 8 --T 1024 --lr 6e-4 --compile --iters <按实测速度定> --tag _v2`。先跑 1000 步看编译后的字节/秒，再定 iters 使总时长约 48 小时；每 500 步存检查点。
   2. 新底座上做 B3（新奇信号接入聊天）、B4（E31 协议比 lora 与 e-prop，输的删）、B5（事实蒸馏），然后对话微调（chat3，--bot_loss）与记忆脚本，与 dspn-L_chat3 比。
   3. 每个检查点跑涌现指标（时间尺度层级、自发切词、复制相变等，v2.md 第 14 条）。
