@@ -44,6 +44,12 @@
 - [Emergence of Functional Hierarchy in a Multiple Timescale Network（MTRNN）](https://www.oist.jp/sites/default/files/2024-03/cnru_PLoSCB_2008_corrected_0.pdf)（Yamashita、Tani，PLoS CB 2008，未核实）：只靠快、慢两类神经元的时间常数差，不分模块，就自组织出功能层级。支持 R2 用时间尺度定方向。
 - [Mixture-of-Depths](https://arxiv.org/abs/2404.02258)（Raposo 等，DeepMind 2024，未核实）：每块 top-k 选 token 计算，其余走残差跳过；k 固定所以计算图静态；可与 MoE 叠加。含义：R2 的每跳加一个“跳过”选项，深度可变而计算图不变。
 
+### 深度生长
+
+- [On the Inductive Bias of Stacking（MIDAS）](https://arxiv.org/abs/2409.19044)（Saunshi 等，NeurIPS 2024，未核实）：逐步堆叠加深，复制小模型中间块初始化大模型；训练快约 40%，困惑度持平，推理类下游更好；1B–8B 验证。
+- [Curriculum-Guided Layer Scaling](https://arxiv.org/abs/2506.11389)（2025，未核实）：加深与数据由易到难同步，泛化与零样本更好。
+- 含义：第 23 章深度从 1 波长起，既为层级涌现，也让前期训练更快；区别是按地址匹配自己往后挪，而非按时间表复制层。
+
 ### 实现
 
 - [MegaBlocks](https://arxiv.org/abs/2211.15841)（Gale 等，MLSys 2023，未核实）：把 MoE 写成块稀疏矩阵乘，不丢 token、不补齐；分组矩阵乘是推荐路径。第 23 章 P1–P4 过后的提效版照此写。
