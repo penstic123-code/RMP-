@@ -230,7 +230,7 @@ class OnlineLearner:
             loss = F.cross_entropy(lg[0], seq[1:])
             if alloc:
                 caps, _pools(self.model)[0].capture = _pools(self.model)[0].capture, None
-                self._alloc_step(caps, loss.item(), F.cross_entropy(lg[0], seq[1:], reduction='none').detach())
+                pending = (caps, loss.item(), F.cross_entropy(lg[0], seq[1:], reduction='none').detach())
             tot += loss.item() * (len(seq) - 1); n += len(seq) - 1
             total = loss
             if self.replay and self.pool:                  # 混入池中旧片段（从零状态），抵消只看新内容造成的遗忘
@@ -253,6 +253,8 @@ class OnlineLearner:
                 self._mask_alloc_grads()
             if gate > 0:
                 self.opt.step()
+            if alloc:                                      # 分配放在更新之后：它原地改 ogain、地址等，反传前改会破坏计算图
+                self._alloc_step(*pending)
             self.state = _detach(st)
             if len(seq) == self.chunk + 1:      # 只收满长度的段，巩固时才能成批
                 self._add(seq.cpu().numpy(), loss.item())
