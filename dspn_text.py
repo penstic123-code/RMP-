@@ -1,4 +1,4 @@
-"""DSPN v2 字节级语言模型：每层 M 个模块（门控对角线性循环 c + 快记忆 S + 局部 MLP），全局记忆中枢，窗口级广播。
+"""DSPN v2 字节级语言模型：每层 M 个模块（门控对角线性循环 c + 快记忆 S + 局部 MLP），全局记忆中枢，动态分块（编码层惊讶跃升定边界，v0.18）。
 
 设计见 docs/design/README.md（第 20 章）；排期见 docs/plan/fast-clean.md。v0.16 及更早的代码在 git 标签 v0.16 与 legacy/。
 
@@ -23,9 +23,9 @@ DATASETS = {
     'chat3': ('data/chat3-train.txt', 'data/chat3-valid.txt'),          # make_chat_data.py 现版：记忆对话 40%，跨会话一半带重现行
     'mix': ('data/mix-train.txt', 'data/mix-valid.txt'),                # tools/prepare_data.py：TinyStories + Cosmopedia + Simple Wikipedia + SODA
 }
-SEP = 30   # 会话边界字节（ASCII 记录分隔符）：清空 c、快记忆、中枢与广播
+SEP = 30   # 会话边界字节（ASCII 记录分隔符）：清空 c、快记忆与中枢，强制开块
 
-_HUB = dict(hub_after=2, hub_heads=4, hub_taus=[300, 1000, 3000, 30000], beta_max=2, pred_self=0.01)
+_HUB = dict(hub_after=2, hub_heads=4, hub_taus=[300, 1000, 3000, 30000], beta_max=2)
 SIZES = {   # 完整配置都在这里，命令行 --extra 只用来覆盖个别项
     'S': dict(layers=3, M=2, d=90, m=16, hidden=180, q=16, emb=32, hub_dk=32, hub_out=16, **_HUB),     # 约 0.36M，E53 基线
     'L': dict(layers=4, M=2, d=320, m=48, hidden=640, q=32, emb=64, hub_dk=64, hub_out=32, **_HUB),    # 约 470 万，dspn-L_base 主干
@@ -195,6 +195,7 @@ class Layer(nn.Module):
 
     def compile_parts(self):
         """融合逐元素小运算（A5）：门、投影、MLP 三段各自 torch.compile；fla 内核照常调用，外面仍套整步 CUDA Graph。"""
+        torch._dynamo.config.recompile_limit = 64      # 各层宽度、块序列长度不同，每种形状编译一次；默认上限 8 不够
         for name in ('gates', 'proj', 'mlp'):
             setattr(self, name, torch.compile(getattr(self, name), dynamic=False))
 
@@ -249,31 +250,20 @@ class WindowAttn(nn.Module):
         return y, (nk[:, :, :W], nvv[:, :, :W], nval[:, :W])
 
 
-class PredHead(nn.Module):
-    """每个模块一个线性预测头：h (b, T, M, d) → (b, T, M, q)。"""
-    def __init__(self, M, d, q):
-        super().__init__()
-        self.W = nn.Parameter(torch.zeros(M, d, q)); self.b = nn.Parameter(torch.zeros(M, q))
-
-    def forward(self, h):
-        return torch.einsum('btmd,mdq->btmq', h, self.W) + self.b
-
-
 class DSPNLayered(nn.Module):
     """每层 M 个模块；第 i+1 层模块读第 i 层的 [正下方模块的消息, 其余模块消息的平均]。
     hub_after=k 时在第 k、k+1 层之间插入全局记忆中枢（hub.py），读第 k 层全部消息与本拍嵌入，逐拍输出给第 k+1 层。
-    广播（bcast>0，第 20 章 / fast-clean A2）：每满 bc_window 字节，中枢末拍读出 RMS 归一化后存进状态，
-    下一窗口里所有层的所有模块都读它（零初始投影，每模块 bcast 维）。整窗并行，不再按 64 字节块串行。
-    动态分块（chunk=N>0，H-Net 式，第 20.8 节第 3 档）：第 0 层在字节上跑（编码器），相邻字节表示的余弦差决定块边界，
-    压缩率损失把平均块长拉向 N；中间各层与中枢只在块序列上跑；块输出按边界概率平滑后放回每个字节，
-    最后一层回到字节上跑（解码器）。块序列定长 K = ⌈2T/N⌉，边界排前、其余为冻结的补齐位。"""
+    动态分块（chunk=N>0，第 22 章 v0.18）：第 0 层在字节上跑（编码器），编码层的局部头预测下一字节，
+    惊讶跃升 s_t − s_{t−1} > θ 即从 t 开新块（θ 是 buffer，训练时把块率追向 1/N，推理冻结），块长到 L_max = lmax·N 强制开块；
+    中间各层与中枢只在块序列上跑；每个字节取它所在块的输出；最后一层回到字节上跑（解码器）。
+    块序列定长 K = ⌈2T/N⌉，边界排前、其余为冻结的补齐位；超出 K 的边界并入第 K 块（记为溢出）。"""
     def __init__(self, layers=4, M=2, d=32, m=16, hidden=64, q=8, emb=32, vocab=256,
                  hub_after=0, hub_heads=2, hub_dk=32, beta_max=1.0, hub_out=4, hub_taus=None,
-                 bcast=4, bc_window=1024, pred_self=0.0, pred_down=0.0, local=False, pred_detach=False, grad_ckpt=False,
-                 chunk=0, chunk_w=0.03, chunk_dr=64, d_io=None, hidden_io=None,
+                 local=False, grad_ckpt=False, chunk=0, head_w=0.1, lmax=3, theta_lr=0.1, d_io=None, hidden_io=None,
                  attn_layer=0, attn_window=512, attn_heads=4, attn_hd=64, attn_out=64):
         super().__init__()
-        self.M, self.d, self.m, self.q, self.hub_after, self.chunk, self.chunk_w = M, d, m, q, hub_after, chunk, chunk_w
+        self.M, self.d, self.m, self.q, self.hub_after, self.chunk = M, d, m, q, hub_after, chunk
+        self.head_w, self.lmax, self.theta_lr = head_w, lmax * chunk, theta_lr
         # 分块时编码层与解码层（字节分辨率）可以更窄：d_io、hidden_io；参数主要放在块层（H-Net：两头小、中间大）
         io = chunk and d_io
         self.dl = [d_io if io and i in (0, layers - 1) else d for i in range(layers)]
@@ -285,10 +275,6 @@ class DSPNLayered(nn.Module):
         if hub_after:
             from hub import Hub
             self.hub = Hub(M * q + emb, M, out_dim=hub_out, heads=hub_heads, dk=hub_dk, beta_max=beta_max, taus=hub_taus)
-        self.bcast = bcast if hub_after else 0
-        self.bc_window = bc_window
-        if self.bcast:
-            self.bc_in = nn.Parameter(torch.zeros(layers, hub_heads * hub_dk, M * bcast))   # 零初始：起步等于无广播
         nmsg = q * (2 if M > 1 else 1)
         U = [emb] + [nmsg + (hub_out if hub_after and i == hub_after else 0) for i in range(1, layers)]
         self.attn_layer, self.attn = attn_layer, None
@@ -296,17 +282,14 @@ class DSPNLayered(nn.Module):
             assert 1 <= attn_layer and (not chunk or attn_layer <= layers - 2), '分块时注意力放在块层'
             U[attn_layer] += attn_out
             self.attn = WindowAttn(M * self.dl[attn_layer - 1], M, attn_out, attn_heads, attn_hd, attn_window)
-        if chunk:                                          # 解码层另读编码层的消息（残差）
+        if chunk:                                          # 解码层另读编码层的消息（残差）；编码层局部头预测下一字节
             U[-1] += nmsg
-            self.Wr = nn.Parameter(torch.randn(2, M * self.dl[0], chunk_dr) / math.sqrt(M * self.dl[0]))   # 路由的 q、k 投影
-        self.layers = nn.ModuleList([Layer(M, U[i] + self.bcast, self.dl[i], m, hl[i], q, beta_max=beta_max) for i in range(layers)])
-        # 预测学习（可插拔，权重为 0 即关）：每个模块用本拍的 h 预测下一拍的消息 z——自己的（pred_self，E51 采纳 0.01）、
-        # 正下方下层模块的（pred_down）。目标停梯度，误差按目标均方值归一化。
-        # local=True：层间消息（含进中枢的）停梯度，每层只由自己的读出路径与预测损失训练（SOLO 式局部学习）。
-        self.pred_w = {k: w for k, w in (('self', pred_self), ('down', pred_down)) if w}
-        self.pred = nn.ModuleDict({k: nn.ModuleList([PredHead(M, self.dl[i], q) for i in range(layers)]) for k in self.pred_w})
-        self.local, self.pred_detach, self.grad_ckpt = local, pred_detach, grad_ckpt
-        self.aux, self.stats = 0.0, {}                     # 辅助损失（每次前向重算，train 加进总损失）；分块统计
+            self.head = nn.Linear(M * self.dl[0], vocab)
+            self.register_buffer('theta', torch.zeros(()))   # 惊讶跃升阈值：不是状态，冷启动、清零状态都不动它
+        self.layers = nn.ModuleList([Layer(M, U[i], self.dl[i], m, hl[i], q, beta_max=beta_max) for i in range(layers)])
+        # local=True：层间消息（含进中枢的）停梯度，每层只由自己的读出路径训练（SOLO 式局部学习）。
+        self.local, self.grad_ckpt = local, grad_ckpt
+        self.aux, self.stats = 0.0, {}                     # 辅助损失（局部头，每次前向重算，train 加进总损失）；分块统计
         n_read = M * sum(self.dl)
         self.norm = nn.LayerNorm(n_read)
         self.readout = nn.Linear(n_read, emb)              # 瓶颈后与 E 共享（设计第 1.1 节）
@@ -317,15 +300,12 @@ class DSPNLayered(nn.Module):
         dev = self.emb.weight.device
         st = [layer.init_state(b, dev) for layer in self.layers]
         st += [self.hub.init_state(b, dev)] if self.hub else []
-        if self.chunk:                                     # (上一字节的路由键, 当前块平滑后的输出, 最近一个块处的中枢读出)
-            L, nmsg = len(self.layers), self.layers[-1].B.shape[1] - self.bcast - self.q * (2 if self.M > 1 else 1)
-            hd = self.hub.heads * self.hub.dk if self.hub else 1
-            st.append((torch.zeros(b, self.Wr.shape[-1], device=dev), torch.zeros(b, self.M * sum(self.dl[1:-1]) + self.M * nmsg, device=dev),
-                       torch.zeros(b, hd, device=dev)))
+        if self.chunk:                                     # (局部头上一拍的对数概率, 上一字节的惊讶, 当前块已有字节数, 当前块的输出)
+            nmsg = self.q * (2 if self.M > 1 else 1)
+            st.append((torch.zeros(b, self.head.out_features, device=dev), torch.zeros(b, device=dev), torch.zeros(b, device=dev),
+                       torch.zeros(b, self.M * sum(self.dl[1:-1]) + self.M * nmsg, device=dev)))
         if self.attn is not None:                          # 滑窗注意力的键值缓存
             st.append(self.attn.init_state(b, dev))
-        if self.bcast:                                     # (本窗口广播的中枢读出, 已读字节数)；窗口按全局位置对齐，逐拍与整段一致
-            st.append((torch.zeros(b, self.hub.heads * self.hub.dk, device=dev), 0))
         return st
 
     def msg(self, z):
@@ -337,135 +317,99 @@ class DSPNLayered(nn.Module):
     def forward(self, idx, state=None):
         state = state or self.init_state(idx.shape[0])
         self.aux = 0.0
-        if not self.bcast:
-            lg, new, _ = self._run(idx, state, None)
-            return lg, new
-        *st, (bc, pos) = state
-        outs, t, T, W = [], 0, idx.shape[1], self.bc_window
-        while t < T:                                       # 训练时 T 是窗口的整数倍、位置对齐，每窗只跑一次
-            n = min(T - t, W - pos % W)
-            seg = idx[:, t:t + n]
-            lg, st, r_last = self._run(seg, st, bc)
-            outs.append(lg); t += n; pos += n
-            bc = bc * (~(seg == SEP).any(1))[:, None]      # 本窗含会话边界：旧广播作废
-            if pos % W == 0:
-                bc = F.rms_norm(r_last, r_last.shape[-1:]).float()   # 先归一化再存：跨窗环路不归一化会逐窗放大（E43）
-        return torch.cat(outs, 1), st + [(bc, pos)]
+        b, T = idx.shape
+        e = self.emb(idx)
+        L = len(self.layers)
+        reset = idx == SEP
+        u0 = e[:, :, None, :].expand(b, T, self.M, -1)
+        if not self.chunk:
+            hs, new, _ = self._stack(0, L, u0, state, reset, e)
+            new += [self._hub_new] if self.hub is not None else []
+            new += [self._attn_new] if self.attn is not None else []
+        else:
+            hs, new = self._run_chunked(idx, e, u0, state, reset)
+        y = self.readout(self.norm(torch.cat(hs, -1)))
+        return y @ self.emb.weight.t().to(y.dtype) + self.bias, new
 
     def _layer(self, i, u, st, reset, keep=None):
         if self.grad_ckpt and self.training:
             return checkpoint(self.layers[i], u, st, reset, keep, use_reentrant=False)
         return self.layers[i](u, st, reset, keep)
 
-    def _stack(self, lo, hi, u, state, reset, e, reads, alive, keep=None):
-        """跑第 lo..hi−1 层（含其间的中枢）。返回各层 h、新状态、最后的层间输入 u、中枢逐拍读出。"""
+    def _stack(self, lo, hi, u, state, reset, e, keep=None):
+        """跑第 lo..hi−1 层（含其间的中枢）。返回各层 h、新状态、最后的层间输入 u。"""
         b, T = u.shape[:2]
-        hs, new, r, zdown, hprev = [], [], None, None, None
+        hs, new, hprev = [], [], None
         for i in range(lo, hi):
             if self.attn is not None and i == self.attn_layer:
                 ai = len(self.layers) + (self.hub is not None) + bool(self.chunk)
                 a, self._attn_new = self.attn(hprev, state[ai], reset, keep)
                 u = torch.cat([u, a.to(u.dtype)], -1)
-            if reads is not None:
-                u = torch.cat([u, reads[:, i].expand(b, T, self.M, self.bcast) * alive], -1)
             h, z, ns = self._layer(i, u, state[i], reset, keep)
             hs.append(h.flatten(2)); new.append(ns); hprev = hs[-1]
-            if self.pred:
-                self._predict(h, z, zdown, i)
-            zdown = z
             zu = z.detach() if self.local else z
             u = self.msg(zu)
             if self.hub is not None and i + 1 == self.hub_after:
-                o, self._hub_new, r = self.hub(torch.cat([zu.reshape(b, T, -1), e.to(zu.dtype)], -1), state[len(self.layers)], reset, keep)
+                o, self._hub_new, _ = self.hub(torch.cat([zu.reshape(b, T, -1), e.to(zu.dtype)], -1), state[len(self.layers)], reset, keep)
                 u = torch.cat([u, o.to(u.dtype)], -1)
-        return hs, new, u, r
+        return hs, new, u
 
-    def _run(self, idx, state, bc):
+    def _boundaries(self, idx, lp, lp_prev, s_prev, n_prev, reset):
+        """惊讶跃升开块 + 最大块长强制开块（第 22.2 节）。返回边界、本段末的 (s, 块长)。全部不需要梯度。"""
         b, T = idx.shape
-        e = self.emb(idx)
-        L = len(self.layers)
-        reset = idx == SEP
-        reads = alive = None
-        if bc is not None:                                 # 会话边界之后本窗不再读旧广播
-            alive = (reset.cumsum(1) == 0).to(e.dtype)[:, :, None, None]
-            bcn = bc.detach() if self.local else bc
-            reads = torch.einsum('bi,lio->blo', bcn.to(e.dtype), self.bc_in.to(e.dtype)).reshape(b, L, 1, self.M, self.bcast)
-        u0 = e[:, :, None, :].expand(b, T, self.M, -1)
-        if not self.chunk:
-            hs, new, _, r = self._stack(0, L, u0, state, reset, e, reads, alive)
-            if self.hub is not None:
-                new.append(self._hub_new)
-            if self.attn is not None:
-                new.append(self._attn_new)
-            r_last = None if r is None else r[:, -1]
-        else:
-            hs, new, r_last = self._run_chunked(idx, e, u0, state, reset, reads, alive)
-        y = self.readout(self.norm(torch.cat(hs, -1)))
-        return y @ self.emb.weight.t().to(y.dtype) + self.bias, new, r_last
+        lpp = torch.cat([lp_prev[:, None], lp[:, :-1]], 1)                     # 预测第 t 个字节的那一拍的对数概率
+        s = -lpp.gather(-1, idx[..., None])[..., 0]                            # 惊讶（nats）
+        jump = s - torch.cat([s_prev[:, None], s[:, :-1]], 1)
+        b0 = (jump > self.theta) | reset
+        # 块长：离上一个 b0 边界（本段之前的块从 −n_prev 起算）的距离每到 L_max 的整数倍就强制开块；n_prev = 0（流开头、清零）即开块
+        t = torch.arange(T, device=idx.device)
+        last = torch.where(b0, t, torch.full_like(t, -10 ** 9)).cummax(1).values
+        dist = t - torch.maximum(last, -n_prev.long()[:, None])
+        bnd = b0 | (dist % self.lmax == 0)
+        n_new = (dist[:, -1] % self.lmax + 1).to(n_prev.dtype)
+        return bnd, s[:, -1].to(s_prev.dtype), n_new
 
-    def _run_chunked(self, idx, e, u0, state, reset, reads, alive):
+    def _run_chunked(self, idx, e, u0, state, reset):
         b, T = idx.shape
         L, N = len(self.layers), self.chunk
-        ck_prev, held_prev, r_prev = state[L + (self.hub is not None)]
-        h0, new0, m0, _ = self._stack(0, 1, u0, state, reset, e, reads, alive)          # 编码层（字节）
-        # 路由：p_t = (1 − cos(q_t, k_{t−1})) / 2，p ≥ 0.5 即本字节开始一个新块；会话边界强制开新块
-        qr, kr = (F.normalize(h0[0].float() @ self.Wr[j], dim=-1) for j in (0, 1))
-        kprev = torch.cat([ck_prev[:, None], kr[:, :-1]], 1)
-        p = ((1 - (qr * kprev).sum(-1)) / 2).clamp(0, 1)
-        p = torch.where(reset, torch.ones_like(p), p)
-        bnd = p >= 0.5
-        F_, G_ = bnd.float().mean(), p.mean()                                           # H-Net 压缩率损失：平均块长拉向 N
-        self.aux = self.aux + self.chunk_w * N / (N - 1) * ((N - 1) * F_ * G_ + (1 - F_) * (1 - G_))
-        prevb = torch.cat([idx.new_zeros(b, 1), idx[:, :-1]], 1)
-        self.stats = {'rate': F_.detach(), 'word': (bnd & self.wbound(prevb)).sum().detach() / bnd.sum().clamp(min=1),
-                      'word_base': self.wbound(prevb).float().mean().detach()}
-        # 收成定长 K 的块序列：边界在前、按时间排序；超出 K 的边界并入第 K 块（压缩率损失收敛后极少）
+        lp_prev, s_prev, n_prev, held_prev = state[L + (self.hub is not None)]
+        h0, new0, m0 = self._stack(0, 1, u0, state, reset, e)                   # 编码层（字节）
+        lp = F.log_softmax(self.head(h0[0].detach()).float(), -1)              # 局部头读停梯度的 h0：辅助损失不改主干
+        if T > 1:
+            self.aux = self.aux + self.head_w * F.nll_loss(lp[:, :-1].reshape(-1, lp.shape[-1]), idx[:, 1:].reshape(-1))
+        learn = self.training and torch.is_grad_enabled()
+        with torch.no_grad():
+            bnd, s_last, n_new = self._boundaries(idx, lp.detach(), lp_prev, s_prev, n_prev, reset)
+            rate = bnd.float().mean()
+            if learn:                                      # 分位数追踪：块率高于 1/N 就抬高 θ（原地改 buffer，CUDA Graph 下可用）
+                self.theta.add_(self.theta_lr * (rate - 1 / N))
         K = min(T, max(1, math.ceil(2 * T / N)))
+        prevb = torch.cat([idx.new_zeros(b, 1), idx[:, :-1]], 1)
+        self.stats = {'rate': rate, 'word': (bnd & self.wbound(prevb)).sum() / bnd.sum().clamp(min=1),
+                      'word_base': self.wbound(prevb).float().mean(), 'over': (bnd.sum(1) > K).float().mean()}
+        # 收成定长 K 的块序列：边界在前、按时间排序；超出 K 的边界并入第 K 块
         pos = (torch.arange(T, device=idx.device) + T * (~bnd).long()).argsort(-1)[:, :K]
         valid = bnd.gather(1, pos)
         keep = valid.float()
         g = lambda x: x.gather(1, pos.view(b, K, *[1] * (x.dim() - 2)).expand(b, K, *x.shape[2:]))
-        hm, newm, um, r = self._stack(1, L - 1, g(m0), state, g(reset), g(e), reads,
-                                      None if alive is None else g(alive), keep)                     # 块层
-        # 平滑（H-Net）：z̄_j = P_j z_j + (1 − P_j) z̄_{j−1}，再按字节所在的块放回；STE 置信度把梯度送回路由
-        P = g(p) * keep
+        hm, newm, um = self._stack(1, L - 1, g(m0), state, g(reset), g(e), keep)  # 块层
+        # 放回字节：每个字节取它所在块的输出；本段第一个边界之前的字节属于上一段的块
         bundle = torch.cat(hm + [um.flatten(2).to(hm[0].dtype)], -1)
-        zbar, held = scan(torch.log1p(-P.clamp(max=1 - 1e-6))[..., None].expand_as(bundle).float(),
-                          (P[..., None] * bundle.float()), held_prev)
-        table = torch.cat([held_prev[:, None], zbar], 1)
+        table = torch.cat([held_prev[:, None].to(bundle.dtype), bundle], 1)
         cum = bnd.long().cumsum(1).clamp(max=K)
         up = table.gather(1, cum[..., None].expand(-1, -1, table.shape[-1]))
-        conf = torch.where(bnd, p, 1 - p)
-        up = up * (conf + (1 - conf).detach())[..., None].to(up.dtype)
+        held = up[:, -1].float()
         nh = self.M * sum(self.dl[1:-1])
         hup = up[..., :nh]
         uup = up[..., nh:].reshape(b, T, self.M, -1)
-        hd, newd, _, _ = self._stack(L - 1, L, torch.cat([m0, uup.to(m0.dtype)], -1), state, reset, e, reads, alive)   # 解码层（字节）
-        r_last = r_prev                                    # 广播取最后一个有效块处的中枢读出；本段无边界时沿用上次的
-        if r is not None:
-            nv = valid.long().sum(1)
-            got = r.gather(1, (nv - 1).clamp(min=0)[:, None, None].expand(-1, 1, r.shape[-1]))[:, 0].float()
-            r_last = torch.where((nv > 0)[:, None], got, r_prev)
-        new = new0 + newm + newd + ([self._hub_new] if self.hub is not None else []) + [(kr[:, -1], held, r_last)]
+        hd, newd, _ = self._stack(L - 1, L, torch.cat([m0, uup.to(m0.dtype)], -1), state, reset, e)   # 解码层（字节）
+        new = new0 + newm + newd + ([self._hub_new] if self.hub is not None else []) + [(lp[:, -1].detach(), s_last, n_new, held)]
         new += [self._attn_new] if self.attn is not None else []
-        return h0 + [hup.to(hd[0].dtype)] + hd, new, r_last
+        return h0 + [hup.to(hd[0].dtype)] + hd, new
 
     @staticmethod
     def wbound(x):
         return (x == 32) | (x == 10) | (x == 46) | (x == 44) | (x == 33) | (x == 63)
-
-    def _predict(self, h, z, zdown, i):
-        """本拍 h 预测下一拍的消息（自己的 z、正下方下层的 zdown）；归一化 MSE 加进 self.aux。"""
-        targets = {'self': z, 'down': zdown}
-        for k, heads in self.pred.items():
-            tgt = targets[k]
-            if tgt is None or h.shape[1] < 2:
-                continue
-            tgt = tgt[:, 1:].detach().float()
-            hin = h[:, :-1].detach() if self.pred_detach else h[:, :-1]
-            # 按目标均方值归一化并设下限：除以方差时消息方差一缩小梯度就放大，曾 NaN（E45）
-            err = (heads[i](hin).float() - tgt).square().mean(-1) / tgt.square().mean().clamp(min=1e-2)
-            self.aux = self.aux + self.pred_w[k] * err.mean()
 
 
 def count(model):
@@ -475,18 +419,6 @@ def count(model):
 def build(kind='dspn', size='S', **extra):
     assert kind == 'dspn', '只保留 DSPN（v2：只和自己的上一版比）'
     return DSPNLayered(**{**SIZES[size], **extra})
-
-
-@torch.no_grad()
-def evaluate(model, data, n=20, b=32, T=256):
-    g = torch.Generator().manual_seed(0)
-    tot = 0.0
-    for _ in range(n):
-        x, y = batch(data, b, T, g)
-        lg, _ = model(x)
-        tot += F.cross_entropy(lg.reshape(-1, 256), y.reshape(-1)).item()
-    return tot / n / math.log(2)                            # 每字节比特数（bpc）
-
 
 @torch.no_grad()
 def evaluate_stream(model, data, b=8, T=1024, n=8):
@@ -532,13 +464,14 @@ def scale_state_(st, keep):
     """各行状态乘 keep（(b,) 的 0/1）：0 的行整行清零，模拟冷启动。"""
     for s in st:
         if torch.is_tensor(s):
-            s.mul_(keep.view(-1, *([1] * (s.dim() - 1))))
+            k = keep.view(-1, *([1] * (s.dim() - 1)))
+            s.logical_and_(k > 0) if s.dtype == torch.bool else s.mul_(k)   # 注意力缓存的有效位是布尔
         elif isinstance(s, (tuple, list)):
             scale_state_(s, keep)
 
 
 def copy_state_(dst, src):
-    """把新状态原地拷进固定地址的旧状态（CUDA Graph 回放时地址不能变）；整数位置不变（T 是工作空间块长的整数倍）。"""
+    """把新状态原地拷进固定地址的旧状态（CUDA Graph 回放时地址不能变）。"""
     for d, s in zip(dst, src):
         if torch.is_tensor(d):
             d.copy_(s.detach())
@@ -568,8 +501,6 @@ def train(kind, size, data, iters, b, T, lr, seed, tag, extra, init=None, statef
         lrf = lambda it: min(1, it / 200) * 0.5 * (1 + math.cos(math.pi * it / iters))
     name = f'{kind}-{size}{tag}'
     print(f'{name}: {nparam:,} 参数，{DEV}，批 {b} × {T} 字节，{iters} 步', flush=True)
-    if stateful and getattr(model, 'bcast', 0):
-        assert T % model.bc_window == 0, '跨批次延续状态时 T 须是广播窗口的整数倍（CUDA Graph 里窗口位置不更新）'
     sx, sy = batch(tr, b, T)                               # 固定地址的输入，每步原地拷入新批
     # stateful：每行是一条连续流，状态跨批次延续（截断反传），模型才练得到“记住 T 字节以前的事”（持久头、跨会话记忆）
     pos = np.random.default_rng(seed).integers(0, len(tr) - T - 1, b) if stateful else None
@@ -585,7 +516,7 @@ def train(kind, size, data, iters, b, T, lr, seed, tag, extra, init=None, statef
         lg = lg.float()
         ce = F.cross_entropy(lg.reshape(-1, 256), sy.reshape(-1), reduction='none')
         loss = (ce * smask.reshape(-1)).sum() / smask.sum().clamp(min=1)
-        (loss + getattr(model, 'aux', 0.0)).backward()      # 预测学习等辅助损失
+        (loss + getattr(model, 'aux', 0.0)).backward()      # 编码层局部头等辅助损失
         nn.utils.clip_grad_norm_(params, 1.0); opt.step(); opt.zero_grad(set_to_none=False)
         if stateful:
             copy_state_(st, new)
@@ -616,11 +547,13 @@ def train(kind, size, data, iters, b, T, lr, seed, tag, extra, init=None, statef
             graph.replay()
         if it % 500 == 0 or it == iters:
             e0 = time.time()
-            v = evaluate(model, va, n=5)
+            if getattr(model, 'chunk', 0):                 # 自发切词：边界比例、边界落在空格 / 标点之后的比例（及其基准率）、K 溢出行比例
+                cs = tuple(round(float(model.stats[k]), 3) for k in ('rate', 'word', 'word_base', 'over'))
+            v = evaluate_stream(model, va, n=4)
             eval_secs += time.time() - e0
             log.append((it, round(time.time() - t0), round(loss.item() / math.log(2), 3), round(v, 3)))
-            if getattr(model, 'chunk', 0):                 # 自发切词：边界比例、边界落在空格 / 标点之后的比例（及其基准率）
-                log[-1] += tuple(round(float(model.stats[k]), 3) for k in ('rate', 'word', 'word_base'))
+            if getattr(model, 'chunk', 0):
+                log[-1] += cs + (round(float(model.theta), 3),)
             if not math.isfinite(loss.item()):              # 发散就立刻停，不白跑一晚，也不用 nan 覆盖上一份检查点
                 raise SystemExit(f'{name}: 第 {it} 步损失不是有限值，训练停止')
             (ROOT / 'runs').mkdir(exist_ok=True)
@@ -629,7 +562,7 @@ def train(kind, size, data, iters, b, T, lr, seed, tag, extra, init=None, statef
     if DEV == 'cuda':
         torch.cuda.synchronize()                            # GPU 异步执行，计时前等它算完
     secs = time.time() - t0
-    final = evaluate(model, va)
+    final = evaluate_stream(model, va)
     (ROOT / 'runs').mkdir(exist_ok=True)
     torch.save(model.state_dict(), ROOT / f'runs/{name}.pt')   # 每个名字只留最新一份检查点
     out = ROOT / f'runs/{time.strftime("%Y%m%d-%H%M%S")}_{name}.json'
@@ -638,9 +571,8 @@ def train(kind, size, data, iters, b, T, lr, seed, tag, extra, init=None, statef
                'code_sha': hashlib.sha256((ROOT / 'dspn_text.py').read_bytes()).hexdigest()[:12],
                'seconds': round(secs), 'train_bytes_per_sec': round(iters * b * T / (secs - eval_secs)),
                'peak_gpu_mb': round(torch.cuda.max_memory_allocated() / 2**20) if DEV == 'cuda' else None,
-               'val_bpc': round(final, 4),
-               'val_bpc_stream': round(evaluate_stream(model, va), 4), 'log': log}, open(out, 'w'), ensure_ascii=False, indent=1)
-    print(f'{name} 完成：验证 bpc {final:.4f} → {out.name}', flush=True)
+               'val_bpc_stream': round(final, 4), 'log': log}, open(out, 'w'), ensure_ascii=False, indent=1)
+    print(f'{name} 完成：流式验证 bpc {final:.4f} → {out.name}', flush=True)
 
 
 @torch.no_grad()

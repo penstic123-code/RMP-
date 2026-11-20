@@ -2,6 +2,12 @@
 
 返回 [设计目录](README.md)。旧版全文快照见 [archive/](../archive)。
 
+**v0.18 改动（2026-11-20：第 22 章 C1–C4，plan/fast-clean.md 阶段 C）。** v0.17 全文快照见 [archive/design_v0.17](../archive/design_v0.17/README.md)。
+
+- 删除：窗口级广播（窗口循环、广播投影与状态、`T % bc_window` 约束）；预测头族（pred_self、pred_down、PredHead）与 pred_detach；分块路由 4 件套（余弦路由 Wr、压缩率损失、平滑扫描、直通置信度）；冷启动评估 evaluate（训练日志与 JSON 只报流式 bpc）。
+- 分块边界改为编码层惊讶跃升：编码层局部头读 h0.detach() 预测下一字节（交叉熵 0.1），s_t − s_{t−1} > θ 开块；θ 为 buffer，训练时追块率 1/N、推理冻结；最大块长 3N 强制开块；放回字节直接取所在块的输出。
+- 训练日志记块率、切词比例、K 溢出行比例与 θ。
+
 **v0.17 改动（2026-11-20：第 20 章落地 + 提速与去重，plan/fast-clean.md）。** v0.16 全文快照见 [archive/design_v0.16](../archive/design_v0.16/README.md)。
 
 - 删除：网格与邻接（改为每层 M 个模块，读“正下方 + 其余平均”）、工作空间、中枢持久头与中枢在线偏移、网络内惊讶门控、pred_nb、词级层、字节自上而下层、快记忆卷积与输出门、GRU / Transformer 对照。

@@ -7,7 +7,7 @@ from dspn_text import DSPNLayered, WindowAttn, SEP
 
 def model(**kw):
     torch.manual_seed(0)
-    cfg = dict(layers=4, M=2, d=8, m=4, hidden=8, q=4, emb=8, hub_after=1, hub_dk=8, hub_out=4, bc_window=8,
+    cfg = dict(layers=4, M=2, d=8, m=4, hidden=8, q=4, emb=8, hub_after=1, hub_dk=8, hub_out=4,
                attn_layer=2, attn_window=6, attn_heads=2, attn_hd=4, attn_out=4)
     m = DSPNLayered(**{**cfg, **kw})
     with torch.no_grad():

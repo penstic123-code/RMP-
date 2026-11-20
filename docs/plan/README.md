@@ -16,19 +16,20 @@
 
 - 工作方式：用户授权全自动推进（git 存档、结果为先、只和自己的上一版比，见 [v2.md](v2.md)“用户定的方向”）。仓库已是 git，每步本地提交。
 - 环境：conda 环境 `dspn`（Python 3.11，PyTorch 2.11 + CUDA 12.8，RTX 5060 Laptop 8 GB，Rtxpt.exe 已关，可用约 7 GB）。已装 triton-windows 3.6、fla-core 0.6、einops（均 --no-deps）。
-- 代码要点（v0.17，2026-11-20 重写；v0.16 在 git 标签 v0.16）：[dspn_text.py](../../dspn_text.py)（模型与训练；完整配置在 SIZES；选项 chunk（动态分块）、bcast（窗口级广播）、pred_self/pred_down、local、grad_ckpt；训练默认 --stateful、WSD、bf16，可选 --compile、--bot_loss）、[hub.py](../../hub.py)、[online.py](../../online.py)（在线 lora / eprop；睡眠：上下文蒸馏 + 旧语料锚定）、[episodic.py](../../episodic.py)（海马式情景记忆）、[tools/chat.py](../../tools/chat.py)（--episodic）、[tools/analyze_hierarchy.py](../../tools/analyze_hierarchy.py)。设计见 [design/README.md](../design/README.md)（v0.17）。
+- 代码要点（v0.18，2026-11-20；v0.16 在 git 标签 v0.16）：[dspn_text.py](../../dspn_text.py)（模型与训练；完整配置在 SIZES；选项 chunk（动态分块，惊讶跃升定边界）、attn_layer、local、grad_ckpt；训练默认 --stateful、WSD、bf16，只报流式 bpc，可选 --compile、--bot_loss）、[hub.py](../../hub.py)、[online.py](../../online.py)（在线 lora / eprop；睡眠：上下文蒸馏 + 旧语料锚定）、[episodic.py](../../episodic.py)（海马式情景记忆）、[tools/chat.py](../../tools/chat.py)（--episodic）、[tools/analyze_hierarchy.py](../../tools/analyze_hierarchy.py)。设计见 [design/README.md](../design/README.md)（v0.18）。
 - 数据：TinyStoriesV2；对话 data/chat3-*（当前，记忆对话 40%、带重现行），chat2-*（无重现行），chat-*（旧，
 
  换行，别再用）。make_chat_data.py 生成。
 - **demo**：最好的对话模型 runs/dspn-L_chat3.pt（E50；chat4 与之持平，E52），只能在 git 标签 v0.16 的代码下运行（`git worktree add ../dspn016 v0.16`）。试用：`python tools/chat.py runs/dspn-L_chat3.pt --size L --extra "<tools/queues/overnight.json 里的 extra>" --episodic`；/new /sleep /save /quit。跨会话约 5/8（靠情景记忆），名字复制常错、人名宠物名会混。
 - **正在跑**：无（GPU 空闲）。
-- **已采纳进下次预训练**（[v2.md](v2.md)“已确认采纳”）：pred_self=0.01（E51）、nb_count（E53）、--sched wsd（E53）。不采纳：out_gate、conv、pred_nb、local、surprise（E45、E49、E53）。
+- **已采纳进下次预训练**（[v2.md](v2.md)“已确认采纳”）：nb_count（E53）、--sched wsd（E53）；pred_self=0.01（E51）在 v0.18 删除，由 C5 把关决定是否恢复。不采纳：out_gate、conv、pred_nb、local、surprise（E45、E49、E53）。
 - **v2 架构已选定**（2026-11-20，[design/candidates/20-dspn-v2.md](../design/candidates/20-dspn-v2.md)）：删持久头与网格代码，工作空间并入中枢块末广播，新奇信号管海马写入与在线可塑，睡眠加事实蒸馏（海马教皮层）。
 - **已完成（2026-11-20，v0.17，E54、E55）**：fast-clean A0–A5 与 B1（删重复部件、窗口级广播、fla 全内核、bf16、torch.compile），动态分块（chunk=N，默认关），在线 e-prop 的代码与精确性测试（tests/test_eprop.py）。L 档稳态约 17 万字节/秒（E41 的约 2.4 倍），显存约 2 GB。动态分块快约 24% 但 bpc 差 0.065，暂不用。
 - **2026-11-20 午**：用户决定直接上约 3000 万参数（XL 档，分块 + 滑窗注意力，第 20.8 节第 2、3 档都已融合）、英文混合数据（data/mix，48 亿字节，E57）。XL 首次试跑发散，已加 pre-norm 修好（E57）。用户出门，**预训练尚未启动**，GPU 空闲（另有一个会话在跑 tracecols 实验，runs/tc-*.json 不是本线的）。
 - **2026-11-20 下午**：v0.18 精简方案定稿（[第 22 章](../design/candidates/22-dspn-lean.md)，经独立审查修订：中枢保留，删广播、分块路由 4 件套改惊讶定边界、预测头族改编码层局部头、删冷启动评估）。用户：先写文档，不测、不实施。
+- **2026-11-20 傍晚**：用户让先做 v0.18。C1–C4 已实施（删广播、预测头族、可导路由、冷启动评估；惊讶跃升 + 最大块长分块），42 个测试全过；C 档冒烟 1000 步不发散、编译后约 13.6 万字节/秒、切词约 2.4 倍基准率（E58）。旧 v0.17 检查点不能加载（设计快照 archive/design_v0.17）。
 - **下一步（按顺序）**：
-  0. 实施 v0.18（[fast-clean.md](fast-clean.md) 阶段 C：C1–C4 改代码与测试，C5 把关 6 次短跑，C6 新奇信号）。XL 预训练在 v0.18 上开。
+  0. v0.18 把关（[fast-clean.md](fast-clean.md) C5：先做涌现指标工具，再跑 6 次短跑；C6 新奇信号）。XL 预训练在 v0.18 上开。
   1. 启动 XL 预训练（约 2 天）：`python dspn_text.py train dspn --size XL --data mix --batch 8 --T 1024 --lr 6e-4 --compile --iters <按实测速度定> --tag _v2`。先跑 1000 步看编译后的字节/秒，再定 iters 使总时长约 48 小时；每 500 步存检查点。
   2. 新底座上做 B3（新奇信号接入聊天）、B4（E31 协议比 lora 与 e-prop，输的删）、B5（事实蒸馏），然后对话微调（chat3，--bot_loss）与记忆脚本，与 dspn-L_chat3 比。
   3. 每个检查点跑涌现指标（时间尺度层级、自发切词、复制相变等，v2.md 第 14 条）。

@@ -1,0 +1,49 @@
+{
+ "name": "dspn-C_v018smoke",
+ "kind": "dspn",
+ "size": "C",
+ "extra": {},
+ "params": 11251560,
+ "data": "mix",
+ "device": "cuda",
+ "batch": 8,
+ "T": 1024,
+ "iters": 1000,
+ "lr": 0.0006,
+ "seed": 0,
+ "stateful": true,
+ "bot_loss": false,
+ "sched": "wsd",
+ "bf16": true,
+ "compile": true,
+ "init": null,
+ "code_sha": "c4eb3dbfedd7",
+ "seconds": 73,
+ "train_bytes_per_sec": 120712,
+ "peak_gpu_mb": 1731,
+ "val_bpc_stream": 2.5973,
+ "log": [
+  [
+   500,
+   42,
+   2.582,
+   3.106,
+   0.271,
+   0.502,
+   0.206,
+   0.0,
+   1.175
+  ],
+  [
+   1000,
+   72,
+   2.085,
+   2.597,
+   0.272,
+   0.469,
+   0.187,
+   0.0,
+   1.535
+  ]
+ ]
+}

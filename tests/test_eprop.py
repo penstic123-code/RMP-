@@ -41,7 +41,7 @@ def test_eprop_equals_bptt_across_chunks():
 
 def test_learner_eprop_reads_and_updates():
     torch.manual_seed(0)
-    m = D.DSPNLayered(layers=3, M=2, d=8, m=4, hidden=8, q=4, emb=8, hub_after=2, hub_dk=8, bc_window=16)
+    m = D.DSPNLayered(layers=3, M=2, d=8, m=4, hidden=8, q=4, emb=8, hub_after=2, hub_dk=8)
     with torch.no_grad():
         m.readout.weight.normal_(0, 0.3)
         for l in m.layers:

@@ -31,4 +31,4 @@ def test_advance_feeds_each_byte_once():
     c._advance(text[:5]); c._advance(text[5:])
     with torch.no_grad():
         _, ref = m(torch.tensor([list(text[:-1])], device=D.DEV))
-    assert torch.allclose(c.L.state[0][1], ref[0][1], atol=1e-4)   # GPU 上 TF32 误差约 2e-5
+    assert torch.allclose(c.L.state[0][1], ref[0][1], atol=1e-3)   # GPU 上 fla 内核与本地实现差约 2e-4

@@ -1,4 +1,4 @@
-# 动态稀疏可塑性神经网络 · 设计 v0.17
+# 动态稀疏可塑性神经网络 · 设计 v0.18
 
 2026-11-20｜目标：在固定内存预算下持续预测、在线学习，并保留旧规律；文本模式下以字节流为输入，检验能否学会语言。
 
@@ -6,9 +6,9 @@
 
 ## 目录
 
-**现行架构（current/）**——描述现行代码（v0.16 见 [archive/design_v0.16](../archive/design_v0.16/README.md)，v0.15 纸面设计见 [archive/design_v0.15](../archive/design_v0.15/README.md)）
+**现行架构（current/）**——描述现行代码（v0.17 见 [archive/design_v0.17](../archive/design_v0.17/README.md)，v0.16 见 [archive/design_v0.16](../archive/design_v0.16/README.md)，v0.15 纸面设计见 [archive/design_v0.15](../archive/design_v0.15/README.md)）
 
-- [1　系统怎样运行](current/1-runtime.md)：模块、层间数据流、读出、中枢、窗口级广播、会话边界、动态分块、融合内核
+- [1　系统怎样运行](current/1-runtime.md)：模块、层间数据流、读出、中枢、会话边界、动态分块（惊讶跃升定边界）、滑窗注意力、融合内核
 - [2　参数与显存预算](current/2-memory-budget.md)
 - [3　学习策略：三种速度](current/3-learning.md)：离线训练、在线学习（低秩 / e-prop）、睡眠巩固、聊天工具；选择性学习缺口
 - [4　记忆与保护旧知识](current/4-memory.md)
@@ -33,7 +33,7 @@
 - [19　定容活柱](candidates/19-fixed-budget-columns.md)：固定内存预算下的活柱
 - [20　DSPN v2：精简 + 各部件接通](candidates/20-dspn-v2.md)：**已选定、实施中**——删持久头与网格，工作空间并入中枢广播，新奇信号管海马写入与在线可塑，睡眠由海马教皮层
 - [21　迹柱网络 TraceCols v2](candidates/21-tracecols.md)（[实现、迹的算法、提速与验证](candidates/21-tracecols-impl.md)）：净室候选，经一次独立审查——一种块（衰减谱矩阵记忆 + 一专家路由）、两级硬边界压缩、只给衰减参数带迹（迹显存 = 状态显存）、一个新奇信号、醒时冻结结构 + 睡眠防遗忘；v1 原型 [tracecols.py](../../tracecols.py) 作对照；按绝对能力验收
-- [22　DSPN 精简（v0.18 候选）](candidates/22-dspn-lean.md)：删广播、分块路由 4 件套改为编码层惊讶定边界、预测头族改为编码层局部头、删冷启动评估；中枢保留（E21、E34），删中枢另做消融；经一次独立审查
+- [22　DSPN 精简（v0.18）](candidates/22-dspn-lean.md)：**C1–C4 已实施（v0.18），C5 把关未跑**——删广播、分块路由 4 件套改为编码层惊讶定边界、预测头族改为编码层局部头、删冷启动评估；中枢保留（E21、E34），删中枢另做消融；经一次独立审查
 
 （原第 5、6 节已移出：实验记录 → experiments/，验收与排期 → plan/。）
 
