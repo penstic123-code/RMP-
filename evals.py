@@ -13,12 +13,14 @@ import torch, torch.nn as nn, torch.nn.functional as F
 KEYS = b'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'   # 52 个，最多 52 对；与值不重叠
 VALS = b'0123456789'
 QUERY, PAD = ord('?'), ord(' ')
-NEAR = 256
+SYMS = b'#$%&*+-=/<>@^_~|'                                    # 随机符号填充：与键、值、问号不重叠
+BINS = (256, 1000, 2500, 4000)                                         # 按查询距键的字节数分组统计
 
 
-def mqar_batch(b, T, pairs, gen):
+def mqar_batch(b, T, pairs, gen, filler='space'):
     """序列：前 pairs 个“键 值”对，后段若干“? 键 值”三元组（随机落在后段的 3 字节槽里），其余空格。
-    生成长 T+1 的字节串 s，x=s[:-1]，y=s[1:]；答案值 v 前一位（即查询里的键）处输入，故 mask 落在该位置。"""
+    生成长 T+1 的字节串 s，x=s[:-1]，y=s[1:]；答案值 v 前一位（即查询里的键）处输入，故 mask 落在该位置。
+    filler='sym'：其余位置填随机符号而不是空格——空格可预测，惊讶分块会把它压成长块，滑窗就能覆盖很远（第 22.4 节 D 组的长间隔测试）。"""
     if pairs > len(KEYS):
         raise ValueError(f'键取自 a-z、A-Z，最多 {len(KEYS)} 对，收到 {pairs}')
     slots = (T + 1 - 2 * pairs) // 3
@@ -27,6 +29,9 @@ def mqar_batch(b, T, pairs, gen):
     nq = min(pairs, slots)
     keys, vals = torch.tensor(list(KEYS)), torch.tensor(list(VALS))
     s = torch.full((b, T + 1), PAD, dtype=torch.long)
+    if filler == 'sym':
+        syms = torch.tensor(list(SYMS))
+        s = syms[torch.randint(len(syms), (b, T + 1), generator=gen)]
     mask = torch.zeros(b, T, dtype=torch.bool)
     for i in range(b):
         k = keys[torch.randperm(len(keys), generator=gen)[:pairs]]
@@ -39,26 +44,33 @@ def mqar_batch(b, T, pairs, gen):
     return s[:, :-1], s[:, 1:], mask
 
 
-def _acc(model, x, y, mask, pairs):
-    """答案位置 top-1 准确率，以及按查询距键远近（≤256 / >256 拍）分组的准确率。"""
+def _hits(model, x, y, mask, pairs):
+    """答案位置是否 top-1 命中，以及每个查询距它的键多少字节。"""
     hit = model(x)[0].argmax(-1) == y
     bi, p = mask.nonzero(as_tuple=True)
     kpos = (x[bi, :2 * pairs:2] == x[bi, p, None]).float().argmax(-1) * 2   # 该键在前段对里的位置
-    near = (p - kpos) <= NEAR
-    h = hit[bi, p].float()
-    nan = float('nan')
-    return {'acc': h.mean().item(),
-            'acc_near': h[near].mean().item() if near.any() else nan,
-            'acc_far': h[~near].mean().item() if (~near).any() else nan}
+    return hit[bi, p].float(), p - kpos
 
 
-def train_mqar(model, iters, b, T, pairs, lr, device):
+def _acc(h, dist):
+    """总准确率，以及按查询距键的字节数（BINS 分段）分组的准确率与查询数。"""
+    out = {'acc': round(h.mean().item(), 4)}
+    edges = (0,) + BINS + (10 ** 9,)
+    for lo, hi in zip(edges[:-1], edges[1:]):
+        sel = (dist > lo) & (dist <= hi)
+        if sel.any():
+            tag = f'{lo}-{hi if hi < 10 ** 9 else "inf"}'
+            out[f'acc_{tag}'], out[f'n_{tag}'] = round(h[sel].mean().item(), 4), int(sel.sum())
+    return out
+
+
+def train_mqar(model, iters, b, T, pairs, lr, device, filler='space'):
     gen = torch.Generator().manual_seed(0)
     model.to(device).train()
     from dspn_text import param_groups
     opt = torch.optim.AdamW(param_groups(model), lr=lr)
     for it in range(1, iters + 1):
-        x, y, mask = (t.to(device) for t in mqar_batch(b, T, pairs, gen))
+        x, y, mask = (t.to(device) for t in mqar_batch(b, T, pairs, gen, filler))
         lg, _ = model(x)
         loss = F.cross_entropy(lg[mask], y[mask])
         opt.zero_grad(set_to_none=True); loss.backward()
@@ -68,8 +80,8 @@ def train_mqar(model, iters, b, T, pairs, lr, device):
     model.eval()
     eval_gen = torch.Generator().manual_seed(12345)           # 固定评测集，不同模型可比
     with torch.no_grad():
-        x, y, mask = (t.to(device) for t in mqar_batch(max(b, 64), T, pairs, eval_gen))
-        return _acc(model, x, y, mask, pairs)
+        hd = [_hits(model, *(t.to(device) for t in mqar_batch(b, T, pairs, eval_gen, filler)), pairs) for _ in range(max(1, 64 // b))]
+        return _acc(torch.cat([h for h, _ in hd]), torch.cat([d for _, d in hd]))
 
 
 NAMES = ['Zeb', 'Mirabel', 'Orson', 'Thistle', 'Quillon', 'Bramwell', 'Odette', 'Fennick', 'Ismay', 'Lorcan',
@@ -120,10 +132,11 @@ if __name__ == '__main__':
     ap.add_argument('--iters', type=int, default=2000); ap.add_argument('--batch', type=int, default=64)
     ap.add_argument('--T', type=int, default=256); ap.add_argument('--pairs', type=int, default=16)
     ap.add_argument('--lr', type=float, default=1e-3)
+    ap.add_argument('--filler', default='space', choices=['space', 'sym'], help='mqar 填充：空格 / 随机符号（长间隔测试）')
     a = ap.parse_args()
     model = D.build(a.kind, a.size, **json.loads(a.extra))
     if a.cmd == 'mqar':
-        res = train_mqar(model, a.iters, a.batch, a.T, a.pairs, a.lr, D.DEV)
+        res = train_mqar(model, a.iters, a.batch, a.T, a.pairs, a.lr, D.DEV, a.filler)
     else:
         model.load_state_dict(torch.load(D.ROOT / f'runs/{a.kind}-{a.size}{a.tag}.pt', map_location=D.DEV))
         res = name_recall(model, D.DEV)
