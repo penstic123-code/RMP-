@@ -1,0 +1,70 @@
+{
+ "name": "dspn-C_gF_s1",
+ "kind": "dspn",
+ "size": "C",
+ "extra": {
+  "d": 160,
+  "hidden": 320,
+  "m": 32,
+  "d_io": 96,
+  "hidden_io": 192,
+  "hub_dk": 32,
+  "attn_hd": 32,
+  "attn_out": 32,
+  "td_w": 0.01
+ },
+ "params": 2639976,
+ "data": "mix",
+ "device": "cuda",
+ "batch": 16,
+ "T": 1024,
+ "iters": 1500,
+ "lr": 0.001,
+ "seed": 1,
+ "stateful": true,
+ "bot_loss": false,
+ "sched": "wsd",
+ "bf16": true,
+ "compile": true,
+ "init": null,
+ "code_sha": "8a8377b5f9d0",
+ "seconds": 96,
+ "train_bytes_per_sec": 262058,
+ "peak_gpu_mb": 1596,
+ "val_bpc_stream": 2.3931,
+ "log": [
+  [
+   500,
+   37,
+   2.667,
+   3.018,
+   0.202,
+   0.547,
+   0.209,
+   0.0,
+   1.625
+  ],
+  [
+   1000,
+   66,
+   2.008,
+   2.622,
+   0.21,
+   0.514,
+   0.187,
+   0.0,
+   1.659
+  ],
+  [
+   1500,
+   96,
+   1.907,
+   2.393,
+   0.206,
+   0.536,
+   0.187,
+   0.0,
+   1.667
+  ]
+ ]
+}

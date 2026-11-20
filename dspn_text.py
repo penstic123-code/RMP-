@@ -32,7 +32,9 @@ SIZES = {   # 完整配置都在这里，命令行 --extra 只用来覆盖个别
     'C': dict(layers=8, M=2, d=384, m=48, hidden=768, q=32, emb=64, hub_dk=64, hub_out=32, **{**_HUB, 'hub_after': 3},
               chunk=5, d_io=192, hidden_io=384, attn_layer=4),   # 动态分块：1 编码层 + 6 块层 + 1 解码层，两头窄、中间深；第 4 层加滑窗注意力
     'XL': dict(layers=8, M=2, d=704, m=64, hidden=1408, q=32, emb=64, hub_dk=64, hub_out=32, **{**_HUB, 'hub_after': 3},
-               chunk=5, d_io=256, hidden_io=512, attn_layer=4),  # 约 3000 万：C 的加宽版，v2 预训练（约 2 天）
+               chunk=5, d_io=256, hidden_io=512, attn_layer=4),  # 约 3000 万：C 的加宽版
+    'XL5': dict(layers=8, M=2, d=896, m=64, hidden=1792, q=48, emb=64, beta_max=2, fm_tau=205, k_mult=1.5,
+                chunk=5, d_io=256, hidden_io=512, attn_layer=4),  # 约 4800 万：两天预训练按本机算力最划算的规模；无中枢（E59、E60），K = 1.5T/N（E60 每行块率）
 }
 
 # 融合内核（flash-linear-attention，triton-windows）：CUDA 上默认使用，DSPN_FLA=0 关闭。逐字节聊天等短序列走本地实现。
@@ -256,10 +258,10 @@ class DSPNLayered(nn.Module):
     动态分块（chunk=N>0，第 22 章 v0.18）：第 0 层在字节上跑（编码器），编码层的局部头预测下一字节，
     惊讶跃升 s_t − s_{t−1} > θ 即从 t 开新块（θ 是 buffer，训练时把块率追向 1/N，推理冻结），块长到 L_max = lmax·N 强制开块；
     中间各层与中枢只在块序列上跑；每个字节取它所在块的输出；最后一层回到字节上跑（解码器）。
-    块序列定长 K = ⌈2T/N⌉，边界排前、其余为冻结的补齐位；超出 K 的边界并入第 K 块（记为溢出）。"""
+    块序列定长 K = ⌈k_mult·T/N⌉，边界排前、其余为冻结的补齐位；超出 K 的边界并入第 K 块（记为溢出）。"""
     def __init__(self, layers=4, M=2, d=32, m=16, hidden=64, q=8, emb=32, vocab=256,
                  hub_after=0, hub_heads=2, hub_dk=32, beta_max=1.0, hub_out=4, hub_taus=None,
-                 local=False, grad_ckpt=False, chunk=0, head_w=0.1, head_detach=True, lmax=3, theta_lr=0.1, d_io=None, hidden_io=None, fm_tau=0, td_w=0.0,
+                 local=False, grad_ckpt=False, chunk=0, head_w=0.1, head_detach=True, lmax=3, theta_lr=0.1, d_io=None, hidden_io=None, fm_tau=0, td_w=0.0, k_mult=2.0,
                  attn_layer=0, attn_window=512, attn_heads=4, attn_hd=64, attn_out=64):
         super().__init__()
         self.M, self.d, self.m, self.q, self.hub_after, self.chunk = M, d, m, q, hub_after, chunk
@@ -286,7 +288,7 @@ class DSPNLayered(nn.Module):
             U[-1] += nmsg
             self.head = nn.Linear(M * self.dl[0], vocab)
             self.register_buffer('theta', torch.zeros(()))   # 惊讶跃升阈值：不是状态，冷启动、清零状态都不动它
-        self.td_w = td_w
+        self.td_w, self.k_mult = td_w, k_mult           # 块序列定长 K = ⌈k_mult·T/N⌉：块率被 θ 拉在 1/N，2 倍时约一半是补齐位
         if td_w:                                           # 线性自上而下预测（第 22.8 节）：顶块层在块 j 的 h → 块 j+1 处编码层的消息
             assert chunk, '自上而下预测只在分块模型的块层上'
             self.td = nn.Linear(M * d, M * nmsg)
@@ -393,7 +395,7 @@ class DSPNLayered(nn.Module):
             rate = bnd.float().mean()
             if learn:                                      # 分位数追踪：块率高于 1/N 就抬高 θ（原地改 buffer，CUDA Graph 下可用）
                 self.theta.add_(self.theta_lr * (rate - 1 / N))
-        K = min(T, max(1, math.ceil(2 * T / N)))
+        K = min(T, max(1, math.ceil(self.k_mult * T / N)))
         prevb = torch.cat([idx.new_zeros(b, 1), idx[:, :-1]], 1)
         self.stats = {'rate': rate, 'word': (bnd & self.wbound(prevb)).sum() / bnd.sum().clamp(min=1),
                       'word_base': self.wbound(prevb).float().mean(), 'over': (bnd.sum(1) > K).float().mean()}
