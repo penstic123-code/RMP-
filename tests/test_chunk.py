@@ -83,3 +83,10 @@ def test_theta_tracks_rate_in_training_only():
     with torch.no_grad():
         m(x)
     assert m.theta.item() == t1
+
+
+def test_top_down_prediction_trains_upper_layers():
+    m = model(td_w=1.0); x = torch.randint(0, 256, (2, 30))
+    m(x)
+    m.aux.backward()
+    assert m.td.weight.grad.abs().sum() > 0 and m.layers[2].B.grad.abs().sum() > 0

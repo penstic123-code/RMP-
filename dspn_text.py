@@ -259,7 +259,7 @@ class DSPNLayered(nn.Module):
     块序列定长 K = ⌈2T/N⌉，边界排前、其余为冻结的补齐位；超出 K 的边界并入第 K 块（记为溢出）。"""
     def __init__(self, layers=4, M=2, d=32, m=16, hidden=64, q=8, emb=32, vocab=256,
                  hub_after=0, hub_heads=2, hub_dk=32, beta_max=1.0, hub_out=4, hub_taus=None,
-                 local=False, grad_ckpt=False, chunk=0, head_w=0.1, head_detach=True, lmax=3, theta_lr=0.1, d_io=None, hidden_io=None, fm_tau=0,
+                 local=False, grad_ckpt=False, chunk=0, head_w=0.1, head_detach=True, lmax=3, theta_lr=0.1, d_io=None, hidden_io=None, fm_tau=0, td_w=0.0,
                  attn_layer=0, attn_window=512, attn_heads=4, attn_hd=64, attn_out=64):
         super().__init__()
         self.M, self.d, self.m, self.q, self.hub_after, self.chunk = M, d, m, q, hub_after, chunk
@@ -286,6 +286,10 @@ class DSPNLayered(nn.Module):
             U[-1] += nmsg
             self.head = nn.Linear(M * self.dl[0], vocab)
             self.register_buffer('theta', torch.zeros(()))   # 惊讶跃升阈值：不是状态，冷启动、清零状态都不动它
+        self.td_w = td_w
+        if td_w:                                           # 线性自上而下预测（第 22.8 节）：顶块层在块 j 的 h → 块 j+1 处编码层的消息
+            assert chunk, '自上而下预测只在分块模型的块层上'
+            self.td = nn.Linear(M * d, M * nmsg)
         self.layers = nn.ModuleList([Layer(M, U[i], self.dl[i], m, hl[i], q, beta_max=beta_max) for i in range(layers)])
         if fm_tau:                                         # 快记忆保持时长初值在 64 到 fm_tau 步间对数铺开（块层各模块；第 22.4 节 D 组，删中枢时由它接管长程）
             mid = self.layers[1:-1] if chunk else self.layers
@@ -398,7 +402,13 @@ class DSPNLayered(nn.Module):
         valid = bnd.gather(1, pos)
         keep = valid.float()
         g = lambda x: x.gather(1, pos.view(b, K, *[1] * (x.dim() - 2)).expand(b, K, *x.shape[2:]))
-        hm, newm, um = self._stack(1, L - 1, g(m0), state, g(reset), g(e), keep)  # 块层
+        gm0 = g(m0)
+        hm, newm, um = self._stack(1, L - 1, gm0, state, g(reset), g(e), keep)    # 块层
+        if self.td_w and K > 1:                            # 目标停梯度、按均方值归一化（E45）；只算前后两块都有效的位置
+            tgt = gm0[:, 1:].flatten(2).float().detach()
+            err = (self.td(hm[-1][:, :-1]).float() - tgt).square().mean(-1) / tgt.square().mean().clamp(min=1e-2)
+            both = keep[:, :-1] * keep[:, 1:]
+            self.aux = self.aux + self.td_w * (err * both).sum() / both.sum().clamp(min=1)
         # 放回字节：每个字节取它所在块的输出；本段第一个边界之前的字节属于上一段的块
         bundle = torch.cat(hm + [um.flatten(2).to(hm[0].dtype)], -1)
         table = torch.cat([held_prev[:, None].to(bundle.dtype), bundle], 1)
