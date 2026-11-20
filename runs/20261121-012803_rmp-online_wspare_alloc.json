@@ -1,0 +1,77 @@
+{
+ "tag": "_wspare",
+ "size": "S",
+ "extra": {
+  "net": "wave",
+  "N": 28,
+  "k": 4,
+  "G": 4,
+  "D": 32,
+  "pd": 32,
+  "pm": 8,
+  "phidden": 64,
+  "init": "spread",
+  "spare": 1
+ },
+ "sleep": {
+  "dream": 1.0,
+  "rewire": false
+ },
+ "learner": {
+  "lr": 0.001,
+  "replay": 0.25,
+  "allocate": 1,
+  "novel_ratio": 1.5
+ },
+ "frozen": {
+  "new_word": {
+   "learner": {
+    "lr": 0.001,
+    "replay": 0.25,
+    "allocate": 1,
+    "novel_ratio": 1.5
+   },
+   "day_bytes": 32768,
+   "test_before": 2.506981006105407,
+   "old_before": 1.1763905465252162,
+   "old_after_day": 1.3484012884756404,
+   "test_online": 2.334274041649526,
+   "test_reset": 2.3644678479498906,
+   "old_online": 1.4003305466902616,
+   "sleep_args": {
+    "dream": 1.0,
+    "rewire": false
+   },
+   "sleep": {
+    "committed": true,
+    "old_before": 1.40705599042287,
+    "old_after": 1.2724681636813717,
+    "new_before": 2.030140812915831,
+    "new_after": 1.0208878270258916
+   },
+   "test_sleep_reset": 1.868625254270764,
+   "old_sleep": 1.3060617539783645,
+   "alloc_log": [
+    {
+     "chunk": 46,
+     "loss": 1.3268861770629883,
+     "ema": 0.8291144301268026,
+     "modules": [
+      6,
+      13,
+      20,
+      27
+     ]
+    }
+   ]
+  },
+  "sequential": {
+   "old_before": 1.1763905465252162,
+   "chat_before": 3.0095770627822285,
+   "old_after": 1.5099224565209852,
+   "chat_after": 2.4246502712913407,
+   "old_rise": 0.333531909995769,
+   "chat_drop": 0.5849267914908878
+  }
+ }
+}
