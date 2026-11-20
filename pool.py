@@ -189,7 +189,8 @@ class WavePool(nn.Module):
                 wt = sel / sel.sum(-1, keepdim=True).clamp(min=1)
             if self.capture is not None:
                 self.capture.append((w, sel.detach(), wt.detach(), r.detach()))
-            h, z, state = self.core(x[:, :, None].expand(b, T, self.N, D), state, reset, sel)
+            rw = None if reset is None else reset[..., None] & (self.wave == w)   # 只重置本波模块：每个模块在自己的波里清一次，别的波不再清它的末状态
+            h, z, state = self.core(x[:, :, None].expand(b, T, self.N, D), state, rw, sel)
             hw = (wt * self.ogain.float()).to(h.dtype)[..., None]
             hs.append((hw * h).sum(2)); x = x + (hw * z).sum(2)
             if learn:

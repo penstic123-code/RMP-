@@ -1,0 +1,97 @@
+{
+ "tag": "_wlong",
+ "size": "S",
+ "extra": {
+  "net": "wave",
+  "k": 4,
+  "G": 4,
+  "D": 32,
+  "pd": 32,
+  "pm": 8,
+  "phidden": 64,
+  "N": 24,
+  "init": "spread"
+ },
+ "sleep": {
+  "dream": 2.0,
+  "rewire": false
+ },
+ "learner": {
+  "lr": 0.001,
+  "replay": 0.25
+ },
+ "frozen": {
+  "new_word": {
+   "learner": {
+    "lr": 0.001,
+    "replay": 0.25
+   },
+   "day_bytes": 32768,
+   "test_before": 2.2701003627793193,
+   "old_before": 0.9983804288112291,
+   "old_after_day": 1.0039024307978572,
+   "test_online": 1.6760294803519398,
+   "test_reset": 1.6920680939382557,
+   "old_online": 1.06721593086274,
+   "sleep_args": {
+    "dream": 2.0,
+    "rewire": false
+   },
+   "sleep": {
+    "committed": false,
+    "old_before": 1.019922893444489,
+    "old_after": 1.0536081914228224,
+    "new_before": 1.1825871781438286,
+    "new_after": 0.843439807546021
+   },
+   "test_sleep_reset": 1.6920680939382557,
+   "old_sleep": 1.06721593086274,
+   "alloc_log": []
+  },
+  "sequential": {
+   "old_before": 0.9983804288112291,
+   "chat_before": 2.832893104590989,
+   "old_after": 1.3033487478621404,
+   "chat_after": 1.8082749763572497,
+   "old_rise": 0.30496831905091126,
+   "chat_drop": 1.0246181282337394
+  }
+ },
+ "plastic": {
+  "new_word": {
+   "learner": {
+    "lr": 0.001,
+    "replay": 0.25
+   },
+   "day_bytes": 32768,
+   "test_before": 2.2701003627793193,
+   "old_before": 0.9983804288112291,
+   "old_after_day": 1.0406506373749307,
+   "test_online": 1.663265609536151,
+   "test_reset": 1.6745593871533464,
+   "old_online": 1.1457763518784523,
+   "sleep_args": {
+    "dream": 2.0,
+    "rewire": false
+   },
+   "sleep": {
+    "committed": true,
+    "old_before": 1.12398564164496,
+    "old_after": 1.0820371538168263,
+    "new_before": 1.182968720753972,
+    "new_after": 0.8446035577407522
+   },
+   "test_sleep_reset": 1.555077562582193,
+   "old_sleep": 1.1065649404786828,
+   "alloc_log": []
+  },
+  "sequential": {
+   "old_before": 0.9983804288112291,
+   "chat_before": 2.832893104590989,
+   "old_after": 1.6476738068866619,
+   "chat_after": 1.9410729952199552,
+   "old_rise": 0.6492933780754327,
+   "chat_drop": 0.8918201093710338
+  }
+ }
+}

@@ -171,3 +171,16 @@ def test_window_counts_tau_prior_and_pred_loss():
     assert torch.is_tensor(m.aux) and m.aux > 0
     (lg.sum() + m.aux).backward()
     assert m.pheads[1].weight.grad.abs().sum() > 0
+
+
+def test_wavenet_reset_chunked_equals_whole():
+    """会话边界字节（30）在段中间时，整段与分两段接续结果一致（Codex 审查指出：每波重复重置全部模块会清掉前一波的末状态）。"""
+    for rule in ('addr', 'ctx'):
+        torch.manual_seed(0)
+        m = D.build('dspn', 'S', net='wave', N=8, k=2, G=2, D=8, pd=8, pm=4, phidden=16, init='spread', rule=rule)
+        torch.nn.init.normal_(m.readout.weight, std=0.1)
+        m.eval(); idx = torch.randint(31, 256, (2, 24)); idx[:, 5] = 30; idx[1, 15] = 30
+        with torch.no_grad():
+            lg, _ = m(idx)
+            a, st = m(idx[:, :9]); b, _ = m(idx[:, 9:], st)
+        assert torch.allclose(lg, torch.cat([a, b], 1), atol=1e-4), rule

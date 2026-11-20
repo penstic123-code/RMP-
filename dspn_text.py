@@ -165,8 +165,9 @@ class Layer(nn.Module):
         km = None if keep is None else (keep[..., None] if keep.dim() == 2 else keep)   # (b, T, M)：按模块的 keep（路由池里未选的模块为 0）
         if km is not None:
             la, x = la * km[..., None], x * km[..., None].to(x.dtype)
-        if reset is not None:                                  # 先 keep 后 reset：会话边界连未选模块也清空
-            la = la.masked_fill(reset[..., None, None], -30.0)
+        rm = None if reset is None else (reset[..., None] if reset.dim() == 2 else reset)   # (b, T, 1) 或按模块 (b, T, M)
+        if rm is not None:                                     # 先 keep 后 reset：会话边界连未选模块也清空
+            la = la.masked_fill(rm[..., None], -30.0)
         c, cT = scan(la, x, c0)
         c = c.to(x.dtype)
         if self.rec is not None:
@@ -175,8 +176,8 @@ class Layer(nn.Module):
         k, v, qv, beta, g = self.proj(c)
         if km is not None:
             beta, g = beta * km.to(beta.dtype), g * km
-        if reset is not None:
-            g = g.masked_fill(reset[..., None], -30.0)                         # α≈0：边界处清空快记忆
+        if rm is not None:
+            g = g.masked_fill(rm, -30.0)                                       # α≈0：边界处清空快记忆
         r, S = delta_chunk(qv, k, v, beta, g, S)
         h, z = self.mlp(c, r.to(c.dtype))
         return h, z, (cT, S)
