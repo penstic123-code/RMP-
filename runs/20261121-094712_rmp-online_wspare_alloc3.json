@@ -1,0 +1,79 @@
+{
+ "tag": "_wspare",
+ "size": "S",
+ "extra": {
+  "net": "wave",
+  "k": 4,
+  "G": 4,
+  "D": 32,
+  "pd": 32,
+  "pm": 8,
+  "phidden": 64,
+  "N": 28,
+  "init": "spread",
+  "spare": 1
+ },
+ "sleep": {
+  "dream": 2.0,
+  "rewire": false
+ },
+ "learner": {
+  "lr": 0.001,
+  "replay": 0.25,
+  "allocate": 1,
+  "novel_ratio": 1.5,
+  "spare_bias": -0.5
+ },
+ "frozen": {
+  "new_word": {
+   "learner": {
+    "lr": 0.001,
+    "replay": 0.25,
+    "allocate": 1,
+    "novel_ratio": 1.5,
+    "spare_bias": -0.5
+   },
+   "day_bytes": 32768,
+   "test_before": 2.506981006105407,
+   "old_before": 1.1763905465252162,
+   "old_after_day": 1.256309682728512,
+   "test_online": 2.4100141899915037,
+   "test_reset": 2.4635851071264883,
+   "old_online": 1.2608804206604152,
+   "sleep_args": {
+    "dream": 2.0,
+    "rewire": false
+   },
+   "sleep": {
+    "committed": true,
+    "old_before": 1.2608587395722168,
+    "old_after": 1.220110674851923,
+    "new_before": 2.1979615556914007,
+    "new_after": 0.9856962907661054
+   },
+   "test_sleep_reset": 1.8094455780351275,
+   "old_sleep": 1.2562397708359767,
+   "alloc_log": [
+    {
+     "chunk": 46,
+     "loss": 1.3268861770629883,
+     "ema": 0.8291144301268026,
+     "modules": [
+      6,
+      13,
+      20,
+      27
+     ]
+    }
+   ]
+  },
+  "sequential": {
+   "old_before": 1.1763905465252162,
+   "chat_before": 3.0095770627822285,
+   "old_after": 1.3622957570112668,
+   "chat_after": 2.7171685321482966,
+   "old_rise": 0.18590521048605058,
+   "chat_drop": 0.2924085306339319
+  }
+ }
+}

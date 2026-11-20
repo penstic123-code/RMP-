@@ -127,3 +127,30 @@ def test_routing_rules_run():
         m = D.build('dspn', 'S', net='wave', N=8, k=2, G=2, D=8, pd=8, pm=4, phidden=16, rule=rule)
         m.train(); lg, _ = m(torch.randint(0, 256, (2, 10)))
         assert lg.shape == (2, 10, 256)
+
+
+def test_ema_scan_matches_loop_and_resets():
+    from pool import ema_scan
+    torch.manual_seed(0)
+    x = torch.randn(2, 150, 5); e0 = torch.randn(2, 5); a = 0.9
+    reset = torch.zeros(2, 150, dtype=torch.bool); reset[0, 70] = True
+    y, e = ema_scan(x, e0, a, reset, C=64)
+    ref, cur = [], e0
+    for t in range(150):
+        g = torch.where(reset[:, t], 0.0, a)[:, None]
+        cur = g * cur + (1 - a) * x[:, t]; ref.append(cur)
+    ref = torch.stack(ref, 1)
+    assert torch.allclose(y, ref, atol=1e-5) and torch.allclose(e, ref[:, -1], atol=1e-5)
+
+
+def test_ctx_routing_chunked_equals_whole():
+    torch.manual_seed(0)
+    m = D.build('dspn', 'S', net='wave', N=8, k=2, G=2, D=8, pd=8, pm=4, phidden=16, rule='ctx')
+    torch.nn.init.normal_(m.readout.weight, std=0.1)
+    m.eval(); idx = torch.randint(0, 256, (2, 40))
+    with torch.no_grad():
+        lg, _ = m(idx)
+        a, st = m(idx[:, :17]); b, _ = m(idx[:, 17:], st)
+    assert torch.allclose(lg, torch.cat([a, b], 1), atol=1e-4)
+    m.train(); lg, _ = m(idx); lg.sum().backward()
+    assert m.layers[1].Wr.grad.abs().sum() > 0
