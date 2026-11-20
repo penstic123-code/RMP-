@@ -27,7 +27,7 @@ torch.manual_seed(0)
 m = D.build('dspn', a.size, **extra).to(D.DEV).eval()
 if not a.random:
     r = m.load_state_dict(torch.load(ROOT / f'runs/dspn-{a.size}{a.tag}.pt', map_location=D.DEV), strict=False)
-    assert not r.unexpected_keys and all(k.endswith('.moved') for k in r.missing_keys), r
+    assert not r.unexpected_keys and all(k.endswith(('.moved', '.active')) for k in r.missing_keys), r
 pool = m.layers[1]
 
 val = D.load_bytes('tiny')[1]

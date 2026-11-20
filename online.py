@@ -82,7 +82,7 @@ def bpc(model, text_bytes, chunk=256):
 
 class OnlineLearner:
     def __init__(self, model, lr=1e-3, chunk=64, pool_bytes=65536, priority=True, seed=0,
-                 params='lora', replay=0.0, wd=0.0, allocate=0, novel_ratio=1.25, warm_chunks=16):
+                 params='lora', replay=0.0, wd=0.0, allocate=0, novel_ratio=1.25, warm_chunks=16, top_pos=4, spare_bias=-0.2):
         """params='lora'（默认）：只更新低秩偏移，不碰共享读出（E29：改读出是遗忘主因）；'all' 连读出一起改；replay：每次更新混入池中片段的损失权重；
         wd：低秩偏移向 0 的权重衰减（MIRAS 式保留正则，连续版睡眠下调），读出不衰减。"""
         self.model, self.chunk, self.lr = model, chunk, lr
@@ -111,11 +111,21 @@ class OnlineLearner:
         # RMP 新奇触发的地址分配（第 23.3 节 O2）：某段损失超过近期均值的 novel_ratio 倍时，每波取 allocate 个最少用的模块，
         # 把地址写成该段在这一波的平均查询；此后在线学习只改被分配模块的低秩偏移（编码层与其余模块不动）。
         self.allocate, self.novel_ratio, self.warm_chunks = allocate, novel_ratio, warm_chunks
+        self.top_pos, self.spare_bias = top_pos, spare_bias
         self.loss_ema, self.n_chunks, self.allocated, self.alloc_log = None, 0, None, []
+        # 第二版：池里有空闲模块（active = 0）时，启用它们而不是改旧模块的地址；新模块的全部参数在线可训（新生神经元），其余不动
+        pools = _pools(model)
+        self.spare_mode = bool(allocate and pools and (pools[0].active == 0).any())
+        if self.spare_mode:
+            grow = [p for n, p in pools[0].core.named_parameters() if 'lora' not in n]
+            for p in grow:
+                p.requires_grad_(True)
+            self.groups.append({'params': grow, 'weight_decay': 0.0}); self.online += grow
+            self.opt = torch.optim.AdamW(self.groups, lr=lr)
         self.reset_session()
 
-    def _alloc_step(self, caps, loss):
-        """读完一段后：判断新奇，必要时分配地址（只分配一次）。"""
+    def _alloc_step(self, caps, loss, tok=None):
+        """读完一段后：判断新奇，必要时分配地址（只分配一次）。tok：本段逐字节损失（第二版取最惊讶的几个位置的查询作新地址）。"""
         self.n_chunks += 1
         novel = self.loss_ema is not None and self.n_chunks > self.warm_chunks and loss > self.novel_ratio * self.loss_ema
         self.loss_ema = loss if self.loss_ema is None else 0.95 * self.loss_ema + 0.05 * loss
@@ -125,6 +135,14 @@ class OnlineLearner:
         chosen = []
         with torch.no_grad():
             for w, sel, wt, r in caps:
+                if self.spare_mode:                    # 第二版：启用空闲模块；地址取最惊讶位置的查询均值；新模块带负偏置，只在查询很近时才赢
+                    mods = ((pool.wave == w) & (pool.active == 0)).nonzero()[:, 0][:self.allocate]
+                    if len(mods) == 0:
+                        continue
+                    top = tok.topk(min(self.top_pos, len(tok))).indices
+                    pool.addr[mods] = F.normalize(r[0, top].float().mean(0), dim=-1)
+                    pool.active[mods] = 1; pool.bias[mods] = self.spare_bias
+                    chosen += mods.tolist(); continue
                 mods = (pool.wave == w).nonzero()[:, 0]
                 if len(mods) == 0:
                     continue
@@ -144,6 +162,10 @@ class OnlineLearner:
             for p in (l.lora_a, l.lora_b):
                 if p.grad is not None:
                     p.grad *= keep.view(-1, 1, 1) if l is pool.core else 0
+        if self.spare_mode:
+            for p in self.groups[-1]['params']:
+                if p.grad is not None:
+                    p.grad *= keep.view(-1, *[1] * (p.dim() - 1))
 
     def reset_session(self):
         self.state, self.last, self.traces = None, None, None
@@ -208,7 +230,7 @@ class OnlineLearner:
             loss = F.cross_entropy(lg[0], seq[1:])
             if alloc:
                 caps, _pools(self.model)[0].capture = _pools(self.model)[0].capture, None
-                self._alloc_step(caps, loss.item())
+                self._alloc_step(caps, loss.item(), F.cross_entropy(lg[0], seq[1:], reduction='none').detach())
             tot += loss.item() * (len(seq) - 1); n += len(seq) - 1
             total = loss
             if self.replay and self.pool:                  # 混入池中旧片段（从零状态），抵消只看新内容造成的遗忘

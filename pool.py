@@ -99,7 +99,7 @@ class WavePool(nn.Module):
     深度生长（grow_every=P > 0）：每 P 个训练步，模块可移到相邻波（最多移到当前最深波之后一波），条件是那一波的平均查询
     与它地址的平均余弦比本波高出 margin；每次最多移 N/8 个，移出后本波至少留 k 个。init='flat' 全在第 0 波，'spread' 均分到 G 波。"""
     def __init__(self, N, k, G, D, d, m, hidden, qr=32, beta_max=1.0, temp=0.1, eta_a=0.01, eta_b=1e-3,
-                 init='flat', grow_every=0, margin=0.02):
+                 init='flat', grow_every=0, margin=0.02, spare=0):
         super().__init__()
         self.N, self.k, self.G, self.temp, self.eta_a, self.eta_b = N, k, G, temp, eta_a, eta_b
         self.grow_every, self.margin = grow_every, margin
@@ -110,6 +110,13 @@ class WavePool(nn.Module):
         self.register_buffer('load_ema', torch.full((N,), 1.0 / N))
         w0 = torch.zeros(N, dtype=torch.long) if init == 'flat' else torch.arange(N) * G // N
         self.register_buffer('wave', w0)
+        # 空闲模块（第 23.3 节 O2）：每波留 spare 个，预训练时不参与选择与均衡（active = 0），在线遇到新内容时才启用
+        act = torch.ones(N)
+        for w in range(G):
+            idx = (w0 == w).nonzero()[:, 0]
+            if spare and len(idx):
+                act[idx[-spare:]] = 0
+        self.register_buffer('active', act)
         self.register_buffer('aff', torch.zeros(N, G))           # 各模块与各波查询的平均余弦（EMA）
         self.register_buffer('step', torch.zeros((), dtype=torch.long))
         self.capture = None                                          # 设成列表时每波追加 (波号, sel, 混合权重, 查询 r)：分析与在线分配用
@@ -132,7 +139,7 @@ class WavePool(nn.Module):
         for w in range(self.G):
             r = F.normalize(F.rms_norm(x, (D,)) @ self.Wr, dim=-1)
             cos = (r @ addr.t().to(r.dtype)).float()                          # (b, T, N)
-            cand = (self.wave == w)
+            cand = (self.wave == w) & (self.active > 0)
             idx = (cos + self.bias).masked_fill(~cand, -1e9).topk(self.k, -1).indices
             sel = torch.zeros_like(cos).scatter_(-1, idx, 1.0) * cand.float()
             wt = torch.softmax((cos / self.temp).masked_fill(sel == 0, -1e9), -1) * sel
@@ -154,7 +161,7 @@ class WavePool(nn.Module):
     def _adapt(self, cnt, sum_r, aff, ticks):
         mean_r = sum_r / cnt.clamp(min=1)[:, None]
         self.addr.copy_(F.normalize(self.addr + self.eta_a * (cnt > 0).float()[:, None] * (mean_r - self.addr), dim=-1))
-        size = F.one_hot(self.wave, self.G).sum(0).float()                    # 各波模块数
+        size = (F.one_hot(self.wave, self.G).float() * self.active[:, None]).sum(0)   # 各波启用的模块数
         target = self.k / size[self.wave].clamp(min=self.k)                   # 本波内的目标负载
         load = cnt / ticks
         self.bias.add_(self.eta_b * torch.sign(target - load))
@@ -175,7 +182,7 @@ class WavePool(nn.Module):
         best = score.argmax(1)
         gain = score.gather(1, best[:, None])[:, 0] - self.aff.gather(1, self.wave[:, None])[:, 0]
         cap = max(1, self.N // 8)
-        ok = do & (gain > self.margin) & (best != self.wave) & (size[self.wave] >= self.k + cap)
+        ok = do & (gain > self.margin) & (best != self.wave) & (size[self.wave] >= self.k + cap) & (self.active > 0)
         rank = torch.argsort(torch.argsort(-(gain * ok.float()), descending=False))
         move = ok & (rank < cap)
         self.wave.copy_(torch.where(move, best, self.wave))
@@ -184,7 +191,8 @@ class WavePool(nn.Module):
     def stats(self):
         """（深度 = 非空波数，死模块比例 = 相对负载 < 0.1，各波模块数）。"""
         size = F.one_hot(self.wave, self.G).sum(0)
-        return int((size > 0).sum()), round(float((self.load_ema < 0.1).float().mean()), 3), tuple(int(s) for s in size)
+        on = self.active > 0
+        return int((size > 0).sum()), round(float((self.load_ema[on] < 0.1).float().mean()), 3), tuple(int(s) for s in size)
 
     def compile_parts(self):
         self.core.compile_parts()
@@ -195,13 +203,13 @@ class WaveNet(nn.Module):
     读出拼接编码层 h 与各波混合 h（空波为 0），同现行 DSPN 的读出。
     R3（fb=W > 0）：序列按 W 拍分块依次算；每块开头把上一块最后一拍的各波 h 经零初始投影加到残差流起点（按块延迟的自上而下反馈）。"""
     def __init__(self, M=2, d=90, m=16, hidden=180, q=16, emb=32, vocab=256, beta_max=1.0,
-                 N=48, k=4, G=0, D=32, pd=64, pm=16, phidden=128, qr=32, temp=0.1, init='flat', grow_every=0, margin=0.02, fb=0, **_):
+                 N=48, k=4, G=0, D=32, pd=64, pm=16, phidden=128, qr=32, temp=0.1, init='flat', grow_every=0, margin=0.02, fb=0, spare=0, **_):
         super().__init__()
         self.M, self.fb, self.chunk, self.pool = M, fb, 0, N
         G = G or N // k                                    # 不另设深度上限：最多 N/k 波（每波至少要有 k 个可选），只受模块数限制
         self.emb = nn.Embedding(vocab, emb)
         enc = Layer(M, emb, d, m, hidden, q, beta_max=beta_max)
-        self.layers = nn.ModuleList([enc, WavePool(N, k, G, D, pd, pm, phidden, qr, beta_max, temp, init=init, grow_every=grow_every, margin=margin)])
+        self.layers = nn.ModuleList([enc, WavePool(N, k, G, D, pd, pm, phidden, qr, beta_max, temp, init=init, grow_every=grow_every, margin=margin, spare=spare)])
         self.win = nn.Linear(M * q, D)
         n_read = M * d + G * pd
         if fb:
