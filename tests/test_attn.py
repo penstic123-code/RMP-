@@ -17,6 +17,7 @@ def model(**kw):
     return m
 
 
+@torch.no_grad()   # 训练模式下带梯度的前向会更新分块阈值 θ，比较一致性要冻结它
 def check(m, T=22):
     x = torch.randint(0, 256, (2, T))
     full, _ = m(x)
