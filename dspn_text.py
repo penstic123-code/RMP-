@@ -161,20 +161,21 @@ class Layer(nn.Module):
         c0, S = state
         u = F.rms_norm(u, (u.shape[-1],))                    # pre-norm：8 层叠起来时，不归一化的层间输入会逐层放大发散（XL 第 81 步）
         la, x = self.gates(u)                                  # 输入比例用原门值：边界处只清旧状态，不放大写入（E42）
-        if reset is not None:
+        km = None if keep is None else (keep[..., None] if keep.dim() == 2 else keep)   # (b, T, M)：按模块的 keep（路由池里未选的模块为 0）
+        if km is not None:
+            la, x = la * km[..., None], x * km[..., None].to(x.dtype)
+        if reset is not None:                                  # 先 keep 后 reset：会话边界连未选模块也清空
             la = la.masked_fill(reset[..., None, None], -30.0)
-        if keep is not None:
-            la, x = la * keep[..., None, None], x * keep[..., None, None].to(x.dtype)
         c, cT = scan(la, x, c0)
         c = c.to(x.dtype)
         if self.rec is not None:
             c = c.detach().requires_grad_()
             self.rec.append((u.detach(), la.detach(), c0.detach(), c))
         k, v, qv, beta, g = self.proj(c)
+        if km is not None:
+            beta, g = beta * km.to(beta.dtype), g * km
         if reset is not None:
             g = g.masked_fill(reset[..., None], -30.0)                         # α≈0：边界处清空快记忆
-        if keep is not None:
-            beta, g = beta * keep[..., None].to(beta.dtype), g * keep[..., None]
         r, S = delta_chunk(qv, k, v, beta, g, S)
         h, z = self.mlp(c, r.to(c.dtype))
         return h, z, (cT, S)
@@ -262,8 +263,10 @@ class DSPNLayered(nn.Module):
     def __init__(self, layers=4, M=2, d=32, m=16, hidden=64, q=8, emb=32, vocab=256,
                  hub_after=0, hub_heads=2, hub_dk=32, beta_max=1.0, hub_out=4, hub_taus=None,
                  local=False, grad_ckpt=False, chunk=0, head_w=0.1, head_detach=True, lmax=3, theta_lr=0.1, d_io=None, hidden_io=None, fm_tau=0, td_w=0.0, k_mult=2.0,
-                 attn_layer=0, attn_window=512, attn_heads=4, attn_hd=64, attn_out=64):
+                 attn_layer=0, attn_window=512, attn_heads=4, attn_hd=64, attn_out=64,
+                 pool=0, pool_k=4, pool_d=64, pool_m=16, pool_hidden=128, pool_q=32, pool_qr=32, pool_mode='state', pool_temp=0.1):
         super().__init__()
+        self.pool = pool
         self.M, self.d, self.m, self.q, self.hub_after, self.chunk = M, d, m, q, hub_after, chunk
         self.head_w, self.head_detach, self.lmax, self.theta_lr = head_w, head_detach, lmax * chunk, theta_lr
         # 分块时编码层与解码层（字节分辨率）可以更窄：d_io、hidden_io；参数主要放在块层（H-Net：两头小、中间大）
@@ -293,6 +296,12 @@ class DSPNLayered(nn.Module):
             assert chunk, '自上而下预测只在分块模型的块层上'
             self.td = nn.Linear(M * d, M * nmsg)
         self.layers = nn.ModuleList([Layer(M, U[i], self.dl[i], m, hl[i], q, beta_max=beta_max) for i in range(layers)])
+        if pool:                                           # 路由模块池（第 23 章 R1 / R0）：第 0 层稠密（读字节），其余各层换成池
+            assert not chunk and not hub_after and not attn_layer and not fm_tau, '路由池原型只支持不分块、无中枢、无注意力（S 级）'
+            from pool import PoolLayer
+            Up = [M * q] + [pool_q] * (layers - 2)          # 池读下层的消息：第 0 层各模块 z 拼接；池与池之间是加权混合的 z
+            for i in range(1, layers):
+                self.layers[i] = PoolLayer(pool, pool_k, Up[i - 1], pool_d, pool_m, pool_hidden, pool_q, pool_qr, pool_mode, beta_max, pool_temp)
         if fm_tau:                                         # 快记忆保持时长初值在 64 到 fm_tau 步间对数铺开（块层各模块；第 22.4 节 D 组，删中枢时由它接管长程）
             mid = self.layers[1:-1] if chunk else self.layers
             tau = torch.logspace(math.log10(64), math.log10(fm_tau), len(mid) * M)
@@ -302,7 +311,7 @@ class DSPNLayered(nn.Module):
         # local=True：层间消息（含进中枢的）停梯度，每层只由自己的读出路径训练（SOLO 式局部学习）。
         self.local, self.grad_ckpt = local, grad_ckpt
         self.aux, self.stats = 0.0, {}                     # 辅助损失（局部头，每次前向重算，train 加进总损失）；分块统计
-        n_read = M * sum(self.dl)
+        n_read = M * self.dl[0] + (layers - 1) * pool_d if pool else M * sum(self.dl)
         self.norm = nn.LayerNorm(n_read)
         self.readout = nn.Linear(n_read, emb)              # 瓶颈后与 E 共享（设计第 1.1 节）
         nn.init.zeros_(self.readout.weight)                # 共享 E 时从均匀分布起步，免得初始对数几率过大
@@ -357,6 +366,8 @@ class DSPNLayered(nn.Module):
                 ai = len(self.layers) + (self.hub is not None) + bool(self.chunk)
                 a, self._attn_new = self.attn(hprev, state[ai], reset, keep)
                 u = torch.cat([u, a.to(u.dtype)], -1)
+            if self.pool and i > 0:                        # 池读下层的消息（每拍一个向量），不经 msg 的邻居平均
+                u = zu.flatten(2)
             h, z, ns = self._layer(i, u, state[i], reset, keep)
             hs.append(h.flatten(2)); new.append(ns); hprev = hs[-1]
             zu = z.detach() if self.local else z
@@ -580,11 +591,15 @@ def train(kind, size, data, iters, b, T, lr, seed, tag, extra, init=None, statef
             e0 = time.time()
             if getattr(model, 'chunk', 0):                 # 自发切词：边界比例、边界落在空格 / 标点之后的比例（及其基准率）、K 溢出行比例
                 cs = tuple(round(float(model.stats[k]), 3) for k in ('rate', 'word', 'word_base', 'over'))
+            if getattr(model, 'pool', 0):                  # 路由池：各池层（负载熵 / log N，死模块比例）
+                ps = tuple(l.stats() for l in model.layers[1:])
             v = evaluate_stream(model, va, n=4)
             eval_secs += time.time() - e0
             log.append((it, round(time.time() - t0), round(loss.item() / math.log(2), 3), round(v, 3)))
             if getattr(model, 'chunk', 0):
                 log[-1] += cs + (round(float(model.theta), 3),)
+            if getattr(model, 'pool', 0):
+                log[-1] += ps
             print(log[-1], flush=True)
             if not math.isfinite(loss.item()) or v > best + 0.5:   # 发散就立刻停，不白跑，也不用坏权重覆盖检查点（E61：没有 NaN 也会崩）
                 raise SystemExit(f'{name}: 第 {it} 步发散（流式验证 {v:.3f}，最好 {best:.3f}），训练停止')

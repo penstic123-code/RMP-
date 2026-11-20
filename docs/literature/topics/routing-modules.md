@@ -4,6 +4,12 @@
 
 ### 最近的先例：带状态的模块 + top-k
 
+- [MoM: Mixture-of-Memories](https://arxiv.org/abs/2502.13685)（Du、Sun 等，ICLR 2026，已核实全文）：**与第 23 章最像**。一层内多个独立记忆状态，每个 token 选 top-k，未选的记忆“不激活、不变”；主实验每个记忆用 Gated DeltaNet；训练时按路由重排 token、每个记忆打包成变长序列跑现成内核再散回加权。缺：只有 4 个记忆选 2 个、一层内；无慢通道与局部 MLP 组成的模块；线性路由器 + Switch 辅助损失；另有一个常开的共享记忆；无睡眠冻结、秩与层级、自上而下。含义：23.2 的“未选状态不变”和 23.7 的“变长打包精确扫描”是 MoM 已有的，引用它，不算新。
+- [ThalNet](https://arxiv.org/abs/1706.05744)（Hafner 等，NIPS 2017，已核实摘要）：循环模块经路由中心读写，层级、跳连、反馈从学习中涌现；但稠密、逐步 RNN、无稀疏激活。对应 23.2 的 R2。
+- [BRIMs](https://arxiv.org/abs/2006.16981)（Mittal 等，ICML 2020，未核实）：RIMs 加自上而下信号的注意力合并。对应 R3。
+- [Routers Learn the Geometry of Their Experts](https://arxiv.org/abs/2605.12476)（2026，已核实摘要）：无参数路由，每个专家保留路由到它的隐状态的滑动平均作质心、按余弦分配。即 23.3 的地址竞争学习，用在无状态 FFN 专家上。
+- [MoxE](https://arxiv.org/abs/2505.01459)（2025）：top-k 路由到 xLSTM 循环专家，未说明专家状态是否跨时间保留。[Swimba](https://arxiv.org/abs/2603.06938)（2026）：把“每个专家各有一条 SSM 状态”列为一类设计，自己选了反方向。
+
 - [Recurrent Independent Mechanisms（RIMs）](https://arxiv.org/abs/1909.10893)（Goyal 等，ICLR 2021，未核实）：N 个独立的循环模块，按对输入的注意力选 top-k 更新，其余模块状态不变，模块间经注意力通信。**与第 23 章最像**：区别只在我们用时间尺度给路由定方向、地址醒时冻结、用 MoE 的稳态均衡。
 - [Fast and Slow Learning of RIMs](https://arxiv.org/abs/2105.08710)（Madan 等，ICLR 2021，未核实）：模块参数学得快、注意力（路由）学得慢，迁移更好。支持“路由慢、模块快”，与 23.3 一致。
 
@@ -14,6 +20,8 @@
 - [Probing Semantic Routing in Large MoE](https://arxiv.org/abs/2502.10928)（2025，未核实）：大模型（Mixtral、DeepSeek、Llama-4）的中间层有语义路由，随规模与深度增强。
 - [The Expert Strikes Back](https://arxiv.org/abs/2604.02178)（2026，未核实）：专家多是细粒度“操作”专家（如闭合括号），既非领域专家也非单个 token。
 - 含义：小规模下预计先出现字节 / token 级分工，所以 Q1 必须测“当前字节之外”的选择性，否则过关没有意义。
+
+- 查重结论（2026-11-20）：没有找到与第 23 章完全相同的设计。看起来新的是组合：地址规则生成连接 + 疲劳项用在带状态模块池；醒时冻结路由、睡眠才更新、新内容导向空闲模块；学到的秩分波、深度从一波长起；按块延迟的自上而下反馈。“新”只是没搜到。
 
 ### 规则生成的连接
 
