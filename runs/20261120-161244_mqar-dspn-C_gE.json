@@ -1,0 +1,17 @@
+{
+ "args": {
+  "cmd": "mqar",
+  "kind": "dspn",
+  "size": "C",
+  "extra": "{\"d\":160,\"hidden\":320,\"m\":32,\"d_io\":96,\"hidden_io\":192,\"hub_dk\":32,\"attn_hd\":32,\"attn_out\":32,\"head_detach\":false,\"head_w\":0.01}",
+  "tag": "_gE",
+  "iters": 1500,
+  "batch": 64,
+  "T": 256,
+  "pairs": 16,
+  "lr": 0.001
+ },
+ "acc": 0.9970703125,
+ "acc_near": 0.9970703125,
+ "acc_far": NaN
+}

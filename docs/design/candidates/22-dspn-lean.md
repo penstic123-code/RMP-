@@ -1,6 +1,6 @@
 ## 22　DSPN 精简（v0.18 候选）：还能删什么，能力不丢
 
-2026-11-20。用户要求：在 v0.17（XL 档，[current/1-runtime.md](../current/1-runtime.md)）上继续删，架构更简洁，能力保留。借 TraceCols（第 21 章）的惊讶定边界，保留 DSPN 有证据的机制。状态：C1–C4（删 1–5 与惊讶跃升分块）已实施为 v0.18（现行设计见 [current/1-runtime.md](../current/1-runtime.md)）；22.4 的把关与新奇信号未做。经一次独立审查并修订（22.7）。
+2026-11-20。用户要求：在 v0.17（XL 档，[current/1-runtime.md](../current/1-runtime.md)）上继续删，架构更简洁，能力保留。借 TraceCols（第 21 章）的惊讶定边界，保留 DSPN 有证据的机制。状态：C1–C4（删 1–5 与惊讶跃升分块）已实施为 v0.18（现行设计见 [current/1-runtime.md](../current/1-runtime.md)）；22.4 的把关已跑（E59：v0.18 过关；删中枢持平，待长间隔 MQAR）；新奇信号未做。经一次独立审查并修订（22.7）。
 
 ### 22.1　现状：v0.17 层外的部件与重叠
 

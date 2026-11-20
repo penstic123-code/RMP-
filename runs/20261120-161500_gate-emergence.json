@@ -1,0 +1,453 @@
+{
+ "tool": "tools/emergence.py",
+ "note": "C5 gate (ch.22 22.4), seed-0 checkpoints dspn-C_g{A,B,D,E}_s0 and random init; mix valid, 8 streams x 3 x 1024 after warmup",
+ "results": {
+  "A": {
+   "random": false,
+   "size": "C",
+   "extra": {
+    "d": 160,
+    "hidden": 320,
+    "m": 32,
+    "d_io": 96,
+    "hidden_io": 192,
+    "hub_dk": 32,
+    "attn_hd": 32,
+    "attn_out": 32,
+    "bcast": 0
+   },
+   "seg": {
+    "rate": 0.2828,
+    "precision": 0.5385,
+    "base_rate": 0.1893,
+    "recall": 0.8046,
+    "lift": 2.845
+   },
+   "timescale": {
+    "tau_bytes_median": [
+     27.1,
+     150.2,
+     321.6,
+     338.6,
+     1300.7,
+     1067.7,
+     1747.6,
+     15.2
+    ],
+    "score": 0.943
+   },
+   "units": {
+    "eta2_per_layer": [
+     0.118,
+     0.038,
+     0.014,
+     0.027,
+     0.022,
+     0.027,
+     0.029,
+     0.132
+    ]
+   },
+   "hub": {
+    "tau_bytes": [
+     642.1,
+     6755.4,
+     2633.8,
+     1157.4
+    ],
+    "beta": [
+     0.698,
+     0.413,
+     0.49,
+     0.464
+    ],
+    "share": [
+     0.209,
+     0.296,
+     0.323,
+     0.172
+    ],
+    "log_tau_std": 0.444,
+    "share_entropy": 0.978
+   },
+   "copy": 0.0382
+  },
+  "B": {
+   "random": false,
+   "size": "C",
+   "extra": {
+    "d": 160,
+    "hidden": 320,
+    "m": 32,
+    "d_io": 96,
+    "hidden_io": 192,
+    "hub_dk": 32,
+    "attn_hd": 32,
+    "attn_out": 32
+   },
+   "seg": {
+    "rate": 0.2096,
+    "precision": 0.5146,
+    "base_rate": 0.1893,
+    "recall": 0.5698,
+    "lift": 2.719
+   },
+   "timescale": {
+    "tau_bytes_median": [
+     30.5,
+     213.5,
+     384.8,
+     340.5,
+     847.7,
+     635.3,
+     3128.1,
+     13.3
+    ],
+    "score": 0.886
+   },
+   "units": {
+    "eta2_per_layer": [
+     0.107,
+     0.017,
+     0.011,
+     0.034,
+     0.02,
+     0.017,
+     0.015,
+     0.09
+    ]
+   },
+   "hub": {
+    "tau_bytes": [
+     1354.8,
+     4018.2,
+     13224.2,
+     16102.6
+    ],
+    "beta": [
+     0.734,
+     0.574,
+     0.61,
+     0.685
+    ],
+    "share": [
+     0.247,
+     0.254,
+     0.24,
+     0.259
+    ],
+    "log_tau_std": 0.5,
+    "share_entropy": 1.0
+   },
+   "copy": 0.0358
+  },
+  "D": {
+   "random": false,
+   "size": "C",
+   "extra": {
+    "d": 164,
+    "hidden": 328,
+    "m": 32,
+    "d_io": 96,
+    "hidden_io": 192,
+    "hub_dk": 32,
+    "attn_hd": 32,
+    "attn_out": 32,
+    "hub_after": 0,
+    "fm_tau": 205
+   },
+   "seg": {
+    "rate": 0.2146,
+    "precision": 0.5231,
+    "base_rate": 0.1893,
+    "recall": 0.593,
+    "lift": 2.763
+   },
+   "timescale": {
+    "tau_bytes_median": [
+     30.8,
+     214.9,
+     525.5,
+     1081.5,
+     701.1,
+     1028.4,
+     4090.2,
+     13.4
+    ],
+    "score": 0.829
+   },
+   "units": {
+    "eta2_per_layer": [
+     0.129,
+     0.028,
+     0.013,
+     0.016,
+     0.015,
+     0.017,
+     0.013,
+     0.097
+    ]
+   },
+   "copy": 0.0363
+  },
+  "E": {
+   "random": false,
+   "size": "C",
+   "extra": {
+    "d": 160,
+    "hidden": 320,
+    "m": 32,
+    "d_io": 96,
+    "hidden_io": 192,
+    "hub_dk": 32,
+    "attn_hd": 32,
+    "attn_out": 32,
+    "head_detach": false,
+    "head_w": 0.01
+   },
+   "seg": {
+    "rate": 0.2125,
+    "precision": 0.5197,
+    "base_rate": 0.1893,
+    "recall": 0.5834,
+    "lift": 2.745
+   },
+   "timescale": {
+    "tau_bytes_median": [
+     29.2,
+     213.5,
+     378.7,
+     348.2,
+     1205.5,
+     707.8,
+     2908.4,
+     18.6
+    ],
+    "score": 0.886
+   },
+   "units": {
+    "eta2_per_layer": [
+     0.109,
+     0.019,
+     0.012,
+     0.029,
+     0.026,
+     0.02,
+     0.017,
+     0.093
+    ]
+   },
+   "hub": {
+    "tau_bytes": [
+     1859.9,
+     5580.0,
+     10219.7,
+     8516.6
+    ],
+    "beta": [
+     0.742,
+     0.581,
+     0.603,
+     0.655
+    ],
+    "share": [
+     0.297,
+     0.255,
+     0.213,
+     0.234
+    ],
+    "log_tau_std": 0.332,
+    "share_entropy": 0.995
+   },
+   "copy": 0.0388
+  },
+  "random_A": {
+   "random": true,
+   "size": "C",
+   "extra": {
+    "d": 160,
+    "hidden": 320,
+    "m": 32,
+    "d_io": 96,
+    "hidden_io": 192,
+    "hub_dk": 32,
+    "attn_hd": 32,
+    "attn_out": 32,
+    "bcast": 0
+   },
+   "seg": {
+    "rate": 0.7391,
+    "precision": 0.2298,
+    "base_rate": 0.1893,
+    "recall": 0.8971,
+    "lift": 1.214
+   },
+   "timescale": {
+    "tau_bytes_median": [
+     37.4,
+     51.3,
+     51.3,
+     51.3,
+     51.3,
+     51.3,
+     51.3,
+     37.4
+    ],
+    "score": 0.0
+   },
+   "units": {
+    "eta2_per_layer": [
+     0.038,
+     0.006,
+     0.005,
+     0.006,
+     0.007,
+     0.006,
+     0.005,
+     0.006
+    ]
+   },
+   "hub": {
+    "tau_bytes": [
+     405.9,
+     1352.9,
+     4054.7,
+     40316.9
+    ],
+    "beta": [
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ],
+    "share": [
+     0.151,
+     0.321,
+     0.302,
+     0.226
+    ],
+    "log_tau_std": 0.849,
+    "share_entropy": 0.972
+   },
+   "copy": 0.0
+  },
+  "random_B": {
+   "random": true,
+   "size": "C",
+   "extra": {
+    "d": 160,
+    "hidden": 320,
+    "m": 32,
+    "d_io": 96,
+    "hidden_io": 192,
+    "hub_dk": 32,
+    "attn_hd": 32,
+    "attn_out": 32
+   },
+   "seg": {
+    "rate": 0.5104,
+    "precision": 0.1871,
+    "base_rate": 0.1893,
+    "recall": 0.5043,
+    "lift": 0.988
+   },
+   "timescale": {
+    "tau_bytes_median": [
+     37.4,
+     74.3,
+     74.3,
+     74.3,
+     74.3,
+     74.3,
+     74.3,
+     37.4
+    ],
+    "score": 0.0
+   },
+   "units": {
+    "eta2_per_layer": [
+     0.037,
+     0.008,
+     0.007,
+     0.008,
+     0.006,
+     0.007,
+     0.006,
+     0.007
+    ]
+   },
+   "hub": {
+    "tau_bytes": [
+     587.8,
+     1959.4,
+     5872.1,
+     58387.7
+    ],
+    "beta": [
+     1.0,
+     1.0,
+     1.0,
+     1.0
+    ],
+    "share": [
+     0.192,
+     0.25,
+     0.262,
+     0.297
+    ],
+    "log_tau_std": 0.849,
+    "share_entropy": 0.991
+   },
+   "copy": 0.0
+  },
+  "random_D": {
+   "random": true,
+   "size": "C",
+   "extra": {
+    "d": 164,
+    "hidden": 328,
+    "m": 32,
+    "d_io": 96,
+    "hidden_io": 192,
+    "hub_dk": 32,
+    "attn_hd": 32,
+    "attn_out": 32,
+    "hub_after": 0,
+    "fm_tau": 205
+   },
+   "seg": {
+    "rate": 0.4974,
+    "precision": 0.1344,
+    "base_rate": 0.1893,
+    "recall": 0.3532,
+    "lift": 0.71
+   },
+   "timescale": {
+    "tau_bytes_median": [
+     37.4,
+     76.3,
+     76.3,
+     76.3,
+     76.3,
+     76.3,
+     76.3,
+     37.4
+    ],
+    "score": 0.0
+   },
+   "units": {
+    "eta2_per_layer": [
+     0.034,
+     0.008,
+     0.006,
+     0.006,
+     0.005,
+     0.005,
+     0.006,
+     0.008
+    ]
+   },
+   "copy": 0.0
+  }
+ }
+}
