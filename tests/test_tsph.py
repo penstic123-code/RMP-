@@ -31,7 +31,7 @@ def test_streaming_matches_parallel():
         full, st_full = m(x)
         for cuts in ([1, 2, 17, 33, 34], list(range(1, 50)), [16, 32, 48]):
             lg, st = stream(m, x, cuts)
-            assert (lg - full).abs().max() < 1e-4
+            assert (lg - full).abs().max() < 1e-3   # logits 约 ±10，新扫描的 fp32 舍入约 2e-4
             assert (st['M_fast'] - st_full['M_fast']).abs().max() < 1e-4
 
 

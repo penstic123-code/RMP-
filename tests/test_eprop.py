@@ -18,7 +18,7 @@ def test_eprop_equals_bptt_across_chunks():
     params = (layer.B, layer.G, layer.b_a)
     for p in params:
         p.requires_grad_(True)
-    la, x = layer.gates(u)
+    la, x = layer.gates(torch.nn.functional.rms_norm(u, (u.shape[-1],)))   # Layer 内部先做 pre-norm
     c, _ = D.scan(la, x, torch.zeros(2, 2, 6).double())
     exact = torch.autograd.grad((c * w).sum(), params)
     # e-prop：两块，状态与资格迹跨块延续

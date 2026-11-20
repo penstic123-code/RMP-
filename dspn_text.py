@@ -21,6 +21,7 @@ DATASETS = {
     'tiny': ('data/TinyStoriesV2-GPT4-train.txt', 'data/TinyStoriesV2-GPT4-valid.txt'),
     'chat2': ('data/chat2-train.txt', 'data/chat2-valid.txt'),          # make_chat_data.py --memory_frac 0.25 --out chat2（无重现行）
     'chat3': ('data/chat3-train.txt', 'data/chat3-valid.txt'),          # make_chat_data.py 现版：记忆对话 40%，跨会话一半带重现行
+    'mix': ('data/mix-train.txt', 'data/mix-valid.txt'),                # tools/prepare_data.py：TinyStories + Cosmopedia + Simple Wikipedia + SODA
 }
 SEP = 30   # 会话边界字节（ASCII 记录分隔符）：清空 c、快记忆、中枢与广播
 
@@ -28,6 +29,10 @@ _HUB = dict(hub_after=2, hub_heads=4, hub_taus=[300, 1000, 3000, 30000], beta_ma
 SIZES = {   # 完整配置都在这里，命令行 --extra 只用来覆盖个别项
     'S': dict(layers=3, M=2, d=90, m=16, hidden=180, q=16, emb=32, hub_dk=32, hub_out=16, **_HUB),     # 约 0.36M，E53 基线
     'L': dict(layers=4, M=2, d=320, m=48, hidden=640, q=32, emb=64, hub_dk=64, hub_out=32, **_HUB),    # 约 470 万，dspn-L_base 主干
+    'C': dict(layers=8, M=2, d=384, m=48, hidden=768, q=32, emb=64, hub_dk=64, hub_out=32, **{**_HUB, 'hub_after': 3},
+              chunk=5, d_io=192, hidden_io=384, attn_layer=4),   # 动态分块：1 编码层 + 6 块层 + 1 解码层，两头窄、中间深；第 4 层加滑窗注意力
+    'XL': dict(layers=8, M=2, d=704, m=64, hidden=1408, q=32, emb=64, hub_dk=64, hub_out=32, **{**_HUB, 'hub_after': 3},
+               chunk=5, d_io=256, hidden_io=512, attn_layer=4),  # 约 3000 万：C 的加宽版，v2 预训练（约 2 天）
 }
 
 # 融合内核（flash-linear-attention，triton-windows）：CUDA 上默认使用，DSPN_FLA=0 关闭。逐字节聊天等短序列走本地实现。
@@ -152,6 +157,7 @@ class Layer(nn.Module):
 
     def forward(self, u, state, reset=None, keep=None):    # u: (b, T, M, U)；reset: (b, T) 布尔，会话边界字节处清空 c 与 S；keep: (b, T) 0/1，0 的位置（块序列的补齐位）不改状态
         c0, S = state
+        u = F.rms_norm(u, (u.shape[-1],))                    # pre-norm：8 层叠起来时，不归一化的层间输入会逐层放大发散（XL 第 81 步）
         la, x = self.gates(u)                                  # 输入比例用原门值：边界处只清旧状态，不放大写入（E42）
         if reset is not None:
             la = la.masked_fill(reset[..., None, None], -30.0)
@@ -193,6 +199,56 @@ class Layer(nn.Module):
             setattr(self, name, torch.compile(getattr(self, name), dynamic=False))
 
 
+class WindowAttn(nn.Module):
+    """滑窗因果注意力（第 20.8 节第 2 档）：只管“最近 window 个位置内原样照抄”（名字等），更久的交给中枢、跨会话交给海马。
+    读下面一层的 h，输出每模块 out 维作为本层额外输入；输出投影零初始（起步等于没有注意力）。不加位置编码（NoPE，循环状态自带位置）。
+    最近 window 个有效位置的键值存在状态里：跨批次训练、逐拍聊天与整段一致，内存固定。keep=0 的位置（块序列补齐位）不当键、不进缓存。
+    会话边界之后不再看边界之前的位置。"""
+    def __init__(self, n_in, M, out=64, heads=4, hd=64, window=512):
+        super().__init__()
+        self.M, self.out, self.heads, self.hd, self.window = M, out, heads, hd, window
+        self.norm = nn.LayerNorm(n_in)
+        self.qkv = nn.Linear(n_in, 3 * heads * hd, bias=False)
+        self.o = nn.Linear(heads * hd, M * out, bias=False)
+        nn.init.zeros_(self.o.weight)
+
+    def init_state(self, b, device):
+        z = lambda: torch.zeros(b, self.heads, self.window, self.hd, device=device)
+        return z(), z(), torch.zeros(b, self.window, dtype=torch.bool, device=device)
+
+    def forward(self, x, state, reset, keep=None):
+        b, T, _ = x.shape
+        H, hd, W = self.heads, self.hd, self.window
+        ck, cv, cval = state
+        q, k, v = self.qkv(self.norm(x)).view(b, T, 3, H, hd).permute(2, 0, 3, 1, 4)        # (b, H, T, hd)
+        valid = torch.ones(b, T, dtype=torch.bool, device=x.device) if keep is None else keep.bool()
+        sess = reset.long().cumsum(1)                                                        # 本段内第几个会话（边界字节属于新会话）
+        idx = valid.long().cumsum(1) - 1                                                     # 新位置在有效序列里的序号
+        # 掩码：缓存槽 s 的序号是 s − W；只在本段尚未遇到会话边界时可见。新键：同会话、有效、在窗口内且不晚于查询
+        dq = idx[:, :, None]
+        cache_ok = cval[:, None, :] & (sess[:, :, None] == 0) & ((dq - (torch.arange(W, device=x.device) - W)) < W)
+        new_ok = (valid[:, None, :] & (sess[:, :, None] == sess[:, None, :])
+                  & (idx[:, None, :] <= dq) & (dq - idx[:, None, :] < W)
+                  & torch.ones(T, T, dtype=torch.bool, device=x.device).tril())
+        new_ok = new_ok | torch.eye(T, dtype=torch.bool, device=x.device)                    # 补齐位只看自己，免得整行全被遮住
+        mask = torch.cat([cache_ok, new_ok], -1)[:, None]                                    # (b, 1, T, W+T)
+        K = torch.cat([ck.to(k.dtype), k], 2); V = torch.cat([cv.to(v.dtype), v], 2)
+        a = F.scaled_dot_product_attention(q, K, V, attn_mask=mask)
+        y = self.o(a.transpose(1, 2).reshape(b, T, H * hd)).view(b, T, self.M, self.out)
+        # 新缓存：缓存与新键里最后 W 个有效位置（遇到会话边界时只留最后一个会话的）
+        nv = valid.long().sum(1, keepdim=True)
+        last = sess[:, -1:]
+        allv = torch.cat([cval & (last == 0), valid & (sess == last)], 1)
+        alli = torch.cat([torch.arange(W, device=x.device).expand(b, W) - W, idx], 1)         # 序号
+        slot = torch.where(allv, alli - nv + W, torch.full_like(alli, W))
+        slot = torch.where(slot < 0, torch.full_like(slot, W), slot)                          # 窗口外丢进垃圾槽 W
+        nk = torch.zeros(b, H, W + 1, hd, device=x.device, dtype=torch.float32)
+        nvv = torch.zeros_like(nk); nval = torch.zeros(b, W + 1, dtype=torch.bool, device=x.device)
+        si = slot[:, None, :, None].expand(b, H, W + T, hd)
+        nk.scatter_(2, si, K.float()); nvv.scatter_(2, si, V.float()); nval.scatter_(1, slot, allv)
+        return y, (nk[:, :, :W], nvv[:, :, :W], nval[:, :W])
+
+
 class PredHead(nn.Module):
     """每个模块一个线性预测头：h (b, T, M, d) → (b, T, M, q)。"""
     def __init__(self, M, d, q):
@@ -214,9 +270,14 @@ class DSPNLayered(nn.Module):
     def __init__(self, layers=4, M=2, d=32, m=16, hidden=64, q=8, emb=32, vocab=256,
                  hub_after=0, hub_heads=2, hub_dk=32, beta_max=1.0, hub_out=4, hub_taus=None,
                  bcast=4, bc_window=1024, pred_self=0.0, pred_down=0.0, local=False, pred_detach=False, grad_ckpt=False,
-                 chunk=0, chunk_w=0.03, chunk_dr=64):
+                 chunk=0, chunk_w=0.03, chunk_dr=64, d_io=None, hidden_io=None,
+                 attn_layer=0, attn_window=512, attn_heads=4, attn_hd=64, attn_out=64):
         super().__init__()
         self.M, self.d, self.m, self.q, self.hub_after, self.chunk, self.chunk_w = M, d, m, q, hub_after, chunk, chunk_w
+        # 分块时编码层与解码层（字节分辨率）可以更窄：d_io、hidden_io；参数主要放在块层（H-Net：两头小、中间大）
+        io = chunk and d_io
+        self.dl = [d_io if io and i in (0, layers - 1) else d for i in range(layers)]
+        hl = [(hidden_io or hidden) if io and i in (0, layers - 1) else hidden for i in range(layers)]
         if chunk:
             assert layers >= 3 and (not hub_after or 2 <= hub_after <= layers - 1), '分块需要编码层 + 至少一个块层 + 解码层，中枢在块层之后'
         self.emb = nn.Embedding(vocab, emb)
@@ -230,18 +291,23 @@ class DSPNLayered(nn.Module):
             self.bc_in = nn.Parameter(torch.zeros(layers, hub_heads * hub_dk, M * bcast))   # 零初始：起步等于无广播
         nmsg = q * (2 if M > 1 else 1)
         U = [emb] + [nmsg + (hub_out if hub_after and i == hub_after else 0) for i in range(1, layers)]
+        self.attn_layer, self.attn = attn_layer, None
+        if attn_layer:                                     # 第 attn_layer 层（从 0 数）另读滑窗注意力的输出；注意力读下面一层的 h
+            assert 1 <= attn_layer and (not chunk or attn_layer <= layers - 2), '分块时注意力放在块层'
+            U[attn_layer] += attn_out
+            self.attn = WindowAttn(M * self.dl[attn_layer - 1], M, attn_out, attn_heads, attn_hd, attn_window)
         if chunk:                                          # 解码层另读编码层的消息（残差）
             U[-1] += nmsg
-            self.Wr = nn.Parameter(torch.randn(2, M * d, chunk_dr) / math.sqrt(M * d))   # 路由的 q、k 投影
-        self.layers = nn.ModuleList([Layer(M, U[i] + self.bcast, d, m, hidden, q, beta_max=beta_max) for i in range(layers)])
+            self.Wr = nn.Parameter(torch.randn(2, M * self.dl[0], chunk_dr) / math.sqrt(M * self.dl[0]))   # 路由的 q、k 投影
+        self.layers = nn.ModuleList([Layer(M, U[i] + self.bcast, self.dl[i], m, hl[i], q, beta_max=beta_max) for i in range(layers)])
         # 预测学习（可插拔，权重为 0 即关）：每个模块用本拍的 h 预测下一拍的消息 z——自己的（pred_self，E51 采纳 0.01）、
         # 正下方下层模块的（pred_down）。目标停梯度，误差按目标均方值归一化。
         # local=True：层间消息（含进中枢的）停梯度，每层只由自己的读出路径与预测损失训练（SOLO 式局部学习）。
         self.pred_w = {k: w for k, w in (('self', pred_self), ('down', pred_down)) if w}
-        self.pred = nn.ModuleDict({k: nn.ModuleList([PredHead(M, d, q) for _ in range(layers)]) for k in self.pred_w})
+        self.pred = nn.ModuleDict({k: nn.ModuleList([PredHead(M, self.dl[i], q) for i in range(layers)]) for k in self.pred_w})
         self.local, self.pred_detach, self.grad_ckpt = local, pred_detach, grad_ckpt
         self.aux, self.stats = 0.0, {}                     # 辅助损失（每次前向重算，train 加进总损失）；分块统计
-        n_read = layers * M * d
+        n_read = M * sum(self.dl)
         self.norm = nn.LayerNorm(n_read)
         self.readout = nn.Linear(n_read, emb)              # 瓶颈后与 E 共享（设计第 1.1 节）
         nn.init.zeros_(self.readout.weight)                # 共享 E 时从均匀分布起步，免得初始对数几率过大
@@ -254,8 +320,10 @@ class DSPNLayered(nn.Module):
         if self.chunk:                                     # (上一字节的路由键, 当前块平滑后的输出, 最近一个块处的中枢读出)
             L, nmsg = len(self.layers), self.layers[-1].B.shape[1] - self.bcast - self.q * (2 if self.M > 1 else 1)
             hd = self.hub.heads * self.hub.dk if self.hub else 1
-            st.append((torch.zeros(b, self.Wr.shape[-1], device=dev), torch.zeros(b, (L - 2) * self.M * self.d + self.M * nmsg, device=dev),
+            st.append((torch.zeros(b, self.Wr.shape[-1], device=dev), torch.zeros(b, self.M * sum(self.dl[1:-1]) + self.M * nmsg, device=dev),
                        torch.zeros(b, hd, device=dev)))
+        if self.attn is not None:                          # 滑窗注意力的键值缓存
+            st.append(self.attn.init_state(b, dev))
         if self.bcast:                                     # (本窗口广播的中枢读出, 已读字节数)；窗口按全局位置对齐，逐拍与整段一致
             st.append((torch.zeros(b, self.hub.heads * self.hub.dk, device=dev), 0))
         return st
@@ -292,12 +360,16 @@ class DSPNLayered(nn.Module):
     def _stack(self, lo, hi, u, state, reset, e, reads, alive, keep=None):
         """跑第 lo..hi−1 层（含其间的中枢）。返回各层 h、新状态、最后的层间输入 u、中枢逐拍读出。"""
         b, T = u.shape[:2]
-        hs, new, r, zdown = [], [], None, None
+        hs, new, r, zdown, hprev = [], [], None, None, None
         for i in range(lo, hi):
+            if self.attn is not None and i == self.attn_layer:
+                ai = len(self.layers) + (self.hub is not None) + bool(self.chunk)
+                a, self._attn_new = self.attn(hprev, state[ai], reset, keep)
+                u = torch.cat([u, a.to(u.dtype)], -1)
             if reads is not None:
                 u = torch.cat([u, reads[:, i].expand(b, T, self.M, self.bcast) * alive], -1)
             h, z, ns = self._layer(i, u, state[i], reset, keep)
-            hs.append(h.flatten(2)); new.append(ns)
+            hs.append(h.flatten(2)); new.append(ns); hprev = hs[-1]
             if self.pred:
                 self._predict(h, z, zdown, i)
             zdown = z
@@ -323,6 +395,8 @@ class DSPNLayered(nn.Module):
             hs, new, _, r = self._stack(0, L, u0, state, reset, e, reads, alive)
             if self.hub is not None:
                 new.append(self._hub_new)
+            if self.attn is not None:
+                new.append(self._attn_new)
             r_last = None if r is None else r[:, -1]
         else:
             hs, new, r_last = self._run_chunked(idx, e, u0, state, reset, reads, alive)
@@ -363,7 +437,7 @@ class DSPNLayered(nn.Module):
         up = table.gather(1, cum[..., None].expand(-1, -1, table.shape[-1]))
         conf = torch.where(bnd, p, 1 - p)
         up = up * (conf + (1 - conf).detach())[..., None].to(up.dtype)
-        nh = (L - 2) * self.M * self.d
+        nh = self.M * sum(self.dl[1:-1])
         hup = up[..., :nh]
         uup = up[..., nh:].reshape(b, T, self.M, -1)
         hd, newd, _, _ = self._stack(L - 1, L, torch.cat([m0, uup.to(m0.dtype)], -1), state, reset, e, reads, alive)   # 解码层（字节）
@@ -373,6 +447,7 @@ class DSPNLayered(nn.Module):
             got = r.gather(1, (nv - 1).clamp(min=0)[:, None, None].expand(-1, 1, r.shape[-1]))[:, 0].float()
             r_last = torch.where((nv > 0)[:, None], got, r_prev)
         new = new0 + newm + newd + ([self._hub_new] if self.hub is not None else []) + [(kr[:, -1], held, r_last)]
+        new += [self._attn_new] if self.attn is not None else []
         return h0 + [hup.to(hd[0].dtype)] + hd, new, r_last
 
     @staticmethod

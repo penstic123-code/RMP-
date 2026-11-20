@@ -39,7 +39,8 @@ class Block(nn.Module):
     def forward(self, x, h0, keep, zb=0.0):
         g, c = mix(x, self.W).split(self.dm, -1)
         z = torch.sigmoid(g + self.b_z + zb)
-        h, hT = scan((1 - z) * keep, z * c, h0)                       # keep=0：会话边界清状态（scan 钳位留 1%）
+        la = F.logsigmoid(-(g + self.b_z + zb))                            # log(1 − z)，数值稳定
+        h, hT = scan(torch.where(keep > 0, la, -30.0), z * c, h0)          # scan 取对数门；keep=0：会话边界清状态
         return h + mix(F.gelu(mix(self.ln(h), self.W1)), self.W2), hT
 
 
@@ -105,7 +106,7 @@ class TSPH(nn.Module):
         # 快记忆：键取 [w, a²] 的资格迹，写入强度 = 门 × 第 2 层惊讶度
         xm = torch.cat([w, a[1].flatten(2)], -1)
         lam = torch.sigmoid(self.b_tr)
-        tr, trT = scan(lam * keep[..., 0], (1 - lam) * xm, state['trace'])
+        tr, trT = scan(torch.where(keep[..., 0] > 0, F.logsigmoid(self.b_tr), -30.0), (1 - lam) * xm, state['trace'])
         gw, gl = self.gl(xm).unbind(-1)
         g = torch.sigmoid(gw) * surp[1].mean(-1).detach()
         logl = F.logsigmoid(gl).masked_fill(reset, -30.0)                    # λ≈0：边界处清空 M_fast

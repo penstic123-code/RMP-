@@ -35,6 +35,16 @@ def test_router_gets_gradient_and_ratio_loss():
 
 
 def test_sep_forces_boundary():
-    m = model(); x = torch.randint(0, 255, (1, 12)); x[0, 5] = SEP
+    m = model(); x = torch.randint(0, 255, (1, 12)); x[0, 9] = SEP   # 落在最后一段（广播窗口 8），stats 记的是最后一段
     m(x)
     assert m.stats['rate'] > 0
+
+
+def test_thin_io_layers_stream_equals_parallel():
+    m = model(d_io=6, hidden_io=6); x = torch.randint(0, 256, (2, 18))
+    assert m.layers[0].d == 6 and m.layers[1].d == 8 and m.layers[-1].d == 6
+    full, _ = m(x)
+    st, outs = None, []
+    for a, b in ((0, 5), (5, 6), (6, 18)):
+        lg, st = m(x[:, a:b], st); outs.append(lg)
+    assert torch.allclose(full, torch.cat(outs, 1), atol=1e-4)
