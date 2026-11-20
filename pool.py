@@ -112,6 +112,7 @@ class WavePool(nn.Module):
         self.register_buffer('wave', w0)
         self.register_buffer('aff', torch.zeros(N, G))           # 各模块与各波查询的平均余弦（EMA）
         self.register_buffer('step', torch.zeros((), dtype=torch.long))
+        self.register_buffer('moved', torch.zeros(N))               # 上次移波的模块：下一次前向开头清空它们的状态
         self.plastic = True
 
     def init_state(self, b, device):
@@ -121,6 +122,10 @@ class WavePool(nn.Module):
         """x: (b, T, D) 残差流起点。返回各波混合 h 的列表（每个 (b, T, d)）、最终残差流、新状态。"""
         b, T, D = x.shape
         learn = self.training and torch.is_grad_enabled() and self.plastic
+        if learn and self.grow_every:                                         # 移波的模块从零状态开始
+            keepm = 1 - self.moved
+            state = (state[0] * keepm[None, :, None], state[1] * keepm[None, :, None, None])
+            self.moved.zero_()
         addr = self.addr.clone()
         hs, cnt_all, sum_r, aff_new = [], [], [], []
         for w in range(self.G):
@@ -137,7 +142,7 @@ class WavePool(nn.Module):
                 with torch.no_grad():
                     rd = r.detach().float()
                     cnt_all.append(sel.sum((0, 1))); sum_r.append(torch.einsum('btn,btq->nq', sel, rd))
-                    aff_new.append(cos.mean((0, 1)))
+                    ac = cos.mean((0, 1)); aff_new.append(ac - ac.mean())        # 相对匹配度：减去本波全体模块的均值，消掉“越深查询越偏向公共方向”的整体偏差
         if learn:
             self._adapt(torch.stack(cnt_all).sum(0), torch.stack(sum_r).sum(0), torch.stack(aff_new, 1), b * T)
         return hs, x, state
@@ -167,10 +172,11 @@ class WavePool(nn.Module):
         best = score.argmax(1)
         gain = score.gather(1, best[:, None])[:, 0] - self.aff.gather(1, self.wave[:, None])[:, 0]
         cap = max(1, self.N // 8)
-        ok = do & (gain > self.margin) & (best != self.wave) & (size[self.wave] > self.k + cap)
+        ok = do & (gain > self.margin) & (best != self.wave) & (size[self.wave] >= self.k + cap)
         rank = torch.argsort(torch.argsort(-(gain * ok.float()), descending=False))
         move = ok & (rank < cap)
         self.wave.copy_(torch.where(move, best, self.wave))
+        self.moved.copy_(move.float())
 
     def stats(self):
         """（深度 = 非空波数，死模块比例 = 相对负载 < 0.1，各波模块数）。"""
@@ -186,9 +192,10 @@ class WaveNet(nn.Module):
     读出拼接编码层 h 与各波混合 h（空波为 0），同现行 DSPN 的读出。
     R3（fb=W > 0）：序列按 W 拍分块依次算；每块开头把上一块最后一拍的各波 h 经零初始投影加到残差流起点（按块延迟的自上而下反馈）。"""
     def __init__(self, M=2, d=90, m=16, hidden=180, q=16, emb=32, vocab=256, beta_max=1.0,
-                 N=48, k=4, G=4, D=32, pd=64, pm=16, phidden=128, qr=32, temp=0.1, init='flat', grow_every=0, margin=0.02, fb=0, **_):
+                 N=48, k=4, G=0, D=32, pd=64, pm=16, phidden=128, qr=32, temp=0.1, init='flat', grow_every=0, margin=0.02, fb=0, **_):
         super().__init__()
         self.M, self.fb, self.chunk, self.pool = M, fb, 0, N
+        G = G or N // k                                    # 不另设深度上限：最多 N/k 波（每波至少要有 k 个可选），只受模块数限制
         self.emb = nn.Embedding(vocab, emb)
         enc = Layer(M, emb, d, m, hidden, q, beta_max=beta_max)
         self.layers = nn.ModuleList([enc, WavePool(N, k, G, D, pd, pm, phidden, qr, beta_max, temp, init=init, grow_every=grow_every, margin=margin)])
