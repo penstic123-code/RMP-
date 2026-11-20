@@ -1,0 +1,45 @@
+{
+ "device": "cuda",
+ "queries": 16384,
+ "qr": 32,
+ "k": 4,
+ "one_module_ms": 0.3,
+ "rows": [
+  {
+   "N": 8,
+   "full_ms": 0.15,
+   "pkey_ms": 0.9028,
+   "full_over_k_modules": 0.125
+  },
+  {
+   "N": 32,
+   "full_ms": 0.1502,
+   "pkey_ms": 0.65,
+   "full_over_k_modules": 0.125
+  },
+  {
+   "N": 128,
+   "full_ms": 0.3998,
+   "pkey_ms": 0.5502,
+   "full_over_k_modules": 0.333
+  },
+  {
+   "N": 512,
+   "full_ms": 2.0718,
+   "pkey_ms": 1.1663,
+   "full_over_k_modules": 1.726
+  },
+  {
+   "N": 2048,
+   "full_ms": 4.1993,
+   "pkey_ms": 0.6252,
+   "full_over_k_modules": 3.499
+  },
+  {
+   "N": 4096,
+   "full_ms": 6.8029,
+   "pkey_ms": 0.952,
+   "full_over_k_modules": 5.668
+  }
+ ]
+}
