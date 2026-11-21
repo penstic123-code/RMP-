@@ -24,8 +24,12 @@
 
 ### 持久记忆与选择性写入
 
-- [Sparse Memory Finetuning](https://arxiv.org/abs/2510.15103)（Meta 2025；[复现](https://arxiv.org/abs/2605.03229)）：只更新本批访问频率明显高于背景语料的少数记忆槽（类 TF-IDF）；学新事实时 NQ 遗忘：全量微调 89%、LoRA 71%、本方法 11%。
+- [Sparse Memory Finetuning](https://arxiv.org/abs/2510.15103)（Lin 等，Meta FAIR + UC Berkeley，2025-10，已核实正文）：只更新本批访问频率明显高于背景语料的少数记忆槽（类 TF-IDF）；学新事实时 NQ 遗忘：全量微调 89%、LoRA 71%、本方法 11%（新知识习得相当）。细节见 [sleep 卡 §6](../cards/sleep.md)。要点：1.3B 模型预训练时就带记忆层；只在事实问答上测；稀疏方法用 SGD（AdamW 遗忘更多）；只按访问量（TF）选槽要 t > 500 才学得会且遗忘更多，TF-IDF 的“相对背景”是关键。 【主线 RMP】正好对应 RMP 卡住的“新内容落到不同模块”：选位置看“对新数据特别活跃、对背景很少用”，而不是看负载或损失（E80、E81 失败的分配都没有背景对照）。
+  - 改装到现成模型（[Gupta 等 2026，arXiv 2605.03229](https://arxiv.org/abs/2605.03229)，已核实正文）：Qwen-2.5-0.5B-Instruct 第 6/12/18 层加乘积键记忆（每层 16384 槽、4 头、top-16）；先冻结底座稠密训记忆（5 万条 OpenAssistant，约 52M 参数），再在 MedMCQA 上每批只更新 512 行。保留 MLP、旁加记忆分支（α 初值 0.01）最好：MedMCQA +2.5 个百分点，WikiText PPL 不升反降、TriviaQA −0.4；LoRA +4.6 但 PPL +17%、TriviaQA −6.3；全量 +5.4 但 PPL +44%、TriviaQA −9.3。替换掉 MLP 则明显受损。学得比 LoRA 少、忘得少得多；单模型单领域，作者称进行中。
+  - [Improving Sparse Memory Finetuning](https://arxiv.org/abs/2604.05248)（Goyal 等 2026，已核实正文，只有图）：同样改装 Qwen 0.5B，提出 KL 选槽；结论是稳定性–可塑性取舍随任务而变（TriviaQA 上 TF-IDF 保留更好，SimpleQA 上 KL 必要）。
 - [Memory Layers at Scale](https://arxiv.org/abs/2412.09764)（Meta 2024）：可训练稀疏 KV 查表，加参数不加计算。 【主线 RMP】乘积键查表加参数不加计算，是 23.8 T2 路由计时里 product key 的来源。
+- [Titans: Learning to Memorize at Test Time](https://arxiv.org/abs/2501.00663)（Behrouz、Zhong、Mirrokni，Google，NeurIPS 2025，已核实摘要）：一个 MLP 作长期记忆，推理时按“意外”（联想记忆损失对输入的梯度）写入，带动量与权重衰减（衰减即遗忘门）；注意力作短期记忆；三种接法（作上下文 / 门控 / 作一层）；语言建模与常识推理优于基线，大海捞针扩到 2M 以上上下文。后续 ATLAS 指出逐 token 的意外度会漏掉上下文。 【主线 RMP】与 RMP 快记忆（gated delta）同类：都是推理时局部写入的记忆；区别是 Titans 记忆只在一个会话 / 长上下文内有效，不管跨天的持续学习与巩固。
+- 含义（2026-11-21，用户问“RMP 作 LLM 外置记忆是否有前途”）：最接近的成功路线是“冻结 LLM + 旁加稀疏记忆层 + 只更新相对背景活跃的槽”（SMF 及其改装版），在 0.5B 模型、消费级硬件上已能做；RMP 若走这条路，要在 RAG 不擅长的任务（技能、用法、习惯）上与 LoRA、SMF 比，而不是在事实问答上与 RAG 比。
 - [M+](https://arxiv.org/abs/2502.00592)（ICML 2025）；[Larimar](https://arxiv.org/abs/2403.11901)（ICML 2024，一次性编辑与选择性遗忘）。
 - [Delayed Supervision for Test-Time LMs](https://arxiv.org/abs/2609.32312)（2026-09）：隔开很多无关事件后再对早先事实提问并监督，DeltaNet、RWKV-7 等在 BABILong、RULER 上提升（本项目跨会话记忆对话即属此类）。
 - [TRC²](https://arxiv.org/abs/2602.22479)（2026）：延迟惊奇写入 + 回放巩固 + 按实测遗忘自适应回放。
