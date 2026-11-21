@@ -198,6 +198,39 @@ class Layer(nn.Module):
         h = c + torch.einsum('btmh,mhd->btmd', hid, self.W2)
         return h, torch.einsum('btmd,mdq->btmq', h, self.P)
 
+    def forward_slice(self, u, state, sl, reset=None, keep=None):
+        """只计算模块切片 sl（如固定分波时仅算本波 N/G 个模块）：与全量计算再掩码数学等价，省 G 倍显存与算力，且保持 state_dict 键不变。"""
+        assert self.rec is None, 'forward_slice 暂不支持 e-prop 记录'
+        c0, S = state
+        u = F.rms_norm(u, (u.shape[-1],))
+        ga, gb = torch.einsum('btmu,mud->btmd', u, torch.cat([self.G[sl], self.B[sl]], -1)).split(self.d, -1)
+        z = ga + self.b_a[sl]
+        la, x = F.logsigmoid(z), torch.sigmoid(-z) * gb
+        km = None if keep is None else (keep[..., None] if keep.dim() == 2 else keep)
+        if km is not None:
+            la, x = la * km[..., None], x * km[..., None].to(x.dtype)
+        rm = None if reset is None else (reset[..., None] if reset.dim() == 2 else reset)
+        if rm is not None:
+            la = la.masked_fill(rm[..., None], -30.0)
+        c, cT = scan(la, x, c0)
+        c = c.to(x.dtype)
+        m = self.m
+        W = torch.cat([self.K[sl], self.V[sl], self.Qm[sl], self.w_beta[sl][..., None], self.w_gam[sl][..., None]], -1)
+        kvq, bl, gl = torch.einsum('btmd,mde->btme', c, W).split([3 * m, 1, 1], -1)
+        k, v, qv = kvq.split(m, -1)
+        beta = self.beta_max * torch.sigmoid(bl[..., 0] + self.b_beta[sl])
+        g = F.logsigmoid(-(gl[..., 0] + self.b_gam[sl]).float())
+        k, qv = F.normalize(k, dim=-1), F.normalize(qv, dim=-1)
+        if km is not None:
+            beta, g = beta * km.to(beta.dtype), g * km
+        if rm is not None:
+            g = g.masked_fill(rm, -30.0)
+        r, S = delta_chunk(qv, k, v, beta, g, S)
+        W1 = self.W1[sl] + self.lora_a[sl] @ self.lora_b[sl]
+        hid = F.gelu(torch.einsum('btmi,mih->btmh', torch.cat([c, r.to(c.dtype)], -1), W1) + self.b1[sl])
+        h = c + torch.einsum('btmh,mhd->btmd', hid, self.W2[sl])
+        return h, torch.einsum('btmd,mdq->btmq', h, self.P[sl]), (cT, S)
+
     def compile_parts(self):
         """融合逐元素小运算（A5）：门、投影、MLP 三段各自 torch.compile；fla 内核照常调用，外面仍套整步 CUDA Graph。"""
         torch._dynamo.config.recompile_limit = 64      # 各层宽度、块序列长度不同，每种形状编译一次；默认上限 8 不够

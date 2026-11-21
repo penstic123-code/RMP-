@@ -22,11 +22,14 @@ ap.add_argument('--extra', default='{}'); ap.add_argument('--seq_bytes', type=in
 ap.add_argument('--modes', default='frozen,plastic'); ap.add_argument('--sleep', default='{}', help='睡眠参数 JSON，如 {"dream": 1.0, "rewire": false}')
 ap.add_argument('--no_seq', action='store_true', help='只跑生造词'); ap.add_argument('--name', default='')
 ap.add_argument('--learner', default='{}', help='OnlineLearner 额外参数 JSON，如 {"allocate": 1}')
+ap.add_argument('--bg_data', default='tiny', help='SMF 背景频率统计语料（取训练集尾部，与验证探针彻底隔离）')
+ap.add_argument('--old_data', default='tiny', help='顺序任务旧数据探针语料')
+ap.add_argument('--seq_data', default='chat3', help='顺序任务新数据语料')
 a = ap.parse_args()
 extra = json.loads(a.extra)
 LK = {'lr': 1e-3, 'replay': 0.25, **json.loads(a.learner)}
 if LK.get('smf_k', 0) > 0 and 'bg_bytes' not in LK:
-    LK['bg_bytes'] = bytes(D.load_bytes('tiny')[1][:16384])
+    LK['bg_bytes'] = bytes(D.load_bytes(a.bg_data)[0][-65536:])
 LAST = {}
 _init0 = O.OnlineLearner.__init__
 def _keep(self, model, **kw):                              # 记下最近建的学习器（读分配日志）
@@ -54,9 +57,9 @@ def unfreeze_router(m, L):
 
 def sequential(mode):
     m = load(mode)
-    val = D.load_bytes('tiny')[1]
+    val = D.load_bytes(a.old_data)[1]
     old = bytes(val[:4096])
-    ctr, cva = D.load_bytes('chat3')
+    ctr, cva = D.load_bytes(a.seq_data)
     new_probe = bytes(cva[:4096])
     L = O.OnlineLearner(m, **LK)
     if mode == 'plastic':

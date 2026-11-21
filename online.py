@@ -74,6 +74,34 @@ def _dream(teacher, prompts, n, temp=1.0):
     return torch.cat(out, 1)
 
 
+def _masked_step(opt, masked_params, keep_vec, zero_params=()):
+    """严格按模块掩码执行优化步：未选中模块梯度置 0、步后原样恢复参数并清零其 AdamW 一阶动量，消除动量与权重衰减漏改。"""
+    keep_b = keep_vec.bool()
+    prev_m, prev_z = [], []
+    with torch.no_grad():
+        for p in masked_params:
+            m = keep_b.view(-1, *[1] * (p.dim() - 1))
+            if p.grad is not None:
+                p.grad.mul_(m)
+            prev_m.append((p, m, p.data.clone()))
+        for p in zero_params:
+            if p.grad is not None:
+                p.grad.zero_()
+            prev_z.append((p, p.data.clone()))
+    opt.step()
+    with torch.no_grad():
+        for p, m, old in prev_m:
+            p.data.copy_(torch.where(m, p.data, old))
+            st = opt.state.get(p)
+            if st and 'exp_avg' in st:
+                st['exp_avg'].mul_(m)
+        for p, old in prev_z:
+            p.data.copy_(old)
+            st = opt.state.get(p)
+            if st and 'exp_avg' in st:
+                st['exp_avg'].zero_()
+
+
 def bpc(model, text_bytes, chunk=256):
     """从零状态读完整段，不学习，返回每字节比特数。"""
     tot, n, _ = _nll(model, text_bytes, chunk)
@@ -105,11 +133,14 @@ class OnlineLearner:
         cores = [l.core for l in pools] if (freeze_enc and pools) else _cores(model)
         if self.eprop:
             low = [p for l in cores for p in (l.B, l.G, l.b_a)]
+        elif params == 'pool_mlp' and pools:
+            low = [p for l in [pl.core for pl in pools] for p in (l.W1, l.b1, l.W2)]
         else:
             low = [p for l in cores for p in (l.lora_a, l.lora_b)]
         shared = list(model.readout.parameters()) + [model.bias]
-        if params in ('lora', 'eprop'):
+        if params in ('lora', 'eprop', 'pool_mlp'):
             shared = []
+        self.params_mode = params
         self.groups = [{'params': low, 'weight_decay': wd}, {'params': shared, 'weight_decay': 0.0}]
         self.online = low + shared
         for p in self.online:
@@ -120,6 +151,7 @@ class OnlineLearner:
         self.allocate, self.novel_ratio, self.warm_chunks = allocate, novel_ratio, warm_chunks
         self.top_pos, self.spare_bias, self.alloc_mode = top_pos, spare_bias, alloc_mode   # alloc_mode='split'：GNG 式分裂（复制父模块）
         self.loss_ema, self.n_chunks, self.allocated, self.alloc_log = None, 0, None, []
+        self.smf_hits = torch.zeros(pools[0].N, device=pools[0].addr.device) if pools else None
         # 第二版：池里有空闲模块（active = 0）时，启用它们而不是改旧模块的地址；新模块的全部参数在线可训（新生神经元），其余不动
         self.spare_mode = bool(allocate and pools and (pools[0].active == 0).any())
         if self.spare_mode:
@@ -158,11 +190,20 @@ class OnlineLearner:
             self.model.train()
         self.bg_freq = cnt / max(tot, 1)
 
-    def _mask_smf_grads(self, caps):
-        """SMF：只保留相对背景活跃度 (cur_freq / (bg_freq + eps)) 最高的 smf_k 个模块的池内梯度。"""
+    def _pool_masked_params(self):
+        """池内按模块（第 0 维为 N）排布的在线参数列表，供严格掩码步使用。"""
+        pools = _pools(self.model)
+        if not pools:
+            return []
+        pool = pools[0]
+        ps = [p for p in self.online if p.shape[:1] == (pool.N,) and any(p is mp for mp in list(pool.core.parameters()) + [pool.ogain])]
+        return ps
+
+    def _compute_smf_mask(self, caps):
+        """SMF：计算相对背景活跃度 (cur_freq / (bg_freq + eps)) 最高的 smf_k 个模块掩码 (N,)。"""
         pools = _pools(self.model)
         if not pools or self.bg_freq is None or self.smf_k <= 0:
-            return
+            return None
         pool = pools[0]
         cur = torch.zeros(pool.N, device=pool.addr.device)
         ticks = caps[0][1].shape[0] * caps[0][1].shape[1] if caps else 1
@@ -173,9 +214,9 @@ class OnlineLearner:
         top = score.topk(min(self.smf_k, pool.N)).indices
         keep = torch.zeros(pool.N, device=pool.addr.device)
         keep[top] = 1.0
-        for p in (pool.core.lora_a, pool.core.lora_b):
-            if p.grad is not None:
-                p.grad *= keep.view(-1, 1, 1)
+        if self.smf_hits is not None:
+            self.smf_hits.add_(keep)
+        return keep
 
     def _alloc_step(self, caps, loss, tok=None):
         """读完一段后：判断新奇，必要时分配地址（只分配一次）。tok：本段逐字节损失（第二版取最惊讶的几个位置的查询作新地址）。"""
@@ -217,21 +258,15 @@ class OnlineLearner:
         self.allocated = torch.tensor(chosen, device=pool.addr.device)
         self.alloc_log.append({'chunk': self.n_chunks, 'loss': loss, 'ema': self.loss_ema, 'modules': chosen})
 
-    def _mask_alloc_grads(self):
-        """分配后：只留被分配模块的低秩偏移梯度；触发分配前不做掩码，避免对照组制度不一致（E85）。"""
+    def _compute_alloc_mask(self):
+        """分配后：只留被分配模块的掩码，并冻结编码层在线参数；触发分配前返回 None（E85）。"""
         if self.allocated is None:
-            return
+            return None, ()
         pool = _pools(self.model)[0]
         keep = torch.zeros(pool.N, device=pool.addr.device)
-        keep[self.allocated] = 1
-        for l in _cores(self.model):
-            for p in (l.lora_a, l.lora_b):
-                if p.grad is not None:
-                    p.grad *= keep.view(-1, 1, 1) if l is pool.core else 0
-        if self.spare_mode:
-            for p in self.groups[-1]['params']:
-                if p.grad is not None:
-                    p.grad *= keep.view(-1, *[1] * (p.dim() - 1))
+        keep[self.allocated] = 1.0
+        zero_ps = [p for l in _cores(self.model) if l is not pool.core for p in (l.lora_a, l.lora_b) if p.requires_grad]
+        return keep, zero_ps
 
     def reset_session(self):
         self.state, self.last, self.traces = None, None, None
@@ -317,12 +352,17 @@ class OnlineLearner:
                 self._eprop_grads(recs)
             else:
                 total.backward()
+            keep_mask, zero_ps = None, ()
             if self.allocate and _pools(self.model):
-                self._mask_alloc_grads()
+                keep_mask, zero_ps = self._compute_alloc_mask()
             if smf:
-                self._mask_smf_grads(caps)
+                smf_keep = self._compute_smf_mask(caps)
+                keep_mask = smf_keep if keep_mask is None else (keep_mask * smf_keep)
             if gate > 0:
-                self.opt.step()
+                if keep_mask is not None or zero_ps:
+                    _masked_step(self.opt, self._pool_masked_params(), keep_mask if keep_mask is not None else torch.ones(_pools(self.model)[0].N, device=ids.device), zero_ps)
+                else:
+                    self.opt.step()
             if alloc:                                      # 分配放在更新之后：它原地改 ogain、地址等，反传前改会破坏计算图
                 self._alloc_step(*pending)
             self.state = _detach(st)
@@ -349,7 +389,7 @@ class OnlineLearner:
                 a.copy_(torch.randn_like(a) / math.sqrt(a.shape[-2]))
 
     def sleep(self, probe_old, probe_new, steps=200, lr=3e-4, batch=8, old_tol=0.02, anchor=0.0, dream=0.0, n_dream=64,
-              distill=0.0, day=None, ce=1.0, win=64, old=None, rewire=True):
+              distill=0.0, day=None, ce=1.0, win=64, old=None, rewire=True, smf_sleep=True):
         """先把低秩偏移精确并入慢权重（不损失），再在重放池上训 steps 步。
         anchor>0：加 KL(老师‖学生)，老师 = 并入后、重放前的模型，在重放片段上算（E31；但老师已带白天的遗忘，E32 前的第 8 轮显示锚越强旧知识越差）。
         dream>0：做梦式自蒸馏（设计阶段 5 第 1 项）——早晨模型（白天学习前）从池中片段开头自由生成 n_dream 段“梦”，
@@ -357,7 +397,8 @@ class OnlineLearner:
         distill>0：上下文蒸馏（候选 17n1；Snell 等 2022）——老师 = 并入后的模型带着状态读完当天全部对话 day，记下每个位置的预测；
         学生 = 同一模型从零状态只看 win 字节的窗口，在同样位置上学老师的分布。当天靠上下文 / 快记忆知道的事由此进权重。
         old：旧语料字节；给了时锚定 KL 改在旧语料的随机窗口上算（候选 11 §3.3：只在旧数据上拉住，新内容不受锚的阻挡）。
-        ce：池上交叉熵的权重（聊天时池里只有用户的话，训它会把模型推向“像用户那样说话”，E44，故聊天用 0）。"""
+        ce：池上交叉熵的权重（聊天时池里只有用户的话，训它会把模型推向“像用户那样说话”，E44，故聊天用 0）。
+        smf_sleep：开启 smf_k 时，睡眠只巩固白天被 SMF 选中的模块，且与 freeze_enc 一致冻结编码层与 win。"""
         m = self.model
         backup = copy.deepcopy(m.state_dict())
         online_backup = [p.detach().clone() for p in self.online]
@@ -377,14 +418,27 @@ class OnlineLearner:
         if dream and steps:                                # 梦从换行自由生成：只代表旧知识（E36：从池中片段续写会教模型忘掉新词）
             prompts = torch.full((n_dream, 1), 10, dtype=torch.long, device=_device(m))
             dreams = _dream(self.morning, prompts, self.chunk)
-        # 睡眠只训慢权重；低秩偏移刚清零，留给第二天。嵌入 / 读出不动：改读出是遗忘主因（E29）；rewire=False 时同时冻结路由权重 Wr / Wg（E85）
+        # 睡眠只训慢权重；低秩偏移刚清零，留给第二天。嵌入 / 读出不动：改读出是遗忘主因（E29）；
+        # rewire=False 时冻结路由权重 Wr / Wg；freeze_enc=True（带池）时同时冻结编码层 layers.0 与 win，避免输入分布漂移破坏固定路由。
+        pools = _pools(m)
         skip = ('emb.', 'readout.', 'bias', 'norm.')
+        if self.freeze_enc and pools:
+            skip = skip + ('layers.0.', 'win.')
         slow = [p for k, p in m.named_parameters()
                 if 'lora' not in k and not k.startswith(skip) and (rewire or not k.endswith(('.Wr', '.Wg')))]
         for p in slow:
             p.requires_grad_(True)
         opt = torch.optim.Adam(slow, lr=lr)
-        plastic = [(pl, pl.plastic) for pl in _pools(m)]
+        sleep_keep, pool_slow = None, []
+        if smf_sleep and self.smf_k > 0 and pools and self.smf_hits is not None and self.smf_hits.sum() > 0:
+            pool = pools[0]
+            k_act = min(self.smf_k, int((self.smf_hits > 0).sum().item()))
+            top = self.smf_hits.topk(k_act).indices
+            sleep_keep = torch.zeros(pool.N, device=pool.addr.device)
+            sleep_keep[top] = 1.0
+            pool_ids = {id(p) for p in list(pool.core.parameters()) + [pool.ogain]}
+            pool_slow = [p for p in slow if id(p) in pool_ids and p.shape[:1] == (pool.N,)]
+        plastic = [(pl, pl.plastic) for pl in pools]
         for pl, _ in plastic:                              # RMP：地址与均衡偏置只在睡眠中更新（第 23.3 节）；rewire=False 时睡眠也不动
             pl.plastic = rewire
         for _ in range(steps):
@@ -402,7 +456,12 @@ class OnlineLearner:
                 sl = m(o)[0].flatten(0, 1)
                 loss = loss + anchor * F.kl_div(F.log_softmax(sl, -1), F.log_softmax(tl, -1), log_target=True, reduction='batchmean')
             if not self.pool or old is not None and not ce:
-                opt.zero_grad(); loss.backward(); opt.step(); continue
+                opt.zero_grad(); loss.backward()
+                if sleep_keep is not None:
+                    _masked_step(opt, pool_slow, sleep_keep)
+                else:
+                    opt.step()
+                continue
             pick = self.rng.choice(len(self.pool), size=batch, p=w)
             xy = torch.from_numpy(np.stack([self.pool[i][2] for i in pick]).astype(np.int64)).to(_device(m))
             lg, _ = m(xy[:, :-1])                       # 从零状态预热
@@ -418,7 +477,11 @@ class OnlineLearner:
                     tl = self.morning(d)[0].flatten(0, 1)
                 sl = m(d)[0].flatten(0, 1)
                 loss = loss + dream * F.kl_div(F.log_softmax(sl, -1), F.log_softmax(tl, -1), log_target=True, reduction='batchmean')
-            opt.zero_grad(); loss.backward(); opt.step()
+            opt.zero_grad(); loss.backward()
+            if sleep_keep is not None:
+                _masked_step(opt, pool_slow, sleep_keep)
+            else:
+                opt.step()
         for p, f in flags:
             p.requires_grad_(f)
         for pl, f in plastic:
@@ -433,6 +496,8 @@ class OnlineLearner:
         else:
             self.morning = _frozen_copy(m)                  # 新的一天从巩固后的模型开始
             self._refresh_pool()
+            if self.smf_hits is not None:
+                self.smf_hits.zero_()
         self.opt = torch.optim.AdamW(self.groups, lr=self.lr)   # 偏移已并入归零（或已回滚），旧的动量作废
         self.reset_session()
         return {'committed': ok, 'old_before': old0, 'old_after': old1, 'new_before': new0, 'new_after': new1}
@@ -469,7 +534,7 @@ def demo_new_word(model, device, day_bytes=0, sleep=None, **learner):
     val = dspn_text.load_bytes('tiny')[1]
     old = bytes(val[:4096])
     L = OnlineLearner(model, **learner)
-    res = {'learner': learner, 'day_bytes': day_bytes, 'test_before': bpc(model, test), 'old_before': bpc(model, old)}
+    res = {'learner': {k: v for k, v in learner.items() if k != 'bg_bytes'}, 'day_bytes': day_bytes, 'test_before': bpc(model, test), 'old_before': bpc(model, old)}
     if day_bytes:
         L.read(bytes(val[8192:8192 + day_bytes]))
         L.reset_session()

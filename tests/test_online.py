@@ -103,3 +103,61 @@ def test_smf_relative_background_mask():
     L.read(TEXT[128:160])                                          # 单块读：最多只有 smf_k=2 个模块被更新
     changed = (m.layers[1].core.lora_b != b0).any(dim=(1, 2)).sum().item()
     assert 1 <= changed <= 2
+
+
+def test_smf_adamw_zero_drift_on_unselected():
+    """SMF 严格掩码步：即使 AdamW 已有动量且开了权重衰减 wd=0.1，每步未选中模块必须逐位不变。"""
+    import dspn_text as D
+    torch.manual_seed(0)
+    m = D.build('dspn', 'S', net='wave', N=8, k=2, G=2, D=8, pd=8, pm=4, phidden=16, init='spread')
+    with torch.no_grad():
+        m.readout.weight.normal_(0, 0.2)
+        m.layers[0].W2.normal_(0, 0.2)
+        m.layers[1].core.W2.normal_(0, 0.2)
+    L = OnlineLearner(m, lr=1e-2, chunk=32, wd=0.1, freeze_enc=True, smf_k=2, bg_bytes=TEXT[:128])
+    L.read(TEXT[128:256])                                          # 先跑几块让部分模块积累 AdamW 动量
+    b_before = m.layers[1].core.lora_b.clone()
+    a_before = m.layers[1].core.lora_a.clone()
+    L.read(TEXT[256:288])                                          # 再跑单块：最多 smf_k=2 个模块允许变动
+    changed_b = (m.layers[1].core.lora_b != b_before).any(dim=(1, 2)).sum().item()
+    changed_a = (m.layers[1].core.lora_a != a_before).any(dim=(1, 2)).sum().item()
+    assert 1 <= changed_b <= 2 and 1 <= changed_a <= 2
+
+
+def test_sleep_respects_freeze_enc_and_smf():
+    """sleep(rewire=False)：freeze_enc=True 时编码层与 win 严格不动；smf_k>0 时只巩固白天 SMF 选中的模块。"""
+    import dspn_text as D
+    torch.manual_seed(0)
+    m = D.build('dspn', 'S', net='wave', N=8, k=2, G=2, D=8, pd=8, pm=4, phidden=16, init='spread')
+    with torch.no_grad():
+        m.readout.weight.normal_(0, 0.2)
+        m.layers[0].W2.normal_(0, 0.2)
+        m.layers[1].core.W2.normal_(0, 0.2)
+    L = OnlineLearner(m, lr=1e-2, chunk=32, freeze_enc=True, smf_k=2, bg_bytes=TEXT[:128])
+    L.read(TEXT[128:256])
+    enc_w1 = m.layers[0].W1.clone()
+    win_w = m.win.weight.clone()
+    pool_w2 = m.layers[1].core.W2.clone()
+    r = L.sleep(TEXT[:128], TEXT[128:256], steps=3, old_tol=10.0, rewire=False, smf_sleep=True)
+    assert r['committed']
+    assert torch.equal(m.layers[0].W1, enc_w1)
+    assert torch.equal(m.win.weight, win_w)
+    changed_mods = (m.layers[1].core.W2 != pool_w2).any(dim=(1, 2)).sum().item()
+    assert 1 <= changed_mods <= 2
+
+
+def test_pool_mlp_online_mode():
+    """params='pool_mlp'：SMF 选中模块直接更新完整 MLP（W1/b1/W2），未选中模块逐位不变。"""
+    import dspn_text as D
+    torch.manual_seed(0)
+    m = D.build('dspn', 'S', net='wave', N=8, k=2, G=2, D=8, pd=8, pm=4, phidden=16, init='spread')
+    with torch.no_grad():
+        m.readout.weight.normal_(0, 0.2)
+        m.layers[0].W2.normal_(0, 0.2)
+        m.layers[1].core.W2.normal_(0, 0.2)
+    w1_0, w2_0 = m.layers[1].core.W1.clone(), m.layers[1].core.W2.clone()
+    L = OnlineLearner(m, lr=1e-2, chunk=32, params='pool_mlp', freeze_enc=True, smf_k=2, bg_bytes=TEXT[:128])
+    L.read(TEXT[128:160])
+    ch1 = (m.layers[1].core.W1 != w1_0).any(dim=(1, 2)).sum().item()
+    ch2 = (m.layers[1].core.W2 != w2_0).any(dim=(1, 2)).sum().item()
+    assert 1 <= ch1 <= 2 and 1 <= ch2 <= 2

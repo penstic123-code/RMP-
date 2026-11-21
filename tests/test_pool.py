@@ -203,3 +203,67 @@ def test_wavenet_bottleneck_read_last_and_wave_query():
         g = m.layers[1].Wr.grad
         assert g is not None and g.shape[0] == 2
         assert g[0].abs().sum() > 0 and g[1].abs().sum() > 0
+
+
+def test_wavenet_sliced_matches_full():
+    """固定分波切片执行（省 G 倍显存算力）与全量掩码执行在前向输出、末状态及梯度上严格等价。"""
+    for rule in ('addr', 'ctx'):
+        torch.manual_seed(0)
+        m1 = D.build('dspn', 'S', net='wave', N=12, k=2, G=3, D=8, pd=8, pm=4, phidden=16,
+                     init='spread', rule=rule, bottleneck=True, wave_query=True)
+        with torch.no_grad():
+            m1.readout.weight.normal_(0, 0.2)
+            m1.layers[0].W2.normal_(0, 0.2)
+            m1.layers[1].core.W2.normal_(0, 0.2)
+        import copy
+        m2 = copy.deepcopy(m1)
+        m1.layers[1].use_slice = True
+        m2.layers[1].use_slice = False
+        idx = torch.randint(31, 256, (2, 20)); idx[0, 9] = 30
+        m1.train(); m2.train()
+        m1.layers[1].plastic = False; m2.layers[1].plastic = False
+        lg1, st1 = m1(idx); lg2, st2 = m2(idx)
+        assert torch.allclose(lg1, lg2, atol=1e-4), rule
+        assert torch.allclose(st1[1][0], st2[1][0], atol=1e-4), rule
+        assert torch.allclose(st1[1][1], st2[1][1], atol=1e-4), rule
+        lg1.sum().backward(); lg2.sum().backward()
+        assert torch.allclose(m1.layers[1].Wr.grad, m2.layers[1].Wr.grad, atol=1e-4), rule
+        assert torch.allclose(m1.layers[1].core.W1.grad, m2.layers[1].core.W1.grad, atol=1e-4), rule
+
+
+def test_wavenet_wave_ctx_depends_on_prev_wave():
+    """wave_ctx=True（默认）时，第 1 波的语境查询依赖第 0 波输出，且支持逐波多尺度 ctx_decay。"""
+    torch.manual_seed(0)
+    m = D.build('dspn', 'S', net='wave', N=8, k=2, G=2, D=8, pd=8, pm=4, phidden=16,
+                init='spread', rule='ctx', ctx_decay=[0.8, 0.95], bottleneck=True, wave_query=True)
+    with torch.no_grad():
+        m.layers[1].core.W2.normal_(0, 0.2)
+    m.eval(); idx = torch.randint(0, 256, (2, 16))
+    with torch.no_grad():
+        m.layers[1].capture = []
+        m(idx)
+        r1_before = m.layers[1].capture[1][3].clone()
+        m.layers[1].capture = None
+        m.layers[1].core.P[:4].add_(0.5)                   # 只改第 0 波的输出投影 P
+        m.layers[1].capture = []
+        m(idx)
+        r1_after = m.layers[1].capture[1][3].clone()
+        m.layers[1].capture = None
+    assert not torch.allclose(r1_before, r1_after), '第 1 波语境查询应随第 0 波输出变化'
+
+
+def test_wavenet_fb_resets_at_session_boundary():
+    """块延迟反馈 fb>0 遇到块内会话边界（字节 30）时，边界及之后不注入上一块的旧会话反馈。"""
+    torch.manual_seed(0)
+    m = D.build('dspn', 'S', net='wave', N=8, k=2, G=2, D=8, pd=8, pm=4, phidden=16, init='spread', fb=8)
+    with torch.no_grad():
+        m.readout.weight.normal_(0, 0.2)
+        m.fbp.weight.normal_(0, 0.5)
+        m.layers[1].core.W2.normal_(0, 0.2)
+    m.eval()
+    idx = torch.randint(31, 256, (1, 16))
+    idx[0, 11] = 30                                        # 第二块（8..15）的中间遇到会话边界
+    with torch.no_grad():
+        lg_full, _ = m(idx)
+        lg_fresh, _ = m(idx[:, 11:])
+    assert torch.allclose(lg_full[:, 11:], lg_fresh, atol=1e-4)
