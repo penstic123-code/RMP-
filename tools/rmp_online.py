@@ -25,6 +25,8 @@ ap.add_argument('--learner', default='{}', help='OnlineLearner 额外参数 JSON
 a = ap.parse_args()
 extra = json.loads(a.extra)
 LK = {'lr': 1e-3, 'replay': 0.25, **json.loads(a.learner)}
+if LK.get('smf_k', 0) > 0 and 'bg_bytes' not in LK:
+    LK['bg_bytes'] = bytes(D.load_bytes('tiny')[1][:16384])
 LAST = {}
 _init0 = O.OnlineLearner.__init__
 def _keep(self, model, **kw):                              # 记下最近建的学习器（读分配日志）
@@ -80,7 +82,7 @@ def new_word(mode):
     return O.demo_new_word(m, D.DEV, day_bytes=32768, sleep=json.loads(a.sleep), **LK)
 
 
-out = {'tag': a.tag, 'size': a.size, 'extra': extra, 'sleep': json.loads(a.sleep), 'learner': LK}
+out = {'tag': a.tag, 'size': a.size, 'extra': extra, 'sleep': json.loads(a.sleep), 'learner': {k: v for k, v in LK.items() if k != 'bg_bytes'}}
 for mode in a.modes.split(','):
     torch.manual_seed(0)
     nw = new_word(mode); nw.pop('samples', None); nw['alloc_log'] = getattr(LAST.get('L'), 'alloc_log', None)
@@ -90,5 +92,5 @@ for mode in a.modes.split(','):
           f"旧数据 {w['old_before']:.3f} → 在线后 {w['old_online']:.3f} → 睡后 {w['old_sleep']:.3f}（提交 {w['sleep']['committed']}）；"
           f"顺序任务 对话 bpc 降 {s['chat_drop']:.3f}，故事旧数据升 {s['old_rise']:.3f}", flush=True)
 p = ROOT / f'runs/{time.strftime("%Y%m%d-%H%M%S")}_rmp-online{a.tag}{a.name}.json'
-json.dump(out, open(p, 'w'), ensure_ascii=False, indent=1, default=float)
+json.dump(out, open(p, 'w'), ensure_ascii=False, indent=1, default=lambda x: x.decode('utf-8', 'replace') if isinstance(x, (bytes, bytearray)) else float(x))
 print('→', p.name)

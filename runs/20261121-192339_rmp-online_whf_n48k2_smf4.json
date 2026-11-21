@@ -1,0 +1,36 @@
+{
+ "tag": "_whf_n48k2",
+ "size": "S",
+ "extra": {
+  "net": "wave",
+  "k": 2,
+  "G": 4,
+  "D": 32,
+  "pd": 32,
+  "pm": 8,
+  "phidden": 64,
+  "N": 48,
+  "init": "spread",
+  "rule": "ctx",
+  "ctx_decay": 0.97,
+  "wave_query": true,
+  "bottleneck": true
+ },
+ "sleep": {
+  "dream": 2.0,
+  "rewire": false
+ },
+ "learner": {
+  "lr": 0.001,
+  "replay": 0.25,
+  "freeze_enc": true,
+  "smf_k": 4
+ },
+ "frozen": {
+  "new_word": {
+   "learner": {
+    "lr": 0.001,
+    "replay": 0.25,
+    "freeze_enc": true,
+    "smf_k": 4,
+    "bg_bytes": 

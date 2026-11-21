@@ -1,0 +1,105 @@
+{
+ "tag": "_whf_t3",
+ "size": "S",
+ "extra": {
+  "net": "wave",
+  "k": 4,
+  "G": 4,
+  "D": 32,
+  "pd": 32,
+  "pm": 8,
+  "phidden": 64,
+  "N": 24,
+  "init": "spread",
+  "rule": "ctx",
+  "ctx_decay": 0.97,
+  "wave_query": true,
+  "bottleneck": true,
+  "read_last": true
+ },
+ "sleep": {
+  "dream": 2.0,
+  "rewire": false
+ },
+ "learner": {
+  "lr": 0.001,
+  "replay": 0.25,
+  "freeze_enc": true
+ },
+ "frozen": {
+  "new_word": {
+   "learner": {
+    "lr": 0.001,
+    "replay": 0.25,
+    "freeze_enc": true
+   },
+   "day_bytes": 32768,
+   "test_before": 2.885750836110119,
+   "old_before": 1.5885973491891119,
+   "old_after_day": 1.591739632065545,
+   "test_online": 2.2023171514979722,
+   "test_reset": 2.350935677969326,
+   "old_online": 1.7557433200762138,
+   "sleep_args": {
+    "dream": 2.0,
+    "rewire": false
+   },
+   "sleep": {
+    "committed": false,
+    "old_before": 1.916520530116869,
+    "old_after": 1.938887304196281,
+    "new_before": 2.1554543846810756,
+    "new_after": 1.5322392545996935
+   },
+   "test_sleep_reset": 2.350935677969326,
+   "old_sleep": 1.7557433200762138,
+   "alloc_log": []
+  },
+  "sequential": {
+   "old_before": 1.5885973491891119,
+   "chat_before": 1.8742124651582337,
+   "old_after": 1.6122618394016173,
+   "chat_after": 1.7804236158414666,
+   "old_rise": 0.023664490212505385,
+   "chat_drop": 0.09378884931676712
+  }
+ },
+ "plastic": {
+  "new_word": {
+   "learner": {
+    "lr": 0.001,
+    "replay": 0.25,
+    "freeze_enc": true
+   },
+   "day_bytes": 32768,
+   "test_before": 2.885750836110119,
+   "old_before": 1.5885973491891119,
+   "old_after_day": 1.8123034925952897,
+   "test_online": 2.716812322638998,
+   "test_reset": 2.740574600084028,
+   "old_online": 1.9946638018895337,
+   "sleep_args": {
+    "dream": 2.0,
+    "rewire": false
+   },
+   "sleep": {
+    "committed": false,
+    "old_before": 2.1565773414096894,
+    "old_after": 2.2230276603020127,
+    "new_before": 2.6600172664958217,
+    "new_after": 1.9555146332157127
+   },
+   "test_sleep_reset": 2.740574600084028,
+   "old_sleep": 1.9946638018895337,
+   "alloc_log": []
+  },
+  "sequential": {
+   "old_before": 1.5885973491891119,
+   "chat_before": 1.8742124651582337,
+   "old_after": 2.5462195962169347,
+   "chat_after": 2.312707832783061,
+   "old_rise": 0.9576222470278228,
+   "chat_drop": -0.4384953676248271
+  }
+ }
+}

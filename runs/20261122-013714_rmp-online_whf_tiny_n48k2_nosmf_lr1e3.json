@@ -1,0 +1,66 @@
+{
+ "tag": "_whf_tiny_n48k2",
+ "size": "S",
+ "extra": {
+  "net": "wave",
+  "k": 2,
+  "G": 4,
+  "D": 32,
+  "pd": 32,
+  "pm": 8,
+  "phidden": 64,
+  "N": 48,
+  "init": "spread",
+  "rule": "ctx",
+  "ctx_decay": 0.97,
+  "wave_query": true,
+  "bottleneck": true
+ },
+ "sleep": {
+  "dream": 2.0,
+  "rewire": false
+ },
+ "learner": {
+  "lr": 0.001,
+  "replay": 0.25,
+  "freeze_enc": true
+ },
+ "frozen": {
+  "new_word": {
+   "learner": {
+    "lr": 0.001,
+    "replay": 0.25,
+    "freeze_enc": true
+   },
+   "day_bytes": 32768,
+   "test_before": 2.7209965083486782,
+   "old_before": 1.385156698584894,
+   "old_after_day": 1.3855492427067564,
+   "test_online": 2.6294302383035304,
+   "test_reset": 2.6897264858233623,
+   "old_online": 1.3861124621593461,
+   "sleep_args": {
+    "dream": 2.0,
+    "rewire": false
+   },
+   "sleep": {
+    "committed": false,
+    "old_before": 1.3883253184130393,
+    "old_after": 1.4157587245755412,
+    "new_before": 2.2515233335739837,
+    "new_after": 1.3044446929897888
+   },
+   "test_sleep_reset": 2.6897264858233623,
+   "old_sleep": 1.3861124621593461,
+   "alloc_log": []
+  },
+  "sequential": {
+   "old_before": 1.385156698584894,
+   "chat_before": 2.937754685997407,
+   "old_after": 1.5652309454388196,
+   "chat_after": 2.618033640557817,
+   "old_rise": 0.1800742468539256,
+   "chat_drop": 0.3197210454395898
+  }
+ }
+}

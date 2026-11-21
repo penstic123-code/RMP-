@@ -1,0 +1,100 @@
+{
+ "tag": "_whf_f1",
+ "size": "S",
+ "extra": {
+  "net": "wave",
+  "k": 4,
+  "G": 4,
+  "D": 32,
+  "pd": 32,
+  "pm": 8,
+  "phidden": 64,
+  "N": 24,
+  "init": "spread"
+ },
+ "sleep": {
+  "dream": 2.0,
+  "rewire": false
+ },
+ "learner": {
+  "lr": 0.001,
+  "replay": 0.25,
+  "freeze_enc": true
+ },
+ "frozen": {
+  "new_word": {
+   "learner": {
+    "lr": 0.001,
+    "replay": 0.25,
+    "freeze_enc": true
+   },
+   "day_bytes": 32768,
+   "test_before": 2.6010447575013718,
+   "old_before": 1.1793371029814015,
+   "old_after_day": 1.1812807073515872,
+   "test_online": 2.030968343894797,
+   "test_reset": 2.076071245090925,
+   "old_online": 1.2097659410687944,
+   "sleep_args": {
+    "dream": 2.0,
+    "rewire": false
+   },
+   "sleep": {
+    "committed": false,
+    "old_before": 1.18623963090571,
+    "old_after": 1.2195666215567031,
+    "new_before": 1.518936670120123,
+    "new_after": 1.0336551272149932
+   },
+   "test_sleep_reset": 2.076071245090925,
+   "old_sleep": 1.2097659410687944,
+   "alloc_log": []
+  },
+  "sequential": {
+   "old_before": 1.1793371029814015,
+   "chat_before": 2.9690556783040347,
+   "old_after": 1.4482782137656462,
+   "chat_after": 2.0686734505841757,
+   "old_rise": 0.26894111078424476,
+   "chat_drop": 0.900382227719859
+  }
+ },
+ "plastic": {
+  "new_word": {
+   "learner": {
+    "lr": 0.001,
+    "replay": 0.25,
+    "freeze_enc": true
+   },
+   "day_bytes": 32768,
+   "test_before": 2.6010447575013718,
+   "old_before": 1.1793371029814015,
+   "old_after_day": 1.2851057649865856,
+   "test_online": 1.9995637423047026,
+   "test_reset": 2.0437490587352722,
+   "old_online": 1.394446448944656,
+   "sleep_args": {
+    "dream": 2.0,
+    "rewire": false
+   },
+   "sleep": {
+    "committed": true,
+    "old_before": 1.3783368483478042,
+    "old_after": 1.2802027969902203,
+    "new_before": 1.4956378963106922,
+    "new_after": 1.1603104929323738
+   },
+   "test_sleep_reset": 1.914113333609549,
+   "old_sleep": 1.308910084359932,
+   "alloc_log": []
+  },
+  "sequential": {
+   "old_before": 1.1793371029814015,
+   "chat_before": 2.9690556783040347,
+   "old_after": 1.9501139226763808,
+   "chat_after": 2.3149199945092933,
+   "old_rise": 0.7707768196949794,
+   "chat_drop": 0.6541356837947414
+  }
+ }
+}

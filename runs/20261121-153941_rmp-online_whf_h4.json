@@ -1,0 +1,103 @@
+{
+ "tag": "_whf_h4",
+ "size": "S",
+ "extra": {
+  "net": "wave",
+  "k": 4,
+  "G": 4,
+  "D": 32,
+  "pd": 32,
+  "pm": 8,
+  "phidden": 64,
+  "N": 24,
+  "init": "spread",
+  "bottleneck": true,
+  "read_last": true,
+  "wave_query": true
+ },
+ "sleep": {
+  "dream": 2.0,
+  "rewire": false
+ },
+ "learner": {
+  "lr": 0.001,
+  "replay": 0.25,
+  "freeze_enc": true
+ },
+ "frozen": {
+  "new_word": {
+   "learner": {
+    "lr": 0.001,
+    "replay": 0.25,
+    "freeze_enc": true
+   },
+   "day_bytes": 32768,
+   "test_before": 2.865306416307727,
+   "old_before": 1.2610430860934199,
+   "old_after_day": 1.266401664663433,
+   "test_online": 2.1189090662763945,
+   "test_reset": 2.110614798606797,
+   "old_online": 1.335254562707581,
+   "sleep_args": {
+    "dream": 2.0,
+    "rewire": false
+   },
+   "sleep": {
+    "committed": false,
+    "old_before": 1.2811090936378062,
+    "old_after": 1.3062195352601367,
+    "new_before": 1.6327565834001259,
+    "new_after": 1.2769639929223278
+   },
+   "test_sleep_reset": 2.110614798606797,
+   "old_sleep": 1.335254562707581,
+   "alloc_log": []
+  },
+  "sequential": {
+   "old_before": 1.2610430860934199,
+   "chat_before": 3.2535788570616564,
+   "old_after": 1.5794792471744983,
+   "chat_after": 2.0740510916356136,
+   "old_rise": 0.3184361610810784,
+   "chat_drop": 1.1795277654260428
+  }
+ },
+ "plastic": {
+  "new_word": {
+   "learner": {
+    "lr": 0.001,
+    "replay": 0.25,
+    "freeze_enc": true
+   },
+   "day_bytes": 32768,
+   "test_before": 2.865306416307727,
+   "old_before": 1.2610430860934199,
+   "old_after_day": 1.3972218139961672,
+   "test_online": 2.072709669144616,
+   "test_reset": 2.1119103441159597,
+   "old_online": 1.5907045920067233,
+   "sleep_args": {
+    "dream": 2.0,
+    "rewire": false
+   },
+   "sleep": {
+    "committed": true,
+    "old_before": 1.5262540991180242,
+    "old_after": 1.407534152938493,
+    "new_before": 1.6422327969742032,
+    "new_after": 1.3626684429770575
+   },
+   "test_sleep_reset": 2.1100880055363604,
+   "old_sleep": 1.42296538874154,
+   "alloc_log": []
+  },
+  "sequential": {
+   "old_before": 1.2610430860934199,
+   "chat_before": 3.2535788570616564,
+   "old_after": 2.0652189160908323,
+   "chat_after": 2.2521342338131305,
+   "old_rise": 0.8041758299974124,
+   "chat_drop": 1.001444623248526
+  }
+ }
+}

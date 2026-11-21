@@ -65,3 +65,41 @@ def test_pool_capacity_and_priority():
         L2._add(seg(i), p)
     L2._add(seg(9), 2.0)                                           # 最低分有两个：换掉较旧的（序号 1）
     assert sorted((t[0], t[1]) for t in L2.pool) == [(1.0, 2), (2.0, 4), (3.0, 3)]
+
+
+def test_wavenet_online_freeze_enc_and_rewire_false():
+    """带池模型：freeze_enc=True 时编码层 lora 不动；sleep(rewire=False) 时 Wr 不动；allocate 触发前不抹零梯度。"""
+    import dspn_text as D
+    torch.manual_seed(0)
+    m = D.build('dspn', 'S', net='wave', N=8, k=2, G=2, D=8, pd=8, pm=4, phidden=16, init='spread')
+    with torch.no_grad():
+        m.readout.weight.normal_(0, 0.2)
+        m.layers[0].W2.normal_(0, 0.2)
+        m.layers[1].core.W2.normal_(0, 0.2)
+    enc0_a = m.layers[0].lora_a.clone()
+    enc0_b = m.layers[0].lora_b.clone()
+    pool0_b = m.layers[1].core.lora_b.clone()
+    wr0 = m.layers[1].Wr.clone()
+    L = OnlineLearner(m, lr=1e-2, chunk=32, allocate=1, warm_chunks=99, freeze_enc=True)
+    L.read(TEXT[:128])
+    assert torch.equal(m.layers[0].lora_a, enc0_a) and torch.equal(m.layers[0].lora_b, enc0_b)
+    assert not torch.equal(m.layers[1].core.lora_b, pool0_b)   # 触发分配前池内模块应正常学习，不被清零
+    L.sleep(TEXT[:128], TEXT[128:256], steps=3, old_tol=1.0, rewire=False)
+    assert torch.equal(m.layers[1].Wr, wr0)
+
+
+def test_smf_relative_background_mask():
+    """SMF：开启 smf_k 后，每次只更新不超过 smf_k 个模块的低秩偏移。"""
+    import dspn_text as D
+    torch.manual_seed(0)
+    m = D.build('dspn', 'S', net='wave', N=8, k=2, G=2, D=8, pd=8, pm=4, phidden=16, init='spread')
+    with torch.no_grad():
+        m.readout.weight.normal_(0, 0.2)
+        m.layers[0].W2.normal_(0, 0.2)
+        m.layers[1].core.W2.normal_(0, 0.2)
+    b0 = m.layers[1].core.lora_b.clone()
+    L = OnlineLearner(m, lr=1e-2, chunk=32, freeze_enc=True, smf_k=2, bg_bytes=TEXT[:128])
+    assert L.bg_freq is not None and L.bg_freq.shape == (8,)
+    L.read(TEXT[128:160])                                          # 单块读：最多只有 smf_k=2 个模块被更新
+    changed = (m.layers[1].core.lora_b != b0).any(dim=(1, 2)).sum().item()
+    assert 1 <= changed <= 2

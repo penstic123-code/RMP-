@@ -1,0 +1,140 @@
+{
+ "name": "dspn-S_whf_t3_wide",
+ "kind": "dspn",
+ "size": "S",
+ "extra": {
+  "net": "wave",
+  "k": 4,
+  "G": 4,
+  "D": 48,
+  "pd": 64,
+  "pm": 8,
+  "phidden": 96,
+  "N": 24,
+  "init": "spread",
+  "rule": "ctx",
+  "ctx_decay": 0.97,
+  "wave_query": true,
+  "bottleneck": true,
+  "read_last": true
+ },
+ "params": 691264,
+ "data": "task4",
+ "device": "cuda",
+ "batch": 64,
+ "T": 256,
+ "iters": 3000,
+ "lr": 0.003,
+ "seed": 0,
+ "stateful": true,
+ "bot_loss": false,
+ "sched": "wsd",
+ "bf16": true,
+ "compile": false,
+ "init": null,
+ "resume": null,
+ "skip": 0,
+ "code_sha": "1f476f300035",
+ "seconds": 841,
+ "train_bytes_per_sec": 58702,
+ "peak_gpu_mb": 5371,
+ "val_bpc_stream": 1.8161,
+ "log": [
+  [
+   500,
+   162,
+   2.987,
+   2.882,
+   [
+    4,
+    0.0,
+    [
+     6,
+     6,
+     6,
+     6
+    ]
+   ]
+  ],
+  [
+   1000,
+   296,
+   2.497,
+   2.323,
+   [
+    4,
+    0.0,
+    [
+     6,
+     6,
+     6,
+     6
+    ]
+   ]
+  ],
+  [
+   1500,
+   431,
+   2.22,
+   2.077,
+   [
+    4,
+    0.0,
+    [
+     6,
+     6,
+     6,
+     6
+    ]
+   ]
+  ],
+  [
+   2000,
+   567,
+   2.043,
+   1.957,
+   [
+    4,
+    0.0,
+    [
+     6,
+     6,
+     6,
+     6
+    ]
+   ]
+  ],
+  [
+   2500,
+   704,
+   1.865,
+   1.87,
+   [
+    4,
+    0.0,
+    [
+     6,
+     6,
+     6,
+     6
+    ]
+   ]
+  ],
+  [
+   3000,
+   841,
+   1.926,
+   1.766,
+   [
+    4,
+    0.0,
+    [
+     6,
+     6,
+     6,
+     6
+    ]
+   ]
+  ]
+ ]
+}

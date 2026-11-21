@@ -1,0 +1,110 @@
+{
+ "tag": "_whf_h2",
+ "random": false,
+ "waves": [
+  {
+   "wave": 0,
+   "modules": 6,
+   "byte_sel": 0.1751,
+   "ctx_sel_given_byte": 0.1257,
+   "src_sel": 0.0,
+   "load_entropy": 1.0
+  },
+  {
+   "wave": 1,
+   "modules": 6,
+   "byte_sel": 0.1451,
+   "ctx_sel_given_byte": 0.1023,
+   "src_sel": 0.0,
+   "load_entropy": 1.0
+  },
+  {
+   "wave": 2,
+   "modules": 6,
+   "byte_sel": 0.1719,
+   "ctx_sel_given_byte": 0.0908,
+   "src_sel": 0.0,
+   "load_entropy": 1.0
+  },
+  {
+   "wave": 3,
+   "modules": 6,
+   "byte_sel": 0.1781,
+   "ctx_sel_given_byte": 0.1212,
+   "src_sel": 0.0,
+   "load_entropy": 1.0
+  }
+ ],
+ "byte_sel": 0.16750000417232513,
+ "ctx_sel_given_byte": 0.11,
+ "load_entropy": 1.0,
+ "src_sel": null,
+ "ablation": [
+  {
+   "module": 22,
+   "wave": 3,
+   "max_class": 1,
+   "max_rise": 2.0133,
+   "others_mean": 0.5031,
+   "specific": true
+  },
+  {
+   "module": 19,
+   "wave": 3,
+   "max_class": 4,
+   "max_rise": 16.7856,
+   "others_mean": 2.0667,
+   "specific": true
+  },
+  {
+   "module": 15,
+   "wave": 2,
+   "max_class": 1,
+   "max_rise": 0.6836,
+   "others_mean": 0.2135,
+   "specific": true
+  },
+  {
+   "module": 0,
+   "wave": 0,
+   "max_class": 4,
+   "max_rise": 0.2656,
+   "others_mean": 0.1166,
+   "specific": true
+  },
+  {
+   "module": 11,
+   "wave": 1,
+   "max_class": 1,
+   "max_rise": 0.1965,
+   "others_mean": 0.0927,
+   "specific": true
+  },
+  {
+   "module": 16,
+   "wave": 2,
+   "max_class": 6,
+   "max_rise": 0.2821,
+   "others_mean": 0.0884,
+   "specific": true
+  },
+  {
+   "module": 6,
+   "wave": 1,
+   "max_class": 6,
+   "max_rise": 0.449,
+   "others_mean": 0.0471,
+   "specific": true
+  },
+  {
+   "module": 1,
+   "wave": 0,
+   "max_class": 1,
+   "max_rise": 0.3367,
+   "others_mean": 0.1453,
+   "specific": true
+  }
+ ],
+ "n_specific": 8,
+ "val_bpc": 1.2083
+}

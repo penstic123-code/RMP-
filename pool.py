@@ -116,10 +116,12 @@ class WavePool(nn.Module):
     深度生长（grow_every=P > 0）：每 P 个训练步，模块可移到相邻波（最多移到当前最深波之后一波），条件是那一波的平均查询
     与它地址的平均余弦比本波高出 margin；每次最多移 N/8 个，移出后本波至少留 k 个。init='flat' 全在第 0 波，'spread' 均分到 G 波。"""
     def __init__(self, N, k, G, D, d, m, hidden, qr=32, beta_max=1.0, temp=0.1, eta_a=0.01, eta_b=1e-3,
-                 init='flat', grow_every=0, margin=0.02, spare=0, rule='addr', grow_until=0, ctx_decay=0.97, tau_prior=0.0):
+                 init='flat', grow_every=0, margin=0.02, spare=0, rule='addr', grow_until=0, ctx_decay=0.97, tau_prior=0.0,
+                 bottleneck=False, wave_query=False):
         super().__init__()
         self.N, self.k, self.G, self.temp, self.eta_a, self.eta_b = N, k, G, temp, eta_a, eta_b
         self.grow_every, self.margin = grow_every, margin
+        self.bottleneck, self.wave_query = bottleneck, wave_query
         # 连接规则（第 23.8 节 T1）：'addr' 学到的地址（余弦）；'hash' 按当前字节固定哈希（不学，混合权重均匀）；'gate' 线性门 W_g（常规 MoE）
         # grow_until > 0：训练步数超过它就不再移波（衰减段让结构先定下来）
         # 'ctx' 按上下文路由：查询取残差流起点的慢滑动平均（衰减 ctx_decay，约 1/(1−a) 拍），当前字节只占 1−a，模块按语境而非字节分工
@@ -129,7 +131,10 @@ class WavePool(nn.Module):
         if rule == 'gate':
             self.Wg = nn.Parameter(torch.randn(D, N) / math.sqrt(D))
         self.core = Layer(N, D, d, m, hidden, D, beta_max=beta_max)
-        self.Wr = nn.Parameter(torch.randn(D, qr) / math.sqrt(D))
+        if wave_query:
+            self.Wr = nn.Parameter(torch.randn(G, D, qr) / math.sqrt(D))
+        else:
+            self.Wr = nn.Parameter(torch.randn(D, qr) / math.sqrt(D))
         self.ogain = nn.Parameter(torch.ones(N))                  # 各模块输出增益：在线启用的新模块从 0 起（新生神经元先不发声）
         self.register_buffer('addr', F.normalize(torch.randn(N, qr), dim=-1))
         self.register_buffer('bias', torch.zeros(N))
@@ -157,7 +162,7 @@ class WavePool(nn.Module):
 
     def init_state(self, b, device):
         st = self.core.init_state(b, device)
-        return (*st, torch.zeros(b, self.Wr.shape[0], device=device)) if self.rule == 'ctx' else st
+        return (*st, torch.zeros(b, self.Wr.shape[-2], device=device)) if self.rule == 'ctx' else st
 
     def forward(self, x, state, reset=None, idx=None):
         """x: (b, T, D) 残差流起点；idx: (b, T) 当前字节（hash 规则用）。返回各波混合 h 的列表（每个 (b, T, d)）、最终残差流、新状态。"""
@@ -171,11 +176,16 @@ class WavePool(nn.Module):
             self.moved.zero_()
         if self.rule == 'ctx':
             xq, ec = ema_scan(F.rms_norm(x, (D,)), ec, self.ctx_decay, reset)
-            rq = F.normalize(xq.to(x.dtype) @ self.Wr, dim=-1)                 # 各波共用的语境查询
+            if not self.wave_query:
+                rq = F.normalize(xq.to(x.dtype) @ self.Wr, dim=-1)             # 各波共用的语境查询
         addr = self.addr.clone()
         hs, cnt_all, sum_r, aff_new = [], [], [], []
         for w in range(self.G):
-            r = rq if self.rule == 'ctx' else F.normalize(F.rms_norm(x, (D,)) @ self.Wr, dim=-1)
+            Wr_w = self.Wr[w] if self.wave_query else self.Wr
+            if self.rule == 'ctx':
+                r = F.normalize(xq.to(x.dtype) @ Wr_w, dim=-1) if self.wave_query else rq
+            else:
+                r = F.normalize(F.rms_norm(x, (D,)) @ Wr_w, dim=-1)
             cos = (r @ addr.t().to(r.dtype)).float()                          # (b, T, N)
             if self.rule == 'gate':
                 cos = torch.tanh((F.rms_norm(x, (D,)) @ self.Wg).float())
@@ -192,7 +202,9 @@ class WavePool(nn.Module):
             rw = None if reset is None else reset[..., None] & (self.wave == w)   # 只重置本波模块：每个模块在自己的波里清一次，别的波不再清它的末状态
             h, z, state = self.core(x[:, :, None].expand(b, T, self.N, D), state, rw, sel)
             hw = (wt * self.ogain.float()).to(h.dtype)[..., None]
-            hs.append((hw * h).sum(2)); x = x + (hw * z).sum(2)
+            out_z = (hw * z).sum(2)
+            hs.append((hw * h).sum(2))
+            x = out_z if self.bottleneck else (x + out_z)
             if learn:
                 with torch.no_grad():
                     rd = r.detach().float()
@@ -257,19 +269,20 @@ class WaveNet(nn.Module):
     读出拼接编码层 h 与各波混合 h（空波为 0），同现行 DSPN 的读出。
     R3（fb=W > 0）：序列按 W 拍分块依次算；每块开头把上一块最后一拍的各波 h 经零初始投影加到残差流起点（按块延迟的自上而下反馈）。"""
     def __init__(self, M=2, d=90, m=16, hidden=180, q=16, emb=32, vocab=256, beta_max=1.0,
-                 N=48, k=4, G=0, D=32, pd=64, pm=16, phidden=128, qr=32, temp=0.1, init='flat', grow_every=0, margin=0.02, fb=0, spare=0, rule='addr', grow_until=0, ctx_decay=0.97, tau_prior=0.0, pred_w=0.0, **_):
+                 N=48, k=4, G=0, D=32, pd=64, pm=16, phidden=128, qr=32, temp=0.1, init='flat', grow_every=0, margin=0.02, fb=0, spare=0, rule='addr', grow_until=0, ctx_decay=0.97, tau_prior=0.0, pred_w=0.0,
+                 bottleneck=False, read_last=False, wave_query=False, **_):
         super().__init__()
-        self.M, self.fb, self.chunk, self.pool = M, fb, 0, N
+        self.M, self.fb, self.chunk, self.pool, self.read_last = M, fb, 0, N, read_last
         G = G or N // k                                    # 不另设深度上限：最多 N/k 波（每波至少要有 k 个可选），只受模块数限制
         self.emb = nn.Embedding(vocab, emb)
         enc = Layer(M, emb, d, m, hidden, q, beta_max=beta_max)
-        self.layers = nn.ModuleList([enc, WavePool(N, k, G, D, pd, pm, phidden, qr, beta_max, temp, init=init, grow_every=grow_every, margin=margin, spare=spare, rule=rule, grow_until=grow_until, ctx_decay=ctx_decay, tau_prior=tau_prior)])
+        self.layers = nn.ModuleList([enc, WavePool(N, k, G, D, pd, pm, phidden, qr, beta_max, temp, init=init, grow_every=grow_every, margin=margin, spare=spare, rule=rule, grow_until=grow_until, ctx_decay=ctx_decay, tau_prior=tau_prior, bottleneck=bottleneck, wave_query=wave_query)])
         # 分层预测（第 23 章 23.11）：第 w 波另有一个头，预测此后 2·4^w 个字节的分布（越深看得越远、越粗），权重 pred_w
         self.pred_w, self.pred_H = pred_w, [2 * 4 ** w for w in range(G)]
         if pred_w:
             self.pheads = nn.ModuleList([nn.Linear(pd, vocab) for _ in range(G)])
         self.win = nn.Linear(M * q, D)
-        n_read = M * d + G * pd
+        n_read = pd if read_last else (M * d + G * pd)
         if fb:
             self.fbp = nn.Linear(G * pd, D); nn.init.zeros_(self.fbp.weight); nn.init.zeros_(self.fbp.bias)
         self.norm = nn.LayerNorm(n_read)
@@ -320,5 +333,6 @@ class WaveNet(nn.Module):
             hcat, new = torch.cat(outs, 1), [s0, s1, fbv]
         if self.pred_w and self.training:
             self.aux = self.pred_w * self._pred_loss(hcat[..., self.M * self.layers[0].d:], idx)
-        y = self.readout(self.norm(hcat))
+        feat = hcat[..., -self.layers[1].core.d:] if self.read_last else hcat
+        y = self.readout(self.norm(feat))
         return y @ self.emb.weight.t().to(y.dtype) + self.bias, new

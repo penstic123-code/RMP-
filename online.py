@@ -82,12 +82,17 @@ def bpc(model, text_bytes, chunk=256):
 
 class OnlineLearner:
     def __init__(self, model, lr=1e-3, chunk=64, pool_bytes=65536, priority=True, seed=0,
-                 params='lora', replay=0.0, wd=0.0, allocate=0, novel_ratio=1.25, warm_chunks=16, top_pos=4, spare_bias=-0.2, alloc_mode='new'):
+                 params='lora', replay=0.0, wd=0.0, allocate=0, novel_ratio=1.25, warm_chunks=16, top_pos=4, spare_bias=-0.2, alloc_mode='new',
+                 freeze_enc=False, spare_ogain=0.2, smf_k=0, smf_eps=1e-2, bg_bytes=None):
         """params='lora'（默认）：只更新低秩偏移，不碰共享读出（E29：改读出是遗忘主因）；'all' 连读出一起改；replay：每次更新混入池中片段的损失权重；
-        wd：低秩偏移向 0 的权重衰减（MIRAS 式保留正则，连续版睡眠下调），读出不衰减。"""
+        wd：低秩偏移向 0 的权重衰减（MIRAS 式保留正则，连续版睡眠下调），读出不衰减。
+        freeze_enc=True：带池模型在线时冻结编码层，避免编码特征漂移破坏固定路由；spare_ogain：新启用空闲模块的初始增益（>0 以免截断梯度）。
+        smf_k>0：SMF 式相对背景选模块，每块只更新 cur_freq/(bg_freq+smf_eps) 最高的 smf_k 个模块。"""
         self.model, self.chunk, self.lr = model, chunk, lr
         self.pool_bytes, self.priority = pool_bytes, priority
         self.replay, self.wd = replay, wd
+        self.freeze_enc, self.spare_ogain = freeze_enc, spare_ogain
+        self.smf_k, self.smf_eps, self.bg_freq = smf_k, smf_eps, None
         self.rng = np.random.default_rng(seed)
         self.pool = []                      # [(优先级, 序号, 字节序列)]
         self.pool_size, self.count = 0, 0
@@ -96,10 +101,12 @@ class OnlineLearner:
             p.requires_grad_(False)
         self.eprop = params == 'eprop'
         assert not (self.eprop and replay), 'e-prop 的资格迹按单条流延续，不混重放批'
+        pools = _pools(model)
+        cores = [l.core for l in pools] if (freeze_enc and pools) else _cores(model)
         if self.eprop:
-            low = [p for l in _cores(model) for p in (l.B, l.G, l.b_a)]
+            low = [p for l in cores for p in (l.B, l.G, l.b_a)]
         else:
-            low = [p for l in _cores(model) for p in (l.lora_a, l.lora_b)]
+            low = [p for l in cores for p in (l.lora_a, l.lora_b)]
         shared = list(model.readout.parameters()) + [model.bias]
         if params in ('lora', 'eprop'):
             shared = []
@@ -114,7 +121,6 @@ class OnlineLearner:
         self.top_pos, self.spare_bias, self.alloc_mode = top_pos, spare_bias, alloc_mode   # alloc_mode='split'：GNG 式分裂（复制父模块）
         self.loss_ema, self.n_chunks, self.allocated, self.alloc_log = None, 0, None, []
         # 第二版：池里有空闲模块（active = 0）时，启用它们而不是改旧模块的地址；新模块的全部参数在线可训（新生神经元），其余不动
-        pools = _pools(model)
         self.spare_mode = bool(allocate and pools and (pools[0].active == 0).any())
         if self.spare_mode:
             grow = [p for n, p in pools[0].core.named_parameters() if 'lora' not in n] + [pools[0].ogain]
@@ -123,6 +129,53 @@ class OnlineLearner:
             self.groups.append({'params': grow, 'weight_decay': 0.0}); self.online += grow
             self.opt = torch.optim.AdamW(self.groups, lr=lr)
         self.reset_session()
+        if bg_bytes is not None and smf_k > 0:
+            self.profile_bg(bg_bytes)
+
+    @torch.no_grad()
+    def profile_bg(self, bg_bytes, chunk=256):
+        """统计池内各模块在背景旧语料上的平均选中频率，供 SMF 相对背景选模块使用。"""
+        pools = _pools(self.model)
+        if not pools:
+            return
+        pool = pools[0]
+        ids = _ids(bg_bytes, _device(self.model))
+        cnt = torch.zeros(pool.N, device=pool.addr.device)
+        tot, st = 0, None
+        was_train = self.model.training
+        self.model.eval()
+        for i in range(0, len(ids) - 1, chunk):
+            seg = ids[i:i + chunk]
+            if len(seg) < 2:
+                continue
+            pool.capture = []
+            _, st = self.model(seg[None, :-1], st)
+            caps, pool.capture = pool.capture, None
+            for _, sel, _, _ in caps:
+                cnt += sel.sum((0, 1))
+            tot += len(seg) - 1
+        if was_train:
+            self.model.train()
+        self.bg_freq = cnt / max(tot, 1)
+
+    def _mask_smf_grads(self, caps):
+        """SMF：只保留相对背景活跃度 (cur_freq / (bg_freq + eps)) 最高的 smf_k 个模块的池内梯度。"""
+        pools = _pools(self.model)
+        if not pools or self.bg_freq is None or self.smf_k <= 0:
+            return
+        pool = pools[0]
+        cur = torch.zeros(pool.N, device=pool.addr.device)
+        ticks = caps[0][1].shape[0] * caps[0][1].shape[1] if caps else 1
+        for _, sel, _, _ in caps:
+            cur += sel.sum((0, 1))
+        cur = cur / max(ticks, 1)
+        score = (cur / (self.bg_freq + self.smf_eps)).masked_fill(pool.active == 0, -1e9)
+        top = score.topk(min(self.smf_k, pool.N)).indices
+        keep = torch.zeros(pool.N, device=pool.addr.device)
+        keep[top] = 1.0
+        for p in (pool.core.lora_a, pool.core.lora_b):
+            if p.grad is not None:
+                p.grad *= keep.view(-1, 1, 1)
 
     def _alloc_step(self, caps, loss, tok=None):
         """读完一段后：判断新奇，必要时分配地址（只分配一次）。tok：本段逐字节损失（第二版取最惊讶的几个位置的查询作新地址）。"""
@@ -153,7 +206,7 @@ class OnlineLearner:
                         pool.active[mods] = 1
                         chosen += mods.tolist(); continue
                     pool.addr[mods] = rq
-                    pool.active[mods] = 1; pool.bias[mods] = self.spare_bias; pool.ogain[mods] = 0.0
+                    pool.active[mods] = 1; pool.bias[mods] = self.spare_bias; pool.ogain[mods] = self.spare_ogain
                     chosen += mods.tolist(); continue
                 mods = (pool.wave == w).nonzero()[:, 0]
                 if len(mods) == 0:
@@ -165,11 +218,12 @@ class OnlineLearner:
         self.alloc_log.append({'chunk': self.n_chunks, 'loss': loss, 'ema': self.loss_ema, 'modules': chosen})
 
     def _mask_alloc_grads(self):
-        """分配后：只留被分配模块的低秩偏移梯度。"""
+        """分配后：只留被分配模块的低秩偏移梯度；触发分配前不做掩码，避免对照组制度不一致（E85）。"""
+        if self.allocated is None:
+            return
         pool = _pools(self.model)[0]
         keep = torch.zeros(pool.N, device=pool.addr.device)
-        if self.allocated is not None:
-            keep[self.allocated] = 1
+        keep[self.allocated] = 1
         for l in _cores(self.model):
             for p in (l.lora_a, l.lora_b):
                 if p.grad is not None:
@@ -236,12 +290,14 @@ class OnlineLearner:
                 for l in self.model.layers:
                     l.rec = []
             alloc = self.allocate and _pools(self.model)
-            if alloc:
+            smf = self.smf_k > 0 and self.bg_freq is not None and _pools(self.model)
+            if alloc or smf:
                 _pools(self.model)[0].capture = []
             lg, st = self.model(seq[None, :-1], self.state)
             loss = F.cross_entropy(lg[0], seq[1:])
-            if alloc:
+            if alloc or smf:
                 caps, _pools(self.model)[0].capture = _pools(self.model)[0].capture, None
+            if alloc:
                 pending = (caps, loss.item(), F.cross_entropy(lg[0], seq[1:], reduction='none').detach())
             tot += loss.item() * (len(seq) - 1); n += len(seq) - 1
             total = loss
@@ -263,6 +319,8 @@ class OnlineLearner:
                 total.backward()
             if self.allocate and _pools(self.model):
                 self._mask_alloc_grads()
+            if smf:
+                self._mask_smf_grads(caps)
             if gate > 0:
                 self.opt.step()
             if alloc:                                      # 分配放在更新之后：它原地改 ogain、地址等，反传前改会破坏计算图
@@ -319,8 +377,10 @@ class OnlineLearner:
         if dream and steps:                                # 梦从换行自由生成：只代表旧知识（E36：从池中片段续写会教模型忘掉新词）
             prompts = torch.full((n_dream, 1), 10, dtype=torch.long, device=_device(m))
             dreams = _dream(self.morning, prompts, self.chunk)
-        # 睡眠只训慢权重；低秩偏移刚清零，留给第二天。嵌入 / 读出不动：改读出是遗忘主因（E29）
-        slow = [p for k, p in m.named_parameters() if 'lora' not in k and not k.startswith(('emb.', 'readout.', 'bias', 'norm.'))]
+        # 睡眠只训慢权重；低秩偏移刚清零，留给第二天。嵌入 / 读出不动：改读出是遗忘主因（E29）；rewire=False 时同时冻结路由权重 Wr / Wg（E85）
+        skip = ('emb.', 'readout.', 'bias', 'norm.')
+        slow = [p for k, p in m.named_parameters()
+                if 'lora' not in k and not k.startswith(skip) and (rewire or not k.endswith(('.Wr', '.Wg')))]
         for p in slow:
             p.requires_grad_(True)
         opt = torch.optim.Adam(slow, lr=lr)

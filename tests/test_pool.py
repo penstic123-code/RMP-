@@ -184,3 +184,22 @@ def test_wavenet_reset_chunked_equals_whole():
             lg, _ = m(idx)
             a, st = m(idx[:, :9]); b, _ = m(idx[:, 9:], st)
         assert torch.allclose(lg, torch.cat([a, b], 1), atol=1e-4), rule
+
+
+def test_wavenet_bottleneck_read_last_and_wave_query():
+    """瓶颈 + 只读末波 + 分波独立查询：可正常前向/反传，且每波的 Wr 都能收到梯度。"""
+    for rule in ('addr', 'ctx'):
+        torch.manual_seed(0)
+        m = D.build('dspn', 'S', net='wave', N=8, k=2, G=2, D=8, pd=8, pm=4, phidden=16,
+                    init='spread', rule=rule, bottleneck=True, read_last=True, wave_query=True)
+        torch.nn.init.normal_(m.readout.weight, std=0.1)
+        m.eval(); idx = torch.randint(0, 256, (2, 24))
+        with torch.no_grad():
+            lg, _ = m(idx)
+            a, st = m(idx[:, :10]); b, _ = m(idx[:, 10:], st)
+        assert lg.shape == (2, 24, 256)
+        assert torch.allclose(lg, torch.cat([a, b], 1), atol=1e-4), rule
+        m.train(); lg, _ = m(idx); lg.sum().backward()
+        g = m.layers[1].Wr.grad
+        assert g is not None and g.shape[0] == 2
+        assert g[0].abs().sum() > 0 and g[1].abs().sum() > 0
