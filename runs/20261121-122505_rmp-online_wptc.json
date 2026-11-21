@@ -1,0 +1,100 @@
+{
+ "tag": "_wptc",
+ "size": "S",
+ "extra": {
+  "net": "wave",
+  "k": 4,
+  "G": 4,
+  "D": 32,
+  "pd": 32,
+  "pm": 8,
+  "phidden": 64,
+  "N": 24,
+  "init": "spread",
+  "pred_w": 0.1,
+  "tau_prior": 4.0,
+  "rule": "ctx"
+ },
+ "sleep": {
+  "dream": 2.0,
+  "rewire": false
+ },
+ "learner": {
+  "lr": 0.001,
+  "replay": 0.25
+ },
+ "frozen": {
+  "new_word": {
+   "learner": {
+    "lr": 0.001,
+    "replay": 0.25
+   },
+   "day_bytes": 32768,
+   "test_before": 2.5682659838359583,
+   "old_before": 1.256814096629972,
+   "old_after_day": 1.2604961283459375,
+   "test_online": 2.0266920648740734,
+   "test_reset": 2.0432202539283093,
+   "old_online": 1.3111673595503825,
+   "sleep_args": {
+    "dream": 2.0,
+    "rewire": false
+   },
+   "sleep": {
+    "committed": false,
+    "old_before": 1.3065163287537418,
+    "old_after": 1.3320802628332007,
+    "new_before": 1.5899060612920308,
+    "new_after": 0.9942450519328765
+   },
+   "test_sleep_reset": 2.0432202539283093,
+   "old_sleep": 1.3111673595503825,
+   "alloc_log": []
+  },
+  "sequential": {
+   "old_before": 1.256814096629972,
+   "chat_before": 2.8443428502021533,
+   "old_after": 1.5425837337401196,
+   "chat_after": 2.0328923558326224,
+   "old_rise": 0.2857696371101477,
+   "chat_drop": 0.8114504943695309
+  }
+ },
+ "plastic": {
+  "new_word": {
+   "learner": {
+    "lr": 0.001,
+    "replay": 0.25
+   },
+   "day_bytes": 32768,
+   "test_before": 2.5682659838359583,
+   "old_before": 1.256814096629972,
+   "old_after_day": 1.2779651346949428,
+   "test_online": 2.095868472148212,
+   "test_reset": 2.0945960582120033,
+   "old_online": 1.343976991902027,
+   "sleep_args": {
+    "dream": 2.0,
+    "rewire": false
+   },
+   "sleep": {
+    "committed": false,
+    "old_before": 1.3333918195001,
+    "old_after": 1.3621584627296428,
+    "new_before": 1.5768255303897432,
+    "new_after": 1.018514879978417
+   },
+   "test_sleep_reset": 2.0945960582120033,
+   "old_sleep": 1.343976991902027,
+   "alloc_log": []
+  },
+  "sequential": {
+   "old_before": 1.256814096629972,
+   "chat_before": 2.8443428502021533,
+   "old_after": 1.6660901099719234,
+   "chat_after": 2.075039760299971,
+   "old_rise": 0.4092760133419515,
+   "chat_drop": 0.7693030899021824
+  }
+ }
+}

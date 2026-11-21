@@ -1,0 +1,99 @@
+{
+ "tag": "_wctx9",
+ "size": "S",
+ "extra": {
+  "net": "wave",
+  "k": 4,
+  "G": 4,
+  "D": 32,
+  "pd": 32,
+  "pm": 8,
+  "phidden": 64,
+  "N": 24,
+  "init": "spread",
+  "rule": "ctx",
+  "ctx_decay": 0.9
+ },
+ "sleep": {
+  "dream": 2.0,
+  "rewire": false
+ },
+ "learner": {
+  "lr": 0.001,
+  "replay": 0.25
+ },
+ "frozen": {
+  "new_word": {
+   "learner": {
+    "lr": 0.001,
+    "replay": 0.25
+   },
+   "day_bytes": 32768,
+   "test_before": 2.4124323621386243,
+   "old_before": 1.1899544804491986,
+   "old_after_day": 1.199545865279561,
+   "test_online": 1.7604746705532173,
+   "test_reset": 1.8121301827678917,
+   "old_online": 1.2526835912781156,
+   "sleep_args": {
+    "dream": 2.0,
+    "rewire": false
+   },
+   "sleep": {
+    "committed": true,
+    "old_before": 1.208781127932096,
+    "old_after": 1.197205708498163,
+    "new_before": 1.3234014483910874,
+    "new_after": 0.9940428657470745
+   },
+   "test_sleep_reset": 1.715747847364426,
+   "old_sleep": 1.2677597616374343,
+   "alloc_log": []
+  },
+  "sequential": {
+   "old_before": 1.1899544804491986,
+   "chat_before": 2.9017476798754656,
+   "old_after": 1.4530920225266823,
+   "chat_after": 2.0248233891465133,
+   "old_rise": 0.26313754207748374,
+   "chat_drop": 0.8769242907289523
+  }
+ },
+ "plastic": {
+  "new_word": {
+   "learner": {
+    "lr": 0.001,
+    "replay": 0.25
+   },
+   "day_bytes": 32768,
+   "test_before": 2.4124323621386243,
+   "old_before": 1.1899544804491986,
+   "old_after_day": 1.2072464465554613,
+   "test_online": 1.7759547345669005,
+   "test_reset": 1.8373996693395391,
+   "old_online": 1.270250603295157,
+   "sleep_args": {
+    "dream": 2.0,
+    "rewire": false
+   },
+   "sleep": {
+    "committed": true,
+    "old_before": 1.2380296546189526,
+    "old_after": 1.216698087383802,
+    "new_before": 1.3427497865307243,
+    "new_after": 0.9918511376918926
+   },
+   "test_sleep_reset": 1.7087298083912676,
+   "old_sleep": 1.2755023760611803,
+   "alloc_log": []
+  },
+  "sequential": {
+   "old_before": 1.1899544804491986,
+   "chat_before": 2.9017476798754656,
+   "old_after": 1.564954383560821,
+   "chat_after": 2.0358419764778697,
+   "old_rise": 0.37499990311162246,
+   "chat_drop": 0.8659057033975959
+  }
+ }
+}

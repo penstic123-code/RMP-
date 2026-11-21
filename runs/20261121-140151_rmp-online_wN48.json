@@ -1,0 +1,97 @@
+{
+ "tag": "_wN48",
+ "size": "S",
+ "extra": {
+  "net": "wave",
+  "k": 4,
+  "G": 4,
+  "D": 32,
+  "pd": 32,
+  "pm": 8,
+  "phidden": 64,
+  "N": 48,
+  "init": "spread"
+ },
+ "sleep": {
+  "dream": 2.0,
+  "rewire": false
+ },
+ "learner": {
+  "lr": 0.001,
+  "replay": 0.25
+ },
+ "frozen": {
+  "new_word": {
+   "learner": {
+    "lr": 0.001,
+    "replay": 0.25
+   },
+   "day_bytes": 32768,
+   "test_before": 2.418211658328862,
+   "old_before": 1.1401564893695857,
+   "old_after_day": 1.1454183417048902,
+   "test_online": 1.8347310645722532,
+   "test_reset": 1.8647940237861986,
+   "old_online": 1.1857847212227328,
+   "sleep_args": {
+    "dream": 2.0,
+    "rewire": false
+   },
+   "sleep": {
+    "committed": false,
+    "old_before": 1.1603696655034188,
+    "old_after": 1.1970272861178313,
+    "new_before": 1.4022387168417307,
+    "new_after": 1.1112641828810472
+   },
+   "test_sleep_reset": 1.8647940237861986,
+   "old_sleep": 1.1857847212227328,
+   "alloc_log": []
+  },
+  "sequential": {
+   "old_before": 1.1401564893695857,
+   "chat_before": 3.04179401108436,
+   "old_after": 1.4441693082587883,
+   "chat_after": 1.9372541770291294,
+   "old_rise": 0.3040128188892026,
+   "chat_drop": 1.1045398340552306
+  }
+ },
+ "plastic": {
+  "new_word": {
+   "learner": {
+    "lr": 0.001,
+    "replay": 0.25
+   },
+   "day_bytes": 32768,
+   "test_before": 2.418211658328862,
+   "old_before": 1.1401564893695857,
+   "old_after_day": 1.2447419819657897,
+   "test_online": 1.8620820206829645,
+   "test_reset": 1.8915085650503576,
+   "old_online": 1.3461149034891053,
+   "sleep_args": {
+    "dream": 2.0,
+    "rewire": false
+   },
+   "sleep": {
+    "committed": true,
+    "old_before": 1.2981834196409858,
+    "old_after": 1.2745698719950982,
+    "new_before": 1.3838188067402315,
+    "new_after": 1.1144635601978965
+   },
+   "test_sleep_reset": 1.8162615976575245,
+   "old_sleep": 1.2963642729456892,
+   "alloc_log": []
+  },
+  "sequential": {
+   "old_before": 1.1401564893695857,
+   "chat_before": 3.04179401108436,
+   "old_after": 2.1572790789575733,
+   "chat_after": 2.360593130171618,
+   "old_rise": 1.0171225895879876,
+   "chat_drop": 0.6812008809127419
+  }
+ }
+}
