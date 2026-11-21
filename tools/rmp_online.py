@@ -12,6 +12,7 @@ import argparse, json, sys, time
 from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
+import numpy as np
 import torch
 import dspn_text as D
 import online as O
@@ -23,8 +24,10 @@ ap.add_argument('--modes', default='frozen,plastic'); ap.add_argument('--sleep',
 ap.add_argument('--no_seq', action='store_true', help='只跑生造词'); ap.add_argument('--name', default='')
 ap.add_argument('--learner', default='{}', help='OnlineLearner 额外参数 JSON，如 {"allocate": 1}')
 ap.add_argument('--bg_data', default='tiny', help='SMF 背景频率统计语料（取训练集尾部，与验证探针彻底隔离）')
-ap.add_argument('--old_data', default='tiny', help='顺序任务旧数据探针语料')
+ap.add_argument('--old_data', default='tiny', help='顺序任务旧数据探针语料（若有 .src 文件则按各来源分别建独立探针）')
 ap.add_argument('--seq_data', default='chat3', help='顺序任务新数据语料')
+ap.add_argument('--eval_every', type=int, default=16384, help='顺序任务每隔多少字节记录一次 chat_drop -> old_rise 同收益曲线（0=仅测结尾）')
+ap.add_argument('--no_seq_sleep', action='store_true', help='顺序任务跳过睡眠巩固评估')
 a = ap.parse_args()
 extra = json.loads(a.extra)
 LK = {'lr': 1e-3, 'replay': 0.25, **json.loads(a.learner)}
@@ -55,19 +58,78 @@ def unfreeze_router(m, L):
     L.opt = torch.optim.AdamW(L.groups, lr=L.lr)
 
 
+def _old_probes(data_name, probe_bytes=4096, sleep_bytes=2048):
+    """返回 ({来源名: 评估探针字节}, 睡眠验收探针字节)，二者完全不相交。
+    若数据集有 .src 文件（如 task4 / task3），每个旧来源独立取探针，避免前 4KB 只覆盖单一来源。"""
+    val = D.load_bytes(data_name)[1]
+    val_rel = D.DATASETS[data_name][1]
+    srcf = ROOT / val_rel.replace('.txt', '.src') if val_rel else None
+    if srcf is not None and srcf.exists():
+        src = np.fromfile(srcf, np.uint8)
+        probes, sleep_parts = {}, []
+        for s in np.unique(src):
+            idx = np.flatnonzero(src == s)
+            probes[f'src{int(s)}'] = bytes(val[idx[:probe_bytes]])
+            sl = idx[probe_bytes:probe_bytes + sleep_bytes]
+            if len(sl) >= 2:
+                sleep_parts.append(bytes(val[sl]))
+        return probes, b''.join(sleep_parts)
+    return {'all': bytes(val[:probe_bytes])}, bytes(val[probe_bytes:probe_bytes + sleep_bytes])
+
+
 def sequential(mode):
     m = load(mode)
-    val = D.load_bytes(a.old_data)[1]
-    old = bytes(val[:4096])
+    probes, sleep_old = _old_probes(a.old_data)
     ctr, cva = D.load_bytes(a.seq_data)
     new_probe = bytes(cva[:4096])
+    sleep_new = bytes(cva[4096:6144])
     L = O.OnlineLearner(m, **LK)
     if mode == 'plastic':
         unfreeze_router(m, L)
-    r = {'old_before': O.bpc(m, old), 'chat_before': O.bpc(m, new_probe)}
-    L.read(bytes(ctr[:a.seq_bytes])); L.reset_session()
-    r.update(old_after=O.bpc(m, old), chat_after=O.bpc(m, new_probe))
-    r['old_rise'] = r['old_after'] - r['old_before']; r['chat_drop'] = r['chat_before'] - r['chat_after']
+    old_before = {k: O.bpc(m, v) for k, v in probes.items()}
+    chat_before = O.bpc(m, new_probe)
+    curve = []
+    step_bytes = a.eval_every if a.eval_every > 0 else a.seq_bytes
+    for pos in range(0, a.seq_bytes, step_bytes):
+        end = min(pos + step_bytes, a.seq_bytes)
+        L.read(bytes(ctr[pos:end]))
+        L.reset_session()
+        ob = {k: O.bpc(m, v) for k, v in probes.items()}
+        cb = O.bpc(m, new_probe)
+        rises = {k: ob[k] - old_before[k] for k in probes}
+        curve.append({
+            'bytes': end, 'chat_bpc': cb, 'chat_drop': chat_before - cb,
+            'old_bpc': ob, 'old_rise': rises, 'worst_old_rise': max(rises.values()),
+            'mean_old_rise': sum(rises.values()) / len(rises),
+        })
+    last = curve[-1]
+    r = {
+        'old_before': sum(old_before.values()) / len(old_before),
+        'old_after': sum(last['old_bpc'].values()) / len(last['old_bpc']),
+        'old_rise': last['mean_old_rise'],
+        'worst_old_rise': last['worst_old_rise'],
+        'old_by_src_before': old_before,
+        'old_by_src_after': last['old_bpc'],
+        'old_rise_by_src': last['old_rise'],
+        'chat_before': chat_before,
+        'chat_after': last['chat_bpc'],
+        'chat_drop': last['chat_drop'],
+        'curve': curve,
+    }
+    if not a.no_seq_sleep:
+        r['sleep'] = L.sleep(sleep_old, sleep_new, **json.loads(a.sleep))
+        oslp = {k: O.bpc(m, v) for k, v in probes.items()}
+        cslp = O.bpc(m, new_probe)
+        srises = {k: oslp[k] - old_before[k] for k in probes}
+        r.update(
+            old_after_sleep=sum(oslp.values()) / len(oslp),
+            old_rise_sleep=sum(srises.values()) / len(srises),
+            worst_old_rise_sleep=max(srises.values()),
+            old_by_src_sleep=oslp,
+            old_rise_by_src_sleep=srises,
+            chat_after_sleep=cslp,
+            chat_drop_sleep=chat_before - cslp,
+        )
     return r
 
 
@@ -90,10 +152,12 @@ for mode in a.modes.split(','):
     torch.manual_seed(0)
     nw = new_word(mode); nw.pop('samples', None); nw['alloc_log'] = getattr(LAST.get('L'), 'alloc_log', None)
     out[mode] = {'new_word': nw, 'sequential': None if a.no_seq else sequential(mode)}
-    s, w = out[mode]['sequential'] or {'chat_drop': float('nan'), 'old_rise': float('nan')}, nw
+    s, w = out[mode]['sequential'] or {'chat_drop': float('nan'), 'old_rise': float('nan'), 'worst_old_rise': float('nan')}, nw
+    slp_str = (f" → 睡后降 {s['chat_drop_sleep']:.3f}/最差升 {s['worst_old_rise_sleep']:.3f}(提交 {s['sleep']['committed']})"
+               if 'sleep' in s else '')
     print(mode, f"生造词 测试 bpc 学前 {w['test_before']:.3f} → 在线 {w['test_online']:.3f} → 睡后 {w['test_sleep_reset']:.3f}；"
           f"旧数据 {w['old_before']:.3f} → 在线后 {w['old_online']:.3f} → 睡后 {w['old_sleep']:.3f}（提交 {w['sleep']['committed']}）；"
-          f"顺序任务 对话 bpc 降 {s['chat_drop']:.3f}，故事旧数据升 {s['old_rise']:.3f}", flush=True)
+          f"顺序任务 对话降 {s['chat_drop']:.3f}，旧数据均升 {s['old_rise']:.3f}/最差升 {s.get('worst_old_rise', s['old_rise']):.3f}{slp_str}", flush=True)
 p = ROOT / f'runs/{time.strftime("%Y%m%d-%H%M%S")}_rmp-online{a.tag}{a.name}.json'
 json.dump(out, open(p, 'w'), ensure_ascii=False, indent=1, default=lambda x: x.decode('utf-8', 'replace') if isinstance(x, (bytes, bytearray)) else float(x))
 print('→', p.name)

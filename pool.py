@@ -17,7 +17,10 @@ from dspn_text import Layer
 
 def ema_scan(x, e0, a, reset=None, C=64):
     """带重置的指数滑动平均 e_t = g_t·e_{t-1} + (1−a)·x_t，g_t = a（会话边界处 0）。按 C 拍分块：块内用衰减矩阵，块间传 e。
-    x: (b, T, D)；e0: (b, D)。返回 (b, T, D) 与最后一拍的 e。"""
+    a <= 0 时直通（无历史衰减，直接返回当前输入 x）。x: (b, T, D)；e0: (b, D)。返回 (b, T, D) 与最后一拍的 e。"""
+    if a <= 0.0:
+        xf = x.float()
+        return xf, xf[:, -1]
     b, T, D = x.shape
     lg = torch.full((b, T), math.log(a), device=x.device)
     if reset is not None:
@@ -375,7 +378,7 @@ class WaveNet(nn.Module):
         dev = self.emb.weight.device
         st = [l.init_state(b, dev) for l in self.layers]
         if self.fb:
-            st.append(torch.zeros(b, self.layers[1].G * self.layers[1].core.d, device=dev))
+            st.append((torch.zeros(b, self.layers[1].G * self.layers[1].core.d, device=dev), 0))
         return st
 
     def _seg(self, e, idx, st_enc, st_pool, fbv):
@@ -396,12 +399,24 @@ class WaveNet(nn.Module):
         if not self.fb:
             hcat, ns0, ns1, _ = self._seg(e, idx, state[0], state[1], None)
             new = [ns0, ns1]
-        else:                                                # 按块依次算：块内并行，块间传反馈
-            s0, s1, fbv, outs = state[0], state[1], state[2], []
-            for t0 in range(0, T, self.fb):
-                hc, s0, s1, last = self._seg(e[:, t0:t0 + self.fb], idx[:, t0:t0 + self.fb], s0, s1, fbv)
-                outs.append(hc); fbv = last.float()
-            hcat, new = torch.cat(outs, 1), [s0, s1, fbv]
+        else:                                                # 按块依次算：块内并行，块间传反馈；块内进度 fb_pos 存状态，任意切块结果一致
+            s0, s1, fb_st, outs = state[0], state[1], state[2], []
+            fbv, fb_pos = fb_st if isinstance(fb_st, tuple) else (fb_st, 0)
+            t0 = 0
+            while t0 < T:
+                step = min(self.fb - fb_pos, T - t0)
+                idx_c = idx[:, t0:t0 + step]
+                hc, s0, s1, last = self._seg(e[:, t0:t0 + step], idx_c, s0, s1, fbv)
+                outs.append(hc)
+                if (idx_c == 30).any():                      # 块内出现会话边界后，本块剩余未完部分不再延续旧会话反馈
+                    no_rst = (idx_c == 30).long().sum(1) == 0
+                    fbv = fbv * no_rst.to(fbv.dtype)[:, None]
+                fb_pos += step
+                if fb_pos == self.fb:
+                    fbv = last.float()
+                    fb_pos = 0
+                t0 += step
+            hcat, new = torch.cat(outs, 1), [s0, s1, (fbv, fb_pos)]
         if self.pred_w and self.training:
             self.aux = self.pred_w * self._pred_loss(hcat[..., self.M * self.layers[0].d:], idx)
         feat = hcat[..., -self.layers[1].core.d:] if self.read_last else hcat

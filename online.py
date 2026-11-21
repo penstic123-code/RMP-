@@ -130,6 +130,7 @@ class OnlineLearner:
         self.eprop = params == 'eprop'
         assert not (self.eprop and replay), 'e-prop 的资格迹按单条流延续，不混重放批'
         pools = _pools(model)
+        assert not (self.eprop and pools), 'e-prop 暂不支持路由模块池（WaveNet / PoolLayer 尚未接通逐波记录）'
         cores = [l.core for l in pools] if (freeze_enc and pools) else _cores(model)
         if self.eprop:
             low = [p for l in cores for p in (l.B, l.G, l.b_a)]
@@ -155,11 +156,15 @@ class OnlineLearner:
         # 第二版：池里有空闲模块（active = 0）时，启用它们而不是改旧模块的地址；新模块的全部参数在线可训（新生神经元），其余不动
         self.spare_mode = bool(allocate and pools and (pools[0].active == 0).any())
         if self.spare_mode:
-            grow = [p for n, p in pools[0].core.named_parameters() if 'lora' not in n] + [pools[0].ogain]
+            seen = {id(p) for p in self.online}
+            grow = [p for n, p in pools[0].core.named_parameters() if 'lora' not in n and id(p) not in seen]
+            if id(pools[0].ogain) not in seen:
+                grow.append(pools[0].ogain)
             for p in grow:
                 p.requires_grad_(True)
-            self.groups.append({'params': grow, 'weight_decay': 0.0}); self.online += grow
-            self.opt = torch.optim.AdamW(self.groups, lr=lr)
+            if grow:
+                self.groups.append({'params': grow, 'weight_decay': 0.0}); self.online += grow
+                self.opt = torch.optim.AdamW(self.groups, lr=lr)
         self.reset_session()
         if bg_bytes is not None and smf_k > 0:
             self.profile_bg(bg_bytes)
@@ -419,23 +424,25 @@ class OnlineLearner:
             prompts = torch.full((n_dream, 1), 10, dtype=torch.long, device=_device(m))
             dreams = _dream(self.morning, prompts, self.chunk)
         # 睡眠只训慢权重；低秩偏移刚清零，留给第二天。嵌入 / 读出不动：改读出是遗忘主因（E29）；
-        # rewire=False 时冻结路由权重 Wr / Wg；freeze_enc=True（带池）时同时冻结编码层 layers.0 与 win，避免输入分布漂移破坏固定路由。
+        # rewire=False 时冻结路由权重 Wr / Wg；freeze_enc=True（带池）时同时冻结编码层 layers.0、win 与 fbp，避免输入分布漂移破坏固定路由。
         pools = _pools(m)
         skip = ('emb.', 'readout.', 'bias', 'norm.')
         if self.freeze_enc and pools:
-            skip = skip + ('layers.0.', 'win.')
+            skip = skip + ('layers.0.', 'win.', 'fbp.')
         slow = [p for k, p in m.named_parameters()
                 if 'lora' not in k and not k.startswith(skip) and (rewire or not k.endswith(('.Wr', '.Wg')))]
         for p in slow:
             p.requires_grad_(True)
-        opt = torch.optim.Adam(slow, lr=lr)
+        if not slow:
+            steps = 0
+        opt = torch.optim.Adam(slow, lr=lr) if slow else None
         sleep_keep, pool_slow = None, []
-        if smf_sleep and self.smf_k > 0 and pools and self.smf_hits is not None and self.smf_hits.sum() > 0:
+        if smf_sleep and self.smf_k > 0 and pools:
             pool = pools[0]
-            k_act = min(self.smf_k, int((self.smf_hits > 0).sum().item()))
-            top = self.smf_hits.topk(k_act).indices
             sleep_keep = torch.zeros(pool.N, device=pool.addr.device)
-            sleep_keep[top] = 1.0
+            if self.smf_hits is not None and self.smf_hits.sum() > 0:
+                k_act = min(self.smf_k, int((self.smf_hits > 0).sum().item()))
+                sleep_keep[self.smf_hits.topk(k_act).indices] = 1.0
             pool_ids = {id(p) for p in list(pool.core.parameters()) + [pool.ogain]}
             pool_slow = [p for p in slow if id(p) in pool_ids and p.shape[:1] == (pool.N,)]
         plastic = [(pl, pl.plastic) for pl in pools]
