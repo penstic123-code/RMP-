@@ -172,4 +172,4 @@ RMP 是当前主线（[plan/README.md](../../plan/README.md)“RMP 线当前状�
 | [literature/topics/hierarchy-topdown.md](../../literature/topics/hierarchy-topdown.md) | H-Net、BLT、自上而下反馈：R2、R3 的背景 |
 | 其余文献中标【主线 RMP】的条目 | Jamba、Mixture-of-Recursions（architectures）；Sparse Delta Memory（fast-memory）；Shared Global Workspace（cognition-selfimprove）；Memory Layers at Scale、BDH（continual-sleep）；卡片 sleep 6、sleep-2 10、memory-workspace 4。每条后写明怎么相关 |
 | 实验 E01、E19、E31、E59、E60 | E01 换边有效（23.8 T3 的参照）；E19 层级度量；E31 在线学习协议（P3 沿用）；E59、E60 删中枢与自上而下预测 |
-| 实验 E63–E74 | RMP 本身的结果（[e56-e71.md](../../experiments/e56-e71.md)、[e72-.md](../../experiments/e72-.md)） |
+| 实验 E63–E74 | RMP 本身的结果（[e56-e71.md](../../experiments/e56-e71.md)、[e72-e91.md](../../experiments/e72-e91.md)） |
