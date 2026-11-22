@@ -1,0 +1,633 @@
+{
+  "experiment": "v2_general_neural_e1",
+  "seeds": [
+    42,
+    43,
+    44
+  ],
+  "epochs": 30,
+  "budget": 16,
+  "elapsed_s": 549.1,
+  "summary_mean": {
+    "v2_hybrid": {
+      "cross_exact": 0.5278,
+      "cross_single": 0.6389,
+      "cross_target_hit": 0.5278,
+      "direct_exact": 0.8,
+      "hard_neg_fpr": 0.0,
+      "superseded_latest_acc": 0.6667,
+      "insufficient_abstain_acc": 1.0,
+      "smoke6_hit": 0.0556
+    },
+    "v2_graph_only": {
+      "cross_exact": 0.5278,
+      "cross_single": 0.6389,
+      "cross_target_hit": 0.5278,
+      "direct_exact": 0.8,
+      "hard_neg_fpr": 0.0,
+      "superseded_latest_acc": 0.6667,
+      "insufficient_abstain_acc": 1.0,
+      "smoke6_hit": 0.0556
+    },
+    "v2_full_only": {
+      "cross_exact": 0.5278,
+      "cross_single": 0.6389,
+      "cross_target_hit": 0.5278,
+      "direct_exact": 0.8,
+      "hard_neg_fpr": 0.0,
+      "superseded_latest_acc": 0.6667,
+      "insufficient_abstain_acc": 1.0,
+      "smoke6_hit": 0.0556
+    }
+  },
+  "causal_ablation_mean": {
+    "full_target_hit": 0.5278,
+    "drop_bridge_target_hit": 0.0,
+    "drop_unrelated_target_hit": 0.5278,
+    "bridge_causal_drop": 0.5278,
+    "unrelated_drop": 0.0
+  },
+  "seed_runs": [
+    {
+      "seed": 42,
+      "params": 64619,
+      "abstain_thresh": 0.53,
+      "losses": {
+        "rank": 0.1952,
+        "query": 1.5728,
+        "cont": 0.2267,
+        "valid": 0.3133
+      },
+      "results": {
+        "v2_hybrid": {
+          "cross_exact": 0.5833,
+          "cross_single": 0.75,
+          "cross_target_hit": 0.5833,
+          "direct_exact": 0.8,
+          "hard_neg_fpr": 0.0,
+          "superseded_latest_acc": 0.75,
+          "insufficient_abstain_acc": 1.0,
+          "smoke6_hit": 0.0
+        },
+        "v2_graph_only": {
+          "cross_exact": 0.5833,
+          "cross_single": 0.75,
+          "cross_target_hit": 0.5833,
+          "direct_exact": 0.8,
+          "hard_neg_fpr": 0.0,
+          "superseded_latest_acc": 0.75,
+          "insufficient_abstain_acc": 1.0,
+          "smoke6_hit": 0.0
+        },
+        "v2_full_only": {
+          "cross_exact": 0.5833,
+          "cross_single": 0.75,
+          "cross_target_hit": 0.5833,
+          "direct_exact": 0.8,
+          "hard_neg_fpr": 0.0,
+          "superseded_latest_acc": 0.75,
+          "insufficient_abstain_acc": 1.0,
+          "smoke6_hit": 0.0
+        }
+      },
+      "causal_ablation": {
+        "full_target_hit": 0.5833,
+        "drop_bridge_target_hit": 0.0,
+        "drop_unrelated_target_hit": 0.5833,
+        "bridge_causal_drop": 0.5833,
+        "unrelated_drop": 0.0
+      },
+      "details_cross_hybrid": [
+        {
+          "q": "今晚外面打雷下大雨我还在加班回不去，家里那个怕雷的家伙能找谁开门帮忙照看？",
+          "gold": [
+            "d_018",
+            "u_care_new"
+          ],
+          "pred": [],
+          "p_valid": 0.115,
+          "exact": false
+        },
+        {
+          "q": "半夜电闪雷鸣吓得钻床边那个小家伙，平时周末下午最喜欢去哪个公园追网球？",
+          "gold": [
+            "d_035",
+            "d_003"
+          ],
+          "pred": [],
+          "p_valid": 0.059,
+          "exact": false
+        },
+        {
+          "q": "在公司加班看窗外乌云密布惦记着家里缩桌底发抖的小家伙，备用钥匙现在放在谁那儿？",
+          "gold": [
+            "d_022",
+            "u_care_new"
+          ],
+          "pred": [
+            "d_022",
+            "u_care_new"
+          ],
+          "p_valid": 0.978,
+          "exact": true
+        },
+        {
+          "q": "打完球同事约去吃大排档我赶紧摆手拒绝了，要是真不小心误食起疹子，急救药片放在家里哪儿？",
+          "gold": [
+            "d_011",
+            "u_med_kit"
+          ],
+          "pred": [
+            "d_011",
+            "u_med_kit"
+          ],
+          "p_valid": 0.976,
+          "exact": true
+        },
+        {
+          "q": "小时候偷吃过一次差点进医院挂水，所以现在跟同事聚餐拒绝那家大排档后，我晚饭一般吃什么？",
+          "gold": [
+            "d_008",
+            "d_005"
+          ],
+          "pred": [],
+          "p_valid": 0.063,
+          "exact": false
+        },
+        {
+          "q": "下雨没法出门在家擦镜头整理圣基尔达海边那卷照片，以后拍完卷一般送去市中心哪家店冲扫？",
+          "gold": [
+            "d_019",
+            "u_film_shop"
+          ],
+          "pred": [
+            "d_019",
+            "u_film_shop"
+          ],
+          "p_valid": 0.983,
+          "exact": true
+        },
+        {
+          "q": "下雨在家擦镜头整理海边拍的胶片，明年冬天休年假打算背着它去哪儿拍雪景？",
+          "gold": [
+            "d_019",
+            "u_trip_new"
+          ],
+          "pred": [
+            "u_trip_new",
+            "d_019"
+          ],
+          "p_valid": 0.972,
+          "exact": true
+        },
+        {
+          "q": "天天在公司改业务表单少了掌控感、想自己做点喜欢的小产品，同事给我的建议是什么？",
+          "gold": [
+            "d_026",
+            "d_016"
+          ],
+          "pred": [
+            "d_026"
+          ],
+          "p_valid": 0.957,
+          "exact": false
+        },
+        {
+          "q": "周末在笔记本上画了极简原型图的那个小项目，最近下班后花两小时开始写什么了？",
+          "gold": [
+            "d_025",
+            "d_043"
+          ],
+          "pred": [
+            "d_025",
+            "d_043"
+          ],
+          "p_valid": 0.616,
+          "exact": true
+        },
+        {
+          "q": "同事劝我先攒够旅行基金和一年生活费再决定辞职，那趟冬日看雪行程的预算评估过能不能实现吗？",
+          "gold": [
+            "d_016",
+            "d_047"
+          ],
+          "pred": [
+            "d_016",
+            "d_047"
+          ],
+          "p_valid": 0.981,
+          "exact": true
+        },
+        {
+          "q": "海边夕阳下叼着网球奔跑那张抓拍的主角，一遇到雷雨天就会躲到哪里发抖？",
+          "gold": [
+            "d_042",
+            "d_018"
+          ],
+          "pred": [
+            "d_042",
+            "d_018"
+          ],
+          "p_valid": 0.841,
+          "exact": true
+        },
+        {
+          "q": "天天写代码坐办公室腰酸背痛靠打球挥拍流汗，现在前端组这项运动改到周几几点了？",
+          "gold": [
+            "d_010",
+            "u_badm_new"
+          ],
+          "pred": [
+            "d_010"
+          ],
+          "p_valid": 0.828,
+          "exact": false
+        }
+      ]
+    },
+    {
+      "seed": 43,
+      "params": 64619,
+      "abstain_thresh": 0.49,
+      "losses": {
+        "rank": 0.2426,
+        "query": 1.5809,
+        "cont": 0.225,
+        "valid": 0.3187
+      },
+      "results": {
+        "v2_hybrid": {
+          "cross_exact": 0.5,
+          "cross_single": 0.5833,
+          "cross_target_hit": 0.5,
+          "direct_exact": 0.8,
+          "hard_neg_fpr": 0.0,
+          "superseded_latest_acc": 0.5,
+          "insufficient_abstain_acc": 1.0,
+          "smoke6_hit": 0.1667
+        },
+        "v2_graph_only": {
+          "cross_exact": 0.5,
+          "cross_single": 0.5833,
+          "cross_target_hit": 0.5,
+          "direct_exact": 0.8,
+          "hard_neg_fpr": 0.0,
+          "superseded_latest_acc": 0.5,
+          "insufficient_abstain_acc": 1.0,
+          "smoke6_hit": 0.1667
+        },
+        "v2_full_only": {
+          "cross_exact": 0.5,
+          "cross_single": 0.5833,
+          "cross_target_hit": 0.5,
+          "direct_exact": 0.8,
+          "hard_neg_fpr": 0.0,
+          "superseded_latest_acc": 0.5,
+          "insufficient_abstain_acc": 1.0,
+          "smoke6_hit": 0.1667
+        }
+      },
+      "causal_ablation": {
+        "full_target_hit": 0.5,
+        "drop_bridge_target_hit": 0.0,
+        "drop_unrelated_target_hit": 0.5,
+        "bridge_causal_drop": 0.5,
+        "unrelated_drop": 0.0
+      },
+      "details_cross_hybrid": [
+        {
+          "q": "今晚外面打雷下大雨我还在加班回不去，家里那个怕雷的家伙能找谁开门帮忙照看？",
+          "gold": [
+            "d_018",
+            "u_care_new"
+          ],
+          "pred": [],
+          "p_valid": 0.398,
+          "exact": false
+        },
+        {
+          "q": "半夜电闪雷鸣吓得钻床边那个小家伙，平时周末下午最喜欢去哪个公园追网球？",
+          "gold": [
+            "d_035",
+            "d_003"
+          ],
+          "pred": [],
+          "p_valid": 0.188,
+          "exact": false
+        },
+        {
+          "q": "在公司加班看窗外乌云密布惦记着家里缩桌底发抖的小家伙，备用钥匙现在放在谁那儿？",
+          "gold": [
+            "d_022",
+            "u_care_new"
+          ],
+          "pred": [
+            "d_022",
+            "u_care_new"
+          ],
+          "p_valid": 0.968,
+          "exact": true
+        },
+        {
+          "q": "打完球同事约去吃大排档我赶紧摆手拒绝了，要是真不小心误食起疹子，急救药片放在家里哪儿？",
+          "gold": [
+            "d_011",
+            "u_med_kit"
+          ],
+          "pred": [
+            "d_011",
+            "u_med_kit"
+          ],
+          "p_valid": 0.951,
+          "exact": true
+        },
+        {
+          "q": "小时候偷吃过一次差点进医院挂水，所以现在跟同事聚餐拒绝那家大排档后，我晚饭一般吃什么？",
+          "gold": [
+            "d_008",
+            "d_005"
+          ],
+          "pred": [],
+          "p_valid": 0.057,
+          "exact": false
+        },
+        {
+          "q": "下雨没法出门在家擦镜头整理圣基尔达海边那卷照片，以后拍完卷一般送去市中心哪家店冲扫？",
+          "gold": [
+            "d_019",
+            "u_film_shop"
+          ],
+          "pred": [
+            "d_019",
+            "u_film_shop"
+          ],
+          "p_valid": 0.981,
+          "exact": true
+        },
+        {
+          "q": "下雨在家擦镜头整理海边拍的胶片，明年冬天休年假打算背着它去哪儿拍雪景？",
+          "gold": [
+            "d_019",
+            "u_trip_new"
+          ],
+          "pred": [
+            "u_trip_new",
+            "d_019"
+          ],
+          "p_valid": 0.961,
+          "exact": true
+        },
+        {
+          "q": "天天在公司改业务表单少了掌控感、想自己做点喜欢的小产品，同事给我的建议是什么？",
+          "gold": [
+            "d_026",
+            "d_016"
+          ],
+          "pred": [
+            "d_026",
+            "d_016"
+          ],
+          "p_valid": 0.986,
+          "exact": true
+        },
+        {
+          "q": "周末在笔记本上画了极简原型图的那个小项目，最近下班后花两小时开始写什么了？",
+          "gold": [
+            "d_025",
+            "d_043"
+          ],
+          "pred": [],
+          "p_valid": 0.373,
+          "exact": false
+        },
+        {
+          "q": "同事劝我先攒够旅行基金和一年生活费再决定辞职，那趟冬日看雪行程的预算评估过能不能实现吗？",
+          "gold": [
+            "d_016",
+            "d_047"
+          ],
+          "pred": [
+            "d_016",
+            "d_047"
+          ],
+          "p_valid": 0.977,
+          "exact": true
+        },
+        {
+          "q": "海边夕阳下叼着网球奔跑那张抓拍的主角，一遇到雷雨天就会躲到哪里发抖？",
+          "gold": [
+            "d_042",
+            "d_018"
+          ],
+          "pred": [],
+          "p_valid": 0.041,
+          "exact": false
+        },
+        {
+          "q": "天天写代码坐办公室腰酸背痛靠打球挥拍流汗，现在前端组这项运动改到周几几点了？",
+          "gold": [
+            "d_010",
+            "u_badm_new"
+          ],
+          "pred": [
+            "d_010"
+          ],
+          "p_valid": 0.765,
+          "exact": false
+        }
+      ]
+    },
+    {
+      "seed": 44,
+      "params": 64619,
+      "abstain_thresh": 0.63,
+      "losses": {
+        "rank": 0.1937,
+        "query": 1.6073,
+        "cont": 0.2408,
+        "valid": 0.2653
+      },
+      "results": {
+        "v2_hybrid": {
+          "cross_exact": 0.5,
+          "cross_single": 0.5833,
+          "cross_target_hit": 0.5,
+          "direct_exact": 0.8,
+          "hard_neg_fpr": 0.0,
+          "superseded_latest_acc": 0.75,
+          "insufficient_abstain_acc": 1.0,
+          "smoke6_hit": 0.0
+        },
+        "v2_graph_only": {
+          "cross_exact": 0.5,
+          "cross_single": 0.5833,
+          "cross_target_hit": 0.5,
+          "direct_exact": 0.8,
+          "hard_neg_fpr": 0.0,
+          "superseded_latest_acc": 0.75,
+          "insufficient_abstain_acc": 1.0,
+          "smoke6_hit": 0.0
+        },
+        "v2_full_only": {
+          "cross_exact": 0.5,
+          "cross_single": 0.5833,
+          "cross_target_hit": 0.5,
+          "direct_exact": 0.8,
+          "hard_neg_fpr": 0.0,
+          "superseded_latest_acc": 0.75,
+          "insufficient_abstain_acc": 1.0,
+          "smoke6_hit": 0.0
+        }
+      },
+      "causal_ablation": {
+        "full_target_hit": 0.5,
+        "drop_bridge_target_hit": 0.0,
+        "drop_unrelated_target_hit": 0.5,
+        "bridge_causal_drop": 0.5,
+        "unrelated_drop": 0.0
+      },
+      "details_cross_hybrid": [
+        {
+          "q": "今晚外面打雷下大雨我还在加班回不去，家里那个怕雷的家伙能找谁开门帮忙照看？",
+          "gold": [
+            "d_018",
+            "u_care_new"
+          ],
+          "pred": [],
+          "p_valid": 0.042,
+          "exact": false
+        },
+        {
+          "q": "半夜电闪雷鸣吓得钻床边那个小家伙，平时周末下午最喜欢去哪个公园追网球？",
+          "gold": [
+            "d_035",
+            "d_003"
+          ],
+          "pred": [],
+          "p_valid": 0.344,
+          "exact": false
+        },
+        {
+          "q": "在公司加班看窗外乌云密布惦记着家里缩桌底发抖的小家伙，备用钥匙现在放在谁那儿？",
+          "gold": [
+            "d_022",
+            "u_care_new"
+          ],
+          "pred": [
+            "d_022",
+            "u_care_new"
+          ],
+          "p_valid": 0.989,
+          "exact": true
+        },
+        {
+          "q": "打完球同事约去吃大排档我赶紧摆手拒绝了，要是真不小心误食起疹子，急救药片放在家里哪儿？",
+          "gold": [
+            "d_011",
+            "u_med_kit"
+          ],
+          "pred": [
+            "d_011",
+            "u_med_kit"
+          ],
+          "p_valid": 0.991,
+          "exact": true
+        },
+        {
+          "q": "小时候偷吃过一次差点进医院挂水，所以现在跟同事聚餐拒绝那家大排档后，我晚饭一般吃什么？",
+          "gold": [
+            "d_008",
+            "d_005"
+          ],
+          "pred": [],
+          "p_valid": 0.015,
+          "exact": false
+        },
+        {
+          "q": "下雨没法出门在家擦镜头整理圣基尔达海边那卷照片，以后拍完卷一般送去市中心哪家店冲扫？",
+          "gold": [
+            "d_019",
+            "u_film_shop"
+          ],
+          "pred": [
+            "d_019",
+            "u_film_shop"
+          ],
+          "p_valid": 0.994,
+          "exact": true
+        },
+        {
+          "q": "下雨在家擦镜头整理海边拍的胶片，明年冬天休年假打算背着它去哪儿拍雪景？",
+          "gold": [
+            "d_019",
+            "u_trip_new"
+          ],
+          "pred": [
+            "u_trip_new",
+            "d_019"
+          ],
+          "p_valid": 0.983,
+          "exact": true
+        },
+        {
+          "q": "天天在公司改业务表单少了掌控感、想自己做点喜欢的小产品，同事给我的建议是什么？",
+          "gold": [
+            "d_026",
+            "d_016"
+          ],
+          "pred": [
+            "d_026",
+            "d_016"
+          ],
+          "p_valid": 0.996,
+          "exact": true
+        },
+        {
+          "q": "周末在笔记本上画了极简原型图的那个小项目，最近下班后花两小时开始写什么了？",
+          "gold": [
+            "d_025",
+            "d_043"
+          ],
+          "pred": [],
+          "p_valid": 0.434,
+          "exact": false
+        },
+        {
+          "q": "同事劝我先攒够旅行基金和一年生活费再决定辞职，那趟冬日看雪行程的预算评估过能不能实现吗？",
+          "gold": [
+            "d_016",
+            "d_047"
+          ],
+          "pred": [
+            "d_016",
+            "d_047"
+          ],
+          "p_valid": 0.993,
+          "exact": true
+        },
+        {
+          "q": "海边夕阳下叼着网球奔跑那张抓拍的主角，一遇到雷雨天就会躲到哪里发抖？",
+          "gold": [
+            "d_042",
+            "d_018"
+          ],
+          "pred": [],
+          "p_valid": 0.198,
+          "exact": false
+        },
+        {
+          "q": "天天写代码坐办公室腰酸背痛靠打球挥拍流汗，现在前端组这项运动改到周几几点了？",
+          "gold": [
+            "d_010",
+            "u_badm_new"
+          ],
+          "pred": [
+            "d_010"
+          ],
+          "p_valid": 0.925,
+          "exact": false
+        }
+      ]
+    }
+  ]
+}

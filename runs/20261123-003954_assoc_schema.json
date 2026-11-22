@@ -1,0 +1,50 @@
+{
+  "experiment": "Phase4_emergent_schema",
+  "elapsed_s": 65.6,
+  "emergent_sleep_schemas": [
+    {
+      "id": "schema_1_sleep",
+      "members": [
+        "d_011",
+        "u_med_kit"
+      ],
+      "support": 4,
+      "summary": "过敏急救：小药片保平安"
+    },
+    {
+      "id": "schema_2_sleep",
+      "members": [
+        "d_019",
+        "u_film_shop"
+      ],
+      "support": 4,
+      "summary": "日常维护：定期检查和处理老旧摄影设备。"
+    }
+  ],
+  "results": {
+    "no_hierarchy": {
+      "novel_situation_hit": 0.0,
+      "avg_gold_events_recalled": 0.0,
+      "schema_activation_rate": 0.0,
+      "hard_neg_fpr": 0.0
+    },
+    "semantic_cluster_ctrl": {
+      "novel_situation_hit": 0.0,
+      "avg_gold_events_recalled": 0.0,
+      "schema_activation_rate": 1.0,
+      "hard_neg_fpr": 0.0833
+    },
+    "emergent_vec_mean": {
+      "novel_situation_hit": 0.0,
+      "avg_gold_events_recalled": 0.0,
+      "schema_activation_rate": 0.25,
+      "hard_neg_fpr": 0.0
+    },
+    "emergent_sleep_schema": {
+      "novel_situation_hit": 0.0,
+      "avg_gold_events_recalled": 0.0,
+      "schema_activation_rate": 0.0,
+      "hard_neg_fpr": 0.0
+    }
+  }
+}

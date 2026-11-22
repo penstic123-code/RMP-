@@ -1,0 +1,367 @@
+{
+  "experiment": "E2_v2.4_bge_lora",
+  "seeds": [
+    42,
+    43,
+    44
+  ],
+  "elapsed_s": 573.6,
+  "summary_mean": [
+    {
+      "batch_id": 1,
+      "label": "Batch 1 (Day 30-35): 照看安排 + 冲扫店 + 羽毛球改期",
+      "before_write": {
+        "new_assoc_exact": 0.0,
+        "new_assoc_target": 0.0,
+        "old_retention": 0.8333,
+        "latest_fact_acc": 0.0,
+        "old_value_leak": 0.0,
+        "hard_neg_fpr": 0.1111
+      },
+      "after_write_before_consol": {
+        "new_assoc_exact": 0.6667,
+        "new_assoc_target": 0.6667,
+        "old_retention": 0.8333,
+        "latest_fact_acc": 1.0,
+        "old_value_leak": 0.0,
+        "hard_neg_fpr": 0.1111
+      },
+      "after_consol": {
+        "new_assoc_exact": 0.6667,
+        "new_assoc_target": 0.6667,
+        "old_retention": 0.8333,
+        "latest_fact_acc": 1.0,
+        "old_value_leak": 0.0,
+        "hard_neg_fpr": 0.1111
+      }
+    },
+    {
+      "batch_id": 2,
+      "label": "Batch 2 (Day 45-52): 抗过敏药箱 + 导师建议 + 年假改北海道",
+      "before_write": {
+        "new_assoc_exact": 0.0,
+        "new_assoc_target": 0.0,
+        "old_retention": 0.8333,
+        "latest_fact_acc": 0.5,
+        "old_value_leak": 0.0,
+        "hard_neg_fpr": 0.1111
+      },
+      "after_write_before_consol": {
+        "new_assoc_exact": 1.0,
+        "new_assoc_target": 1.0,
+        "old_retention": 0.8333,
+        "latest_fact_acc": 1.0,
+        "old_value_leak": 0.0,
+        "hard_neg_fpr": 0.1111
+      },
+      "after_consol": {
+        "new_assoc_exact": 1.0,
+        "new_assoc_target": 1.0,
+        "old_retention": 0.8333,
+        "latest_fact_acc": 1.0,
+        "old_value_leak": 0.0,
+        "hard_neg_fpr": 0.1111
+      }
+    },
+    {
+      "batch_id": 3,
+      "label": "Batch 3 (Day 60-68): 钥匙二次改口(陈阿姨→小李) + 公园柯基 + 咖啡改燕麦拿铁",
+      "before_write": {
+        "new_assoc_exact": 0.0,
+        "new_assoc_target": 0.0,
+        "old_retention": 0.8333,
+        "latest_fact_acc": 0.5,
+        "old_value_leak": 0.0,
+        "hard_neg_fpr": 0.1111
+      },
+      "after_write_before_consol": {
+        "new_assoc_exact": 1.0,
+        "new_assoc_target": 1.0,
+        "old_retention": 0.8333,
+        "latest_fact_acc": 1.0,
+        "old_value_leak": 0.0,
+        "hard_neg_fpr": 0.1111
+      },
+      "after_consol": {
+        "new_assoc_exact": 1.0,
+        "new_assoc_target": 1.0,
+        "old_retention": 0.8333,
+        "latest_fact_acc": 1.0,
+        "old_value_leak": 0.0,
+        "hard_neg_fpr": 0.1111
+      }
+    }
+  ],
+  "seed_records": [
+    {
+      "seed": 42,
+      "abstain_thresh": 0.63,
+      "batches": [
+        {
+          "batch_id": 1,
+          "label": "Batch 1 (Day 30-35): 照看安排 + 冲扫店 + 羽毛球改期",
+          "before_write": {
+            "new_assoc_exact": 0.0,
+            "new_assoc_target": 0.0,
+            "old_retention": 0.8333,
+            "latest_fact_acc": 0.0,
+            "old_value_leak": 0.0,
+            "hard_neg_fpr": 0.0833
+          },
+          "after_write_before_consol": {
+            "new_assoc_exact": 0.5,
+            "new_assoc_target": 0.5,
+            "old_retention": 0.8333,
+            "latest_fact_acc": 1.0,
+            "old_value_leak": 0.0,
+            "hard_neg_fpr": 0.0833
+          },
+          "after_consol": {
+            "new_assoc_exact": 0.5,
+            "new_assoc_target": 0.5,
+            "old_retention": 0.8333,
+            "latest_fact_acc": 1.0,
+            "old_value_leak": 0.0,
+            "hard_neg_fpr": 0.0833
+          }
+        },
+        {
+          "batch_id": 2,
+          "label": "Batch 2 (Day 45-52): 抗过敏药箱 + 导师建议 + 年假改北海道",
+          "before_write": {
+            "new_assoc_exact": 0.0,
+            "new_assoc_target": 0.0,
+            "old_retention": 0.8333,
+            "latest_fact_acc": 0.5,
+            "old_value_leak": 0.0,
+            "hard_neg_fpr": 0.0833
+          },
+          "after_write_before_consol": {
+            "new_assoc_exact": 1.0,
+            "new_assoc_target": 1.0,
+            "old_retention": 0.8333,
+            "latest_fact_acc": 1.0,
+            "old_value_leak": 0.0,
+            "hard_neg_fpr": 0.0833
+          },
+          "after_consol": {
+            "new_assoc_exact": 1.0,
+            "new_assoc_target": 1.0,
+            "old_retention": 0.8333,
+            "latest_fact_acc": 1.0,
+            "old_value_leak": 0.0,
+            "hard_neg_fpr": 0.0833
+          }
+        },
+        {
+          "batch_id": 3,
+          "label": "Batch 3 (Day 60-68): 钥匙二次改口(陈阿姨→小李) + 公园柯基 + 咖啡改燕麦拿铁",
+          "before_write": {
+            "new_assoc_exact": 0.0,
+            "new_assoc_target": 0.0,
+            "old_retention": 0.8333,
+            "latest_fact_acc": 0.5,
+            "old_value_leak": 0.0,
+            "hard_neg_fpr": 0.0833
+          },
+          "after_write_before_consol": {
+            "new_assoc_exact": 1.0,
+            "new_assoc_target": 1.0,
+            "old_retention": 0.8333,
+            "latest_fact_acc": 1.0,
+            "old_value_leak": 0.0,
+            "hard_neg_fpr": 0.0833
+          },
+          "after_consol": {
+            "new_assoc_exact": 1.0,
+            "new_assoc_target": 1.0,
+            "old_retention": 0.8333,
+            "latest_fact_acc": 1.0,
+            "old_value_leak": 0.0,
+            "hard_neg_fpr": 0.0833
+          }
+        }
+      ]
+    },
+    {
+      "seed": 43,
+      "abstain_thresh": 0.53,
+      "batches": [
+        {
+          "batch_id": 1,
+          "label": "Batch 1 (Day 30-35): 照看安排 + 冲扫店 + 羽毛球改期",
+          "before_write": {
+            "new_assoc_exact": 0.0,
+            "new_assoc_target": 0.0,
+            "old_retention": 0.8333,
+            "latest_fact_acc": 0.0,
+            "old_value_leak": 0.0,
+            "hard_neg_fpr": 0.0833
+          },
+          "after_write_before_consol": {
+            "new_assoc_exact": 0.5,
+            "new_assoc_target": 0.5,
+            "old_retention": 0.8333,
+            "latest_fact_acc": 1.0,
+            "old_value_leak": 0.0,
+            "hard_neg_fpr": 0.0833
+          },
+          "after_consol": {
+            "new_assoc_exact": 0.5,
+            "new_assoc_target": 0.5,
+            "old_retention": 0.8333,
+            "latest_fact_acc": 1.0,
+            "old_value_leak": 0.0,
+            "hard_neg_fpr": 0.0833
+          }
+        },
+        {
+          "batch_id": 2,
+          "label": "Batch 2 (Day 45-52): 抗过敏药箱 + 导师建议 + 年假改北海道",
+          "before_write": {
+            "new_assoc_exact": 0.0,
+            "new_assoc_target": 0.0,
+            "old_retention": 0.8333,
+            "latest_fact_acc": 0.5,
+            "old_value_leak": 0.0,
+            "hard_neg_fpr": 0.0833
+          },
+          "after_write_before_consol": {
+            "new_assoc_exact": 1.0,
+            "new_assoc_target": 1.0,
+            "old_retention": 0.8333,
+            "latest_fact_acc": 1.0,
+            "old_value_leak": 0.0,
+            "hard_neg_fpr": 0.0833
+          },
+          "after_consol": {
+            "new_assoc_exact": 1.0,
+            "new_assoc_target": 1.0,
+            "old_retention": 0.8333,
+            "latest_fact_acc": 1.0,
+            "old_value_leak": 0.0,
+            "hard_neg_fpr": 0.0833
+          }
+        },
+        {
+          "batch_id": 3,
+          "label": "Batch 3 (Day 60-68): 钥匙二次改口(陈阿姨→小李) + 公园柯基 + 咖啡改燕麦拿铁",
+          "before_write": {
+            "new_assoc_exact": 0.0,
+            "new_assoc_target": 0.0,
+            "old_retention": 0.8333,
+            "latest_fact_acc": 0.5,
+            "old_value_leak": 0.0,
+            "hard_neg_fpr": 0.0833
+          },
+          "after_write_before_consol": {
+            "new_assoc_exact": 1.0,
+            "new_assoc_target": 1.0,
+            "old_retention": 0.8333,
+            "latest_fact_acc": 1.0,
+            "old_value_leak": 0.0,
+            "hard_neg_fpr": 0.0833
+          },
+          "after_consol": {
+            "new_assoc_exact": 1.0,
+            "new_assoc_target": 1.0,
+            "old_retention": 0.8333,
+            "latest_fact_acc": 1.0,
+            "old_value_leak": 0.0,
+            "hard_neg_fpr": 0.0833
+          }
+        }
+      ]
+    },
+    {
+      "seed": 44,
+      "abstain_thresh": 0.65,
+      "batches": [
+        {
+          "batch_id": 1,
+          "label": "Batch 1 (Day 30-35): 照看安排 + 冲扫店 + 羽毛球改期",
+          "before_write": {
+            "new_assoc_exact": 0.0,
+            "new_assoc_target": 0.0,
+            "old_retention": 0.8333,
+            "latest_fact_acc": 0.0,
+            "old_value_leak": 0.0,
+            "hard_neg_fpr": 0.1667
+          },
+          "after_write_before_consol": {
+            "new_assoc_exact": 1.0,
+            "new_assoc_target": 1.0,
+            "old_retention": 0.8333,
+            "latest_fact_acc": 1.0,
+            "old_value_leak": 0.0,
+            "hard_neg_fpr": 0.1667
+          },
+          "after_consol": {
+            "new_assoc_exact": 1.0,
+            "new_assoc_target": 1.0,
+            "old_retention": 0.8333,
+            "latest_fact_acc": 1.0,
+            "old_value_leak": 0.0,
+            "hard_neg_fpr": 0.1667
+          }
+        },
+        {
+          "batch_id": 2,
+          "label": "Batch 2 (Day 45-52): 抗过敏药箱 + 导师建议 + 年假改北海道",
+          "before_write": {
+            "new_assoc_exact": 0.0,
+            "new_assoc_target": 0.0,
+            "old_retention": 0.8333,
+            "latest_fact_acc": 0.5,
+            "old_value_leak": 0.0,
+            "hard_neg_fpr": 0.1667
+          },
+          "after_write_before_consol": {
+            "new_assoc_exact": 1.0,
+            "new_assoc_target": 1.0,
+            "old_retention": 0.8333,
+            "latest_fact_acc": 1.0,
+            "old_value_leak": 0.0,
+            "hard_neg_fpr": 0.1667
+          },
+          "after_consol": {
+            "new_assoc_exact": 1.0,
+            "new_assoc_target": 1.0,
+            "old_retention": 0.8333,
+            "latest_fact_acc": 1.0,
+            "old_value_leak": 0.0,
+            "hard_neg_fpr": 0.1667
+          }
+        },
+        {
+          "batch_id": 3,
+          "label": "Batch 3 (Day 60-68): 钥匙二次改口(陈阿姨→小李) + 公园柯基 + 咖啡改燕麦拿铁",
+          "before_write": {
+            "new_assoc_exact": 0.0,
+            "new_assoc_target": 0.0,
+            "old_retention": 0.8333,
+            "latest_fact_acc": 0.5,
+            "old_value_leak": 0.0,
+            "hard_neg_fpr": 0.1667
+          },
+          "after_write_before_consol": {
+            "new_assoc_exact": 1.0,
+            "new_assoc_target": 1.0,
+            "old_retention": 0.8333,
+            "latest_fact_acc": 1.0,
+            "old_value_leak": 0.0,
+            "hard_neg_fpr": 0.1667
+          },
+          "after_consol": {
+            "new_assoc_exact": 1.0,
+            "new_assoc_target": 1.0,
+            "old_retention": 0.8333,
+            "latest_fact_acc": 1.0,
+            "old_value_leak": 0.0,
+            "hard_neg_fpr": 0.1667
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,79 @@
+{
+  "experiment": "E110",
+  "date": "2026-11-22",
+  "hardware": "Colab Pro NVIDIA A100-SXM4-40GB (bf16, USE_FLA=True)",
+  "model": {
+    "preset": "main",
+    "total_params_M": 138.86,
+    "active_params_M": 61.04,
+    "vocab": 50304,
+    "sep_id": 50256,
+    "G": 12,
+    "N": 96,
+    "k": 2,
+    "D": 640,
+    "d": 320,
+    "m": 32,
+    "hidden": 640,
+    "rule": "ctx",
+    "wave_query": true,
+    "wave_ctx": true,
+    "bottleneck": false,
+    "read_stream": true,
+    "tie_emb": true,
+    "grad_ckpt": true
+  },
+  "pretrain": {
+    "dataset": "HuggingFaceFW/fineweb-edu (sample-10BT streaming)",
+    "batch_tokens": 65536,
+    "ckpt_step": 2500,
+    "ckpt_tokens_M": 163.8,
+    "stopped_step": 2680,
+    "val_loss": 4.4595,
+    "val_ppl": 86.45,
+    "throughput_tok_s": 26200,
+    "vram_gb": 19.0,
+    "dead_modules": 0.0,
+    "drive_ckpt": "/content/drive/MyDrive/rmp_138m/best.pt",
+    "drive_eval_json": "/content/drive/MyDrive/rmp_138m/eval_4in1.json"
+  },
+  "diag": {
+    "mean_load_ent": 0.9326,
+    "mean_addr_cos": 0.4524,
+    "mean_src_sel": 0.1711,
+    "max_src_sel": 0.3505,
+    "tau_ratio_deep_vs_shallow": 1.03,
+    "dwell_ratio_deep_vs_shallow": 9.58,
+    "domain_val_loss": {
+      "edu": 4.3813,
+      "story": 4.2124,
+      "code": 5.1646,
+      "chat": 4.0324
+    },
+    "waves": [
+      {"wave": 0, "ctx_decay": 0.500, "load_ent": 0.986, "dead": 0.0, "addr_cos": 0.5294, "top1_wt": 0.769, "src_sel": 0.1182, "tau_med": 38.99, "dwell_tok": 1.55},
+      {"wave": 1, "ctx_decay": 0.657, "load_ent": 0.980, "dead": 0.0, "addr_cos": 0.6750, "top1_wt": 0.609, "src_sel": 0.0680, "tau_med": 39.92, "dwell_tok": 2.02},
+      {"wave": 2, "ctx_decay": 0.764, "load_ent": 0.959, "dead": 0.0, "addr_cos": 0.7807, "top1_wt": 0.632, "src_sel": 0.0874, "tau_med": 39.88, "dwell_tok": 2.18},
+      {"wave": 3, "ctx_decay": 0.838, "load_ent": 0.988, "dead": 0.0, "addr_cos": 0.1541, "top1_wt": 0.501, "src_sel": 0.0649, "tau_med": 40.64, "dwell_tok": 4.15},
+      {"wave": 4, "ctx_decay": 0.889, "load_ent": 0.928, "dead": 0.0, "addr_cos": 0.7481, "top1_wt": 0.589, "src_sel": 0.2166, "tau_med": 40.39, "dwell_tok": 6.34},
+      {"wave": 5, "ctx_decay": 0.924, "load_ent": 0.908, "dead": 0.0, "addr_cos": 0.2453, "top1_wt": 0.513, "src_sel": 0.1954, "tau_med": 40.42, "dwell_tok": 6.65},
+      {"wave": 6, "ctx_decay": 0.948, "load_ent": 0.864, "dead": 0.0, "addr_cos": 0.5056, "top1_wt": 0.501, "src_sel": 0.1237, "tau_med": 41.51, "dwell_tok": 10.73},
+      {"wave": 7, "ctx_decay": 0.964, "load_ent": 0.974, "dead": 0.0, "addr_cos": 0.3066, "top1_wt": 0.501, "src_sel": 0.2374, "tau_med": 41.40, "dwell_tok": 4.91},
+      {"wave": 8, "ctx_decay": 0.975, "load_ent": 0.916, "dead": 0.0, "addr_cos": 0.2252, "top1_wt": 0.501, "src_sel": 0.2182, "tau_med": 40.44, "dwell_tok": 13.35},
+      {"wave": 9, "ctx_decay": 0.983, "load_ent": 0.924, "dead": 0.0, "addr_cos": 0.1756, "top1_wt": 0.501, "src_sel": 0.3505, "tau_med": 40.52, "dwell_tok": 6.38},
+      {"wave": 10, "ctx_decay": 0.988, "load_ent": 0.798, "dead": 0.0, "addr_cos": 0.8292, "top1_wt": 0.612, "src_sel": 0.2319, "tau_med": 40.37, "dwell_tok": 36.06},
+      {"wave": 11, "ctx_decay": 0.992, "load_ent": 0.967, "dead": 0.0, "addr_cos": 0.2545, "top1_wt": 0.501, "src_sel": 0.1407, "tau_med": 41.96, "dwell_tok": 12.63}
+    ]
+  },
+  "anti_forgetting": {
+    "ood_task": "chat (SmolTalk everyday-conversations)",
+    "old_domains": ["edu", "story", "code"],
+    "smf_selected_count": 24,
+    "table": {
+      "full_ft": {"0.2": {"worst": 0.0106, "mean": 0.0060}, "0.4": {"worst": 0.0212, "mean": 0.0120}, "0.6": {"worst": 0.0318, "mean": 0.0179}, "max_drop": 1.3431, "at_max_worst": 0.2194, "at_max_mean": 0.1885},
+      "dense_lora": {"0.2": {"worst": 0.0035, "mean": 0.0002}, "0.4": {"worst": 0.0151, "mean": 0.0074}, "0.6": {"worst": 0.0421, "mean": 0.0299}, "max_drop": 0.8480, "at_max_worst": 0.1181, "at_max_mean": 0.0794},
+      "smf_lora": {"0.2": {"worst": 0.0070, "mean": 0.0030}, "0.4": {"worst": 0.0239, "mean": 0.0140}, "0.6": {"worst": 0.0764, "mean": 0.0431}, "max_drop": 0.9241, "at_max_worst": 0.1338, "at_max_mean": 0.0888},
+      "smf_mlp": {"0.2": {"worst": 0.0044, "mean": 0.0009}, "0.4": {"worst": 0.0091, "mean": 0.0021}, "0.6": {"worst": 0.0185, "mean": 0.0070}, "max_drop": 1.1640, "at_max_worst": 0.0751, "at_max_mean": 0.0638}
+    }
+  }
+}

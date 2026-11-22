@@ -1,0 +1,664 @@
+{
+  "experiment": "E3_rmp_2x2_ablation",
+  "encoder": "BAAI/bge-small-zh-v1.5",
+  "budget": 16,
+  "epochs_per_batch": 28,
+  "seeds": [
+    42,
+    43,
+    44
+  ],
+  "elapsed_s": 333.8,
+  "summary_mean": {
+    "shared_no_replay": {
+      "active_params": 9432,
+      "new_batch_score": 1.0,
+      "mean_old_score": 0.7958,
+      "worst_batch_score": 0.45,
+      "mean_old_drop": -0.048,
+      "worst_batch_drop": 0.0667,
+      "worst_cross_drop": 0.0,
+      "mean_fpr": 0.0
+    },
+    "shared_with_replay": {
+      "active_params": 9432,
+      "new_batch_score": 1.0,
+      "mean_old_score": 0.8125,
+      "worst_batch_score": 0.45,
+      "mean_old_drop": -0.048,
+      "worst_batch_drop": 0.025,
+      "worst_cross_drop": 0.0,
+      "mean_fpr": 0.0
+    },
+    "rmp_no_replay": {
+      "active_params": 9183,
+      "new_batch_score": 0.5,
+      "mean_old_score": 0.4271,
+      "worst_batch_score": 0.275,
+      "mean_old_drop": -0.0083,
+      "worst_batch_drop": 0.05,
+      "worst_cross_drop": 0.1667,
+      "mean_fpr": 0.6
+    },
+    "rmp_with_replay": {
+      "active_params": 9183,
+      "new_batch_score": 0.5833,
+      "mean_old_score": 0.4437,
+      "worst_batch_score": 0.325,
+      "mean_old_drop": -0.0146,
+      "worst_batch_drop": 0.025,
+      "worst_cross_drop": 0.0,
+      "mean_fpr": 0.4333
+    }
+  },
+  "all_runs": {
+    "shared_no_replay": [
+      {
+        "active_params": 9432,
+        "new_batch_score": 1.0,
+        "new_batch_cross": 1.0,
+        "mean_old_score": 0.8125,
+        "worst_batch_score": 0.45,
+        "mean_old_drop": -0.0813,
+        "worst_batch_drop": 0.0,
+        "worst_cross_drop": 0.0,
+        "mean_fpr": 0.0,
+        "per_batch_final": {
+          "1": {
+            "cross_exact": 0.0,
+            "direct_exact": 1.0,
+            "hard_neg_fpr": 0.0,
+            "score": 0.45
+          },
+          "2": {
+            "cross_exact": 1.0,
+            "direct_exact": 0.0,
+            "hard_neg_fpr": 0.0,
+            "score": 0.8
+          },
+          "3": {
+            "cross_exact": 1.0,
+            "direct_exact": 1.0,
+            "hard_neg_fpr": 0.0,
+            "score": 1.0
+          },
+          "4": {
+            "cross_exact": 1.0,
+            "direct_exact": 1.0,
+            "hard_neg_fpr": 0.0,
+            "score": 1.0
+          },
+          "5": {
+            "cross_exact": 1.0,
+            "direct_exact": 1.0,
+            "hard_neg_fpr": 0.0,
+            "score": 1.0
+          }
+        },
+        "per_batch_peak": {
+          "1": 0.25,
+          "2": 0.675,
+          "3": 1.0,
+          "4": 1.0,
+          "5": 1.0
+        }
+      },
+      {
+        "active_params": 9432,
+        "new_batch_score": 1.0,
+        "new_batch_cross": 1.0,
+        "mean_old_score": 0.8125,
+        "worst_batch_score": 0.45,
+        "mean_old_drop": -0.0813,
+        "worst_batch_drop": 0.0,
+        "worst_cross_drop": 0.0,
+        "mean_fpr": 0.0,
+        "per_batch_final": {
+          "1": {
+            "cross_exact": 0.0,
+            "direct_exact": 1.0,
+            "hard_neg_fpr": 0.0,
+            "score": 0.45
+          },
+          "2": {
+            "cross_exact": 1.0,
+            "direct_exact": 0.0,
+            "hard_neg_fpr": 0.0,
+            "score": 0.8
+          },
+          "3": {
+            "cross_exact": 1.0,
+            "direct_exact": 1.0,
+            "hard_neg_fpr": 0.0,
+            "score": 1.0
+          },
+          "4": {
+            "cross_exact": 1.0,
+            "direct_exact": 1.0,
+            "hard_neg_fpr": 0.0,
+            "score": 1.0
+          },
+          "5": {
+            "cross_exact": 1.0,
+            "direct_exact": 1.0,
+            "hard_neg_fpr": 0.0,
+            "score": 1.0
+          }
+        },
+        "per_batch_peak": {
+          "1": 0.25,
+          "2": 0.675,
+          "3": 1.0,
+          "4": 1.0,
+          "5": 1.0
+        }
+      },
+      {
+        "active_params": 9432,
+        "new_batch_score": 1.0,
+        "new_batch_cross": 1.0,
+        "mean_old_score": 0.7625,
+        "worst_batch_score": 0.45,
+        "mean_old_drop": 0.0187,
+        "worst_batch_drop": 0.2,
+        "worst_cross_drop": 0.0,
+        "mean_fpr": 0.0,
+        "per_batch_final": {
+          "1": {
+            "cross_exact": 0.0,
+            "direct_exact": 1.0,
+            "hard_neg_fpr": 0.0,
+            "score": 0.45
+          },
+          "2": {
+            "cross_exact": 1.0,
+            "direct_exact": 0.0,
+            "hard_neg_fpr": 0.0,
+            "score": 0.8
+          },
+          "3": {
+            "cross_exact": 1.0,
+            "direct_exact": 0.0,
+            "hard_neg_fpr": 0.0,
+            "score": 0.8
+          },
+          "4": {
+            "cross_exact": 1.0,
+            "direct_exact": 1.0,
+            "hard_neg_fpr": 0.0,
+            "score": 1.0
+          },
+          "5": {
+            "cross_exact": 1.0,
+            "direct_exact": 1.0,
+            "hard_neg_fpr": 0.0,
+            "score": 1.0
+          }
+        },
+        "per_batch_peak": {
+          "1": 0.45,
+          "2": 0.675,
+          "3": 1.0,
+          "4": 1.0,
+          "5": 1.0
+        }
+      }
+    ],
+    "shared_with_replay": [
+      {
+        "active_params": 9432,
+        "new_batch_score": 1.0,
+        "new_batch_cross": 1.0,
+        "mean_old_score": 0.8125,
+        "worst_batch_score": 0.45,
+        "mean_old_drop": -0.0813,
+        "worst_batch_drop": 0.0,
+        "worst_cross_drop": 0.0,
+        "mean_fpr": 0.0,
+        "per_batch_final": {
+          "1": {
+            "cross_exact": 0.0,
+            "direct_exact": 1.0,
+            "hard_neg_fpr": 0.0,
+            "score": 0.45
+          },
+          "2": {
+            "cross_exact": 1.0,
+            "direct_exact": 0.0,
+            "hard_neg_fpr": 0.0,
+            "score": 0.8
+          },
+          "3": {
+            "cross_exact": 1.0,
+            "direct_exact": 1.0,
+            "hard_neg_fpr": 0.0,
+            "score": 1.0
+          },
+          "4": {
+            "cross_exact": 1.0,
+            "direct_exact": 1.0,
+            "hard_neg_fpr": 0.0,
+            "score": 1.0
+          },
+          "5": {
+            "cross_exact": 1.0,
+            "direct_exact": 1.0,
+            "hard_neg_fpr": 0.0,
+            "score": 1.0
+          }
+        },
+        "per_batch_peak": {
+          "1": 0.25,
+          "2": 0.675,
+          "3": 1.0,
+          "4": 1.0,
+          "5": 1.0
+        }
+      },
+      {
+        "active_params": 9432,
+        "new_batch_score": 1.0,
+        "new_batch_cross": 1.0,
+        "mean_old_score": 0.8125,
+        "worst_batch_score": 0.45,
+        "mean_old_drop": -0.0813,
+        "worst_batch_drop": 0.0,
+        "worst_cross_drop": 0.0,
+        "mean_fpr": 0.0,
+        "per_batch_final": {
+          "1": {
+            "cross_exact": 0.0,
+            "direct_exact": 1.0,
+            "hard_neg_fpr": 0.0,
+            "score": 0.45
+          },
+          "2": {
+            "cross_exact": 1.0,
+            "direct_exact": 0.0,
+            "hard_neg_fpr": 0.0,
+            "score": 0.8
+          },
+          "3": {
+            "cross_exact": 1.0,
+            "direct_exact": 1.0,
+            "hard_neg_fpr": 0.0,
+            "score": 1.0
+          },
+          "4": {
+            "cross_exact": 1.0,
+            "direct_exact": 1.0,
+            "hard_neg_fpr": 0.0,
+            "score": 1.0
+          },
+          "5": {
+            "cross_exact": 1.0,
+            "direct_exact": 1.0,
+            "hard_neg_fpr": 0.0,
+            "score": 1.0
+          }
+        },
+        "per_batch_peak": {
+          "1": 0.25,
+          "2": 0.675,
+          "3": 1.0,
+          "4": 1.0,
+          "5": 1.0
+        }
+      },
+      {
+        "active_params": 9432,
+        "new_batch_score": 1.0,
+        "new_batch_cross": 1.0,
+        "mean_old_score": 0.8125,
+        "worst_batch_score": 0.45,
+        "mean_old_drop": 0.0187,
+        "worst_batch_drop": 0.075,
+        "worst_cross_drop": 0.0,
+        "mean_fpr": 0.0,
+        "per_batch_final": {
+          "1": {
+            "cross_exact": 0.0,
+            "direct_exact": 1.0,
+            "hard_neg_fpr": 0.0,
+            "score": 0.45
+          },
+          "2": {
+            "cross_exact": 1.0,
+            "direct_exact": 0.0,
+            "hard_neg_fpr": 0.0,
+            "score": 0.8
+          },
+          "3": {
+            "cross_exact": 1.0,
+            "direct_exact": 1.0,
+            "hard_neg_fpr": 0.0,
+            "score": 1.0
+          },
+          "4": {
+            "cross_exact": 1.0,
+            "direct_exact": 1.0,
+            "hard_neg_fpr": 0.0,
+            "score": 1.0
+          },
+          "5": {
+            "cross_exact": 1.0,
+            "direct_exact": 1.0,
+            "hard_neg_fpr": 0.0,
+            "score": 1.0
+          }
+        },
+        "per_batch_peak": {
+          "1": 0.45,
+          "2": 0.875,
+          "3": 1.0,
+          "4": 1.0,
+          "5": 1.0
+        }
+      }
+    ],
+    "rmp_no_replay": [
+      {
+        "active_params": 9183,
+        "new_batch_score": 0.5,
+        "new_batch_cross": 0.6667,
+        "mean_old_score": 0.4688,
+        "worst_batch_score": 0.325,
+        "mean_old_drop": 0.0,
+        "worst_batch_drop": 0.0,
+        "worst_cross_drop": 0.0,
+        "mean_fpr": 0.6,
+        "per_batch_final": {
+          "1": {
+            "cross_exact": 0.5,
+            "direct_exact": 1.0,
+            "hard_neg_fpr": 0.5,
+            "score": 0.6
+          },
+          "2": {
+            "cross_exact": 0.0,
+            "direct_exact": 1.0,
+            "hard_neg_fpr": 0.0,
+            "score": 0.45
+          },
+          "3": {
+            "cross_exact": 0.0,
+            "direct_exact": 1.0,
+            "hard_neg_fpr": 0.5,
+            "score": 0.325
+          },
+          "4": {
+            "cross_exact": 0.6667,
+            "direct_exact": 0.6667,
+            "hard_neg_fpr": 1.0,
+            "score": 0.5
+          },
+          "5": {
+            "cross_exact": 0.6667,
+            "direct_exact": 0.6667,
+            "hard_neg_fpr": 1.0,
+            "score": 0.5
+          }
+        },
+        "per_batch_peak": {
+          "1": 0.6,
+          "2": 0.45,
+          "3": 0.325,
+          "4": 0.5,
+          "5": 0.5
+        }
+      },
+      {
+        "active_params": 9183,
+        "new_batch_score": 0.5,
+        "new_batch_cross": 0.6667,
+        "mean_old_score": 0.4062,
+        "worst_batch_score": 0.25,
+        "mean_old_drop": 0.0062,
+        "worst_batch_drop": 0.15,
+        "worst_cross_drop": 0.5,
+        "mean_fpr": 0.6,
+        "per_batch_final": {
+          "1": {
+            "cross_exact": 0.5,
+            "direct_exact": 1.0,
+            "hard_neg_fpr": 0.5,
+            "score": 0.6
+          },
+          "2": {
+            "cross_exact": 0.0,
+            "direct_exact": 1.0,
+            "hard_neg_fpr": 0.0,
+            "score": 0.45
+          },
+          "3": {
+            "cross_exact": 0.0,
+            "direct_exact": 1.0,
+            "hard_neg_fpr": 0.5,
+            "score": 0.325
+          },
+          "4": {
+            "cross_exact": 0.3333,
+            "direct_exact": 0.3333,
+            "hard_neg_fpr": 1.0,
+            "score": 0.25
+          },
+          "5": {
+            "cross_exact": 0.6667,
+            "direct_exact": 0.6667,
+            "hard_neg_fpr": 1.0,
+            "score": 0.5
+          }
+        },
+        "per_batch_peak": {
+          "1": 0.475,
+          "2": 0.6,
+          "3": 0.325,
+          "4": 0.25,
+          "5": 0.5
+        }
+      },
+      {
+        "active_params": 9183,
+        "new_batch_score": 0.5,
+        "new_batch_cross": 0.6667,
+        "mean_old_score": 0.4062,
+        "worst_batch_score": 0.25,
+        "mean_old_drop": -0.0312,
+        "worst_batch_drop": 0.0,
+        "worst_cross_drop": 0.0,
+        "mean_fpr": 0.6,
+        "per_batch_final": {
+          "1": {
+            "cross_exact": 0.5,
+            "direct_exact": 1.0,
+            "hard_neg_fpr": 0.5,
+            "score": 0.6
+          },
+          "2": {
+            "cross_exact": 0.0,
+            "direct_exact": 1.0,
+            "hard_neg_fpr": 0.0,
+            "score": 0.45
+          },
+          "3": {
+            "cross_exact": 0.0,
+            "direct_exact": 1.0,
+            "hard_neg_fpr": 0.5,
+            "score": 0.325
+          },
+          "4": {
+            "cross_exact": 0.3333,
+            "direct_exact": 0.3333,
+            "hard_neg_fpr": 1.0,
+            "score": 0.25
+          },
+          "5": {
+            "cross_exact": 0.6667,
+            "direct_exact": 0.6667,
+            "hard_neg_fpr": 1.0,
+            "score": 0.5
+          }
+        },
+        "per_batch_peak": {
+          "1": 0.6,
+          "2": 0.325,
+          "3": 0.325,
+          "4": 0.25,
+          "5": 0.5
+        }
+      }
+    ],
+    "rmp_with_replay": [
+      {
+        "active_params": 9183,
+        "new_batch_score": 0.625,
+        "new_batch_cross": 0.6667,
+        "mean_old_score": 0.4375,
+        "worst_batch_score": 0.325,
+        "mean_old_drop": 0.0,
+        "worst_batch_drop": 0.0,
+        "worst_cross_drop": 0.0,
+        "mean_fpr": 0.4,
+        "per_batch_final": {
+          "1": {
+            "cross_exact": 0.5,
+            "direct_exact": 1.0,
+            "hard_neg_fpr": 0.5,
+            "score": 0.6
+          },
+          "2": {
+            "cross_exact": 0.0,
+            "direct_exact": 1.0,
+            "hard_neg_fpr": 0.0,
+            "score": 0.45
+          },
+          "3": {
+            "cross_exact": 0.0,
+            "direct_exact": 1.0,
+            "hard_neg_fpr": 0.5,
+            "score": 0.325
+          },
+          "4": {
+            "cross_exact": 0.3333,
+            "direct_exact": 0.3333,
+            "hard_neg_fpr": 0.5,
+            "score": 0.375
+          },
+          "5": {
+            "cross_exact": 0.6667,
+            "direct_exact": 0.6667,
+            "hard_neg_fpr": 0.5,
+            "score": 0.625
+          }
+        },
+        "per_batch_peak": {
+          "1": 0.6,
+          "2": 0.45,
+          "3": 0.325,
+          "4": 0.375,
+          "5": 0.625
+        }
+      },
+      {
+        "active_params": 9183,
+        "new_batch_score": 0.625,
+        "new_batch_cross": 0.6667,
+        "mean_old_score": 0.4562,
+        "worst_batch_score": 0.325,
+        "mean_old_drop": -0.0125,
+        "worst_batch_drop": 0.075,
+        "worst_cross_drop": 0.0,
+        "mean_fpr": 0.4,
+        "per_batch_final": {
+          "1": {
+            "cross_exact": 0.5,
+            "direct_exact": 1.0,
+            "hard_neg_fpr": 0.5,
+            "score": 0.6
+          },
+          "2": {
+            "cross_exact": 0.5,
+            "direct_exact": 0.0,
+            "hard_neg_fpr": 0.0,
+            "score": 0.525
+          },
+          "3": {
+            "cross_exact": 0.0,
+            "direct_exact": 1.0,
+            "hard_neg_fpr": 0.5,
+            "score": 0.325
+          },
+          "4": {
+            "cross_exact": 0.3333,
+            "direct_exact": 0.3333,
+            "hard_neg_fpr": 0.5,
+            "score": 0.375
+          },
+          "5": {
+            "cross_exact": 0.6667,
+            "direct_exact": 0.6667,
+            "hard_neg_fpr": 0.5,
+            "score": 0.625
+          }
+        },
+        "per_batch_peak": {
+          "1": 0.475,
+          "2": 0.6,
+          "3": 0.325,
+          "4": 0.375,
+          "5": 0.625
+        }
+      },
+      {
+        "active_params": 9183,
+        "new_batch_score": 0.5,
+        "new_batch_cross": 0.6667,
+        "mean_old_score": 0.4375,
+        "worst_batch_score": 0.325,
+        "mean_old_drop": -0.0312,
+        "worst_batch_drop": 0.0,
+        "worst_cross_drop": 0.0,
+        "mean_fpr": 0.5,
+        "per_batch_final": {
+          "1": {
+            "cross_exact": 0.5,
+            "direct_exact": 1.0,
+            "hard_neg_fpr": 0.5,
+            "score": 0.6
+          },
+          "2": {
+            "cross_exact": 0.0,
+            "direct_exact": 1.0,
+            "hard_neg_fpr": 0.0,
+            "score": 0.45
+          },
+          "3": {
+            "cross_exact": 0.0,
+            "direct_exact": 1.0,
+            "hard_neg_fpr": 0.5,
+            "score": 0.325
+          },
+          "4": {
+            "cross_exact": 0.3333,
+            "direct_exact": 0.3333,
+            "hard_neg_fpr": 0.5,
+            "score": 0.375
+          },
+          "5": {
+            "cross_exact": 0.6667,
+            "direct_exact": 0.6667,
+            "hard_neg_fpr": 1.0,
+            "score": 0.5
+          }
+        },
+        "per_batch_peak": {
+          "1": 0.6,
+          "2": 0.325,
+          "3": 0.325,
+          "4": 0.375,
+          "5": 0.5
+        }
+      }
+    ]
+  }
+}

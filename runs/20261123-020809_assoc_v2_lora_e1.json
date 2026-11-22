@@ -1,0 +1,208 @@
+{
+  "experiment": "v2.3_bge_lora_e1",
+  "seeds": [
+    42,
+    43,
+    44
+  ],
+  "lora_r": 8,
+  "epochs": 24,
+  "elapsed_s": 589.2,
+  "summary_mean": {
+    "v2_lora_hybrid": {
+      "cross_exact": 0.6667,
+      "cross_single": 0.9167,
+      "cross_target_hit": 0.75,
+      "direct_exact": 0.9,
+      "hard_neg_fpr": 0.25,
+      "superseded_latest_acc": 1.0,
+      "insufficient_abstain_acc": 0.6667,
+      "smoke6_hit": 0.3333
+    },
+    "v2_lora_graph": {
+      "cross_exact": 0.5833,
+      "cross_single": 0.75,
+      "cross_target_hit": 0.5833,
+      "direct_exact": 0.9,
+      "hard_neg_fpr": 0.25,
+      "superseded_latest_acc": 1.0,
+      "insufficient_abstain_acc": 0.6667,
+      "smoke6_hit": 0.3333
+    },
+    "v2_lora_full": {
+      "cross_exact": 0.6667,
+      "cross_single": 0.9167,
+      "cross_target_hit": 0.75,
+      "direct_exact": 0.9,
+      "hard_neg_fpr": 0.25,
+      "superseded_latest_acc": 1.0,
+      "insufficient_abstain_acc": 0.6667,
+      "smoke6_hit": 0.3333
+    }
+  },
+  "causal_ablation_mean": {
+    "full_target_hit": 0.75,
+    "drop_bridge_target_hit": 0.4167,
+    "drop_unrelated_target_hit": 0.75,
+    "bridge_causal_drop": 0.3333,
+    "unrelated_drop": 0.0
+  },
+  "seed_runs": [
+    {
+      "seed": 42,
+      "lora_params": 32768,
+      "net_params": 64619,
+      "abstain_thresh": 0.53,
+      "losses": {
+        "rank": 0.1681,
+        "query": 0.7067,
+        "cont": 0.0874,
+        "valid": 0.0774,
+        "anchor": 0.2533
+      },
+      "results": {
+        "v2_lora_hybrid": {
+          "cross_exact": 0.6667,
+          "cross_single": 0.9167,
+          "cross_target_hit": 0.75,
+          "direct_exact": 0.9,
+          "hard_neg_fpr": 0.25,
+          "superseded_latest_acc": 1.0,
+          "insufficient_abstain_acc": 0.6667,
+          "smoke6_hit": 0.3333
+        },
+        "v2_lora_graph": {
+          "cross_exact": 0.5833,
+          "cross_single": 0.75,
+          "cross_target_hit": 0.5833,
+          "direct_exact": 0.9,
+          "hard_neg_fpr": 0.25,
+          "superseded_latest_acc": 1.0,
+          "insufficient_abstain_acc": 0.6667,
+          "smoke6_hit": 0.3333
+        },
+        "v2_lora_full": {
+          "cross_exact": 0.6667,
+          "cross_single": 0.9167,
+          "cross_target_hit": 0.75,
+          "direct_exact": 0.9,
+          "hard_neg_fpr": 0.25,
+          "superseded_latest_acc": 1.0,
+          "insufficient_abstain_acc": 0.6667,
+          "smoke6_hit": 0.3333
+        }
+      },
+      "causal_ablation": {
+        "full_target_hit": 0.75,
+        "drop_bridge_target_hit": 0.4167,
+        "drop_unrelated_target_hit": 0.75,
+        "bridge_causal_drop": 0.3333,
+        "unrelated_drop": 0.0
+      }
+    },
+    {
+      "seed": 43,
+      "lora_params": 32768,
+      "net_params": 64619,
+      "abstain_thresh": 0.53,
+      "losses": {
+        "rank": 0.2318,
+        "query": 0.6709,
+        "cont": 0.0899,
+        "valid": 0.0869,
+        "anchor": 0.2575
+      },
+      "results": {
+        "v2_lora_hybrid": {
+          "cross_exact": 0.6667,
+          "cross_single": 0.9167,
+          "cross_target_hit": 0.75,
+          "direct_exact": 0.9,
+          "hard_neg_fpr": 0.25,
+          "superseded_latest_acc": 1.0,
+          "insufficient_abstain_acc": 0.6667,
+          "smoke6_hit": 0.3333
+        },
+        "v2_lora_graph": {
+          "cross_exact": 0.5833,
+          "cross_single": 0.75,
+          "cross_target_hit": 0.5833,
+          "direct_exact": 0.9,
+          "hard_neg_fpr": 0.25,
+          "superseded_latest_acc": 1.0,
+          "insufficient_abstain_acc": 0.6667,
+          "smoke6_hit": 0.3333
+        },
+        "v2_lora_full": {
+          "cross_exact": 0.6667,
+          "cross_single": 0.9167,
+          "cross_target_hit": 0.75,
+          "direct_exact": 0.9,
+          "hard_neg_fpr": 0.25,
+          "superseded_latest_acc": 1.0,
+          "insufficient_abstain_acc": 0.6667,
+          "smoke6_hit": 0.3333
+        }
+      },
+      "causal_ablation": {
+        "full_target_hit": 0.75,
+        "drop_bridge_target_hit": 0.4167,
+        "drop_unrelated_target_hit": 0.75,
+        "bridge_causal_drop": 0.3333,
+        "unrelated_drop": 0.0
+      }
+    },
+    {
+      "seed": 44,
+      "lora_params": 32768,
+      "net_params": 64619,
+      "abstain_thresh": 0.53,
+      "losses": {
+        "rank": 0.12,
+        "query": 0.7823,
+        "cont": 0.0836,
+        "valid": 0.0402,
+        "anchor": 0.2403
+      },
+      "results": {
+        "v2_lora_hybrid": {
+          "cross_exact": 0.6667,
+          "cross_single": 0.9167,
+          "cross_target_hit": 0.75,
+          "direct_exact": 0.9,
+          "hard_neg_fpr": 0.25,
+          "superseded_latest_acc": 1.0,
+          "insufficient_abstain_acc": 0.6667,
+          "smoke6_hit": 0.3333
+        },
+        "v2_lora_graph": {
+          "cross_exact": 0.5833,
+          "cross_single": 0.75,
+          "cross_target_hit": 0.5833,
+          "direct_exact": 0.9,
+          "hard_neg_fpr": 0.25,
+          "superseded_latest_acc": 1.0,
+          "insufficient_abstain_acc": 0.6667,
+          "smoke6_hit": 0.3333
+        },
+        "v2_lora_full": {
+          "cross_exact": 0.6667,
+          "cross_single": 0.9167,
+          "cross_target_hit": 0.75,
+          "direct_exact": 0.9,
+          "hard_neg_fpr": 0.25,
+          "superseded_latest_acc": 1.0,
+          "insufficient_abstain_acc": 0.6667,
+          "smoke6_hit": 0.3333
+        }
+      },
+      "causal_ablation": {
+        "full_target_hit": 0.75,
+        "drop_bridge_target_hit": 0.4167,
+        "drop_unrelated_target_hit": 0.75,
+        "bridge_causal_drop": 0.3333,
+        "unrelated_drop": 0.0
+      }
+    }
+  ]
+}

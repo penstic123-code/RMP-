@@ -1,0 +1,169 @@
+{
+  "experiment": "Phase3_scale_stress",
+  "scales": [
+    53,
+    200,
+    500,
+    1000
+  ],
+  "budget": 16,
+  "seed": 42,
+  "elapsed_s": 140.1,
+  "results": {
+    "53": {
+      "one_shot": {
+        "cross_exact": 0.25,
+        "cross_target": 0.25,
+        "direct_exact": 0.7,
+        "hard_neg_fpr": 0.0833,
+        "latency_ms": 4.88
+      },
+      "plain_2round": {
+        "cross_exact": 0.4167,
+        "cross_target": 0.4167,
+        "direct_exact": 0.7,
+        "hard_neg_fpr": 0.0833,
+        "latency_ms": 0.09
+      },
+      "learned_graph_only": {
+        "cross_exact": 0.5,
+        "cross_target": 0.5,
+        "direct_exact": 0.8,
+        "hard_neg_fpr": 0.0,
+        "latency_ms": 60.8
+      },
+      "learned_full_only": {
+        "cross_exact": 0.5833,
+        "cross_target": 0.5833,
+        "direct_exact": 0.8,
+        "hard_neg_fpr": 0.0,
+        "latency_ms": 80.32
+      },
+      "learned_hybrid": {
+        "cross_exact": 0.5833,
+        "cross_target": 0.5833,
+        "direct_exact": 0.8,
+        "hard_neg_fpr": 0.0,
+        "latency_ms": 79.17
+      }
+    },
+    "200": {
+      "one_shot": {
+        "cross_exact": 0.25,
+        "cross_target": 0.25,
+        "direct_exact": 0.7,
+        "hard_neg_fpr": 0.0833,
+        "latency_ms": 0.16
+      },
+      "plain_2round": {
+        "cross_exact": 0.4167,
+        "cross_target": 0.4167,
+        "direct_exact": 0.7,
+        "hard_neg_fpr": 0.0833,
+        "latency_ms": 0.2
+      },
+      "learned_graph_only": {
+        "cross_exact": 0.5,
+        "cross_target": 0.5,
+        "direct_exact": 0.7,
+        "hard_neg_fpr": 0.0,
+        "latency_ms": 67.11
+      },
+      "learned_full_only": {
+        "cross_exact": 0.5,
+        "cross_target": 0.5,
+        "direct_exact": 0.7,
+        "hard_neg_fpr": 0.0,
+        "latency_ms": 81.07
+      },
+      "learned_hybrid": {
+        "cross_exact": 0.5833,
+        "cross_target": 0.5833,
+        "direct_exact": 0.7,
+        "hard_neg_fpr": 0.0,
+        "latency_ms": 79.24
+      }
+    },
+    "500": {
+      "one_shot": {
+        "cross_exact": 0.25,
+        "cross_target": 0.25,
+        "direct_exact": 0.7,
+        "hard_neg_fpr": 0.0833,
+        "latency_ms": 0.32
+      },
+      "plain_2round": {
+        "cross_exact": 0.4167,
+        "cross_target": 0.4167,
+        "direct_exact": 0.7,
+        "hard_neg_fpr": 0.0833,
+        "latency_ms": 0.4
+      },
+      "learned_graph_only": {
+        "cross_exact": 0.5,
+        "cross_target": 0.5,
+        "direct_exact": 0.7,
+        "hard_neg_fpr": 0.0,
+        "latency_ms": 66.45
+      },
+      "learned_full_only": {
+        "cross_exact": 0.5,
+        "cross_target": 0.5,
+        "direct_exact": 0.7,
+        "hard_neg_fpr": 0.0,
+        "latency_ms": 87.1
+      },
+      "learned_hybrid": {
+        "cross_exact": 0.5833,
+        "cross_target": 0.5833,
+        "direct_exact": 0.7,
+        "hard_neg_fpr": 0.0,
+        "latency_ms": 86.05
+      }
+    },
+    "1000": {
+      "one_shot": {
+        "cross_exact": 0.25,
+        "cross_target": 0.25,
+        "direct_exact": 0.7,
+        "hard_neg_fpr": 0.0833,
+        "latency_ms": 0.68
+      },
+      "plain_2round": {
+        "cross_exact": 0.4167,
+        "cross_target": 0.4167,
+        "direct_exact": 0.7,
+        "hard_neg_fpr": 0.0833,
+        "latency_ms": 0.74
+      },
+      "learned_graph_only": {
+        "cross_exact": 0.5,
+        "cross_target": 0.5,
+        "direct_exact": 0.7,
+        "hard_neg_fpr": 0.0,
+        "latency_ms": 70.87
+      },
+      "learned_full_only": {
+        "cross_exact": 0.5,
+        "cross_target": 0.5,
+        "direct_exact": 0.7,
+        "hard_neg_fpr": 0.0,
+        "latency_ms": 96.72
+      },
+      "learned_hybrid": {
+        "cross_exact": 0.5833,
+        "cross_target": 0.5833,
+        "direct_exact": 0.7,
+        "hard_neg_fpr": 0.0,
+        "latency_ms": 95.74
+      }
+    },
+    "1000_after_path_consol": {
+      "cross_exact": 0.5833,
+      "cross_target": 0.5833,
+      "direct_exact": 0.7,
+      "hard_neg_fpr": 0.0,
+      "latency_ms": 70.91
+    }
+  }
+}

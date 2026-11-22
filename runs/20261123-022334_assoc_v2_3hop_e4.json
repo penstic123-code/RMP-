@@ -1,0 +1,73 @@
+{
+  "experiment": "TaskC_v2_3hop_and_e4",
+  "seed": 42,
+  "elapsed_s": 218.8,
+  "hop3_exact": 0.6667,
+  "hop3_target_hit": 1.0,
+  "hop3_details": [
+    {
+      "q": "今晚外面乌云打雷我还在公司加班，家里缩桌底发抖的小家伙托邻居照看，那位邻居住几零几、手机尾号是多少？",
+      "gold": [
+        "d_022",
+        "u_care_new",
+        "u_chen_phone"
+      ],
+      "pred": [
+        "d_022",
+        "u_chen_phone"
+      ],
+      "exact3": false,
+      "target3_hit": true,
+      "p_valid": 0.935
+    },
+    {
+      "q": "下雨在家擦镜头整理圣基尔达海边胶片，打算送去市中心暗房冲扫，那家店周几休息、几点前送卷能隔天取？",
+      "gold": [
+        "d_019",
+        "u_film_shop",
+        "u_darkroom_hour"
+      ],
+      "pred": [
+        "u_darkroom_hour",
+        "d_019",
+        "u_film_shop"
+      ],
+      "exact3": true,
+      "target3_hit": true,
+      "p_valid": 0.995
+    },
+    {
+      "q": "在公司改业务表单少了掌控感、想辞职做小产品，同事劝我先攒够旅行基金和生活费，那趟看雪预算能实现吗？",
+      "gold": [
+        "d_026",
+        "d_016",
+        "d_047"
+      ],
+      "pred": [
+        "d_016",
+        "d_026",
+        "d_047"
+      ],
+      "exact3": true,
+      "target3_hit": true,
+      "p_valid": 0.995
+    }
+  ],
+  "e4_v2_metrics": {
+    "one_shot": {
+      "cross_retrieval_target": 0.2727,
+      "cross_llm_answer_acc": 0.3636,
+      "hard_neg_intrusion_rate": 0.0
+    },
+    "v2_pure_neural": {
+      "cross_retrieval_target": 0.4545,
+      "cross_llm_answer_acc": 0.4545,
+      "hard_neg_intrusion_rate": 0.0
+    },
+    "oracle": {
+      "cross_retrieval_target": 1.0,
+      "cross_llm_answer_acc": 1.0,
+      "hard_neg_intrusion_rate": 0.0
+    }
+  }
+}

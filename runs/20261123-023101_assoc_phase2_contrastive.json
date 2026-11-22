@@ -1,0 +1,30 @@
+{
+  "experiment": "Phase2_contrastive_abstract",
+  "seeds": [
+    42,
+    43,
+    44
+  ],
+  "elapsed_s": 11.4,
+  "results": {
+    "emergent_vec_mean_calibrated": {
+      "thresh": 0.53,
+      "novel_abstract_hit": 0.5,
+      "hard_neg_fpr": 0.1667
+    },
+    "contrastive_abstract_projector": {
+      "novel_abstract_hit": 0.25,
+      "hard_neg_fpr": 0.2778,
+      "per_seed_hit": [
+        0.0,
+        0.0,
+        0.75
+      ],
+      "per_seed_fpr": [
+        0.0,
+        0.0,
+        0.8333
+      ]
+    }
+  }
+}
