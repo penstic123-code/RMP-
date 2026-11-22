@@ -23,6 +23,7 @@ DATASETS = {
     'chat3': ('data/chat3-train.txt', 'data/chat3-valid.txt'),          # make_chat_data.py 现版：记忆对话 40%，跨会话一半带重现行
     'mix': ('data/mix-train.txt', 'data/mix-valid.txt'),                # tools/prepare_data.py：TinyStories + Cosmopedia + Simple Wikipedia + SODA
     'task4': ('data/task4-train.txt', 'data/task4-valid.txt'),          # tools/make_task_mix.py：四源 4KB 块交错，逐字节来源标签在 .src（RMP 按任务分工）
+    'task3': ('data/task3-train.txt', 'data/task3-valid.txt'),          # tools/make_task_mix.py --n_src 3：三源（故事/wikiHow/维基），留出对话测 OOD 遗忘
 }
 SEP = 30   # 会话边界字节（ASCII 记录分隔符）：清空 c、快记忆与中枢，强制开块
 
@@ -63,8 +64,11 @@ def batch(data, b, T, gen=None):
 
 def scan(la, x, c0, chunk=8):
     """对角线性递推 c_t = exp(la_t)·c_{t−1} + x_t（沿时间维 1）。la ≤ 0 是对数门。
-    CUDA 上用 fla 的 HGRN 内核；本地实现分块：块内用衰减矩阵 exp(LA_t − LA_s)（s ≤ t，指数 ≤ 0，不会溢出），块间顺序衔接。"""
+    CUDA 上用 fla 的 HGRN 内核；T=1 走单拍直算快路径；其余走分块衰减矩阵。"""
     b, T = x.shape[:2]
+    if T == 1:
+        c = la[:, 0].exp() * c0 + x[:, 0]
+        return c[:, None], c
     if USE_FLA and x.is_cuda and T >= 16:
         from fla.ops.hgrn import chunk_hgrn
         c, cT = chunk_hgrn(x.float().flatten(2), la.float().flatten(2), c0.float().flatten(1), output_final_state=True)
@@ -87,6 +91,14 @@ def scan(la, x, c0, chunk=8):
 
 def delta_chunk(q, k, v, beta, g, S, C=64):
     """门控 delta 规则：S ← αS；S ← S + β(v − Sk)kᵀ；r = Sq，log α = g。q, k, v: (b, T, H, m)；beta, g: (b, T, H)；S: (b, H, m, m)。"""
+    if q.shape[1] == 1:
+        q0, k0, v0 = q[:, 0].float(), k[:, 0].float(), v[:, 0].float()
+        b0, a0 = beta[:, 0].float()[..., None], g[:, 0].float().exp()[..., None, None]
+        Sd = S.float() * a0
+        v_pred = torch.einsum('bmij,bmj->bmi', Sd, k0)
+        Sn = Sd + torch.einsum('bmi,bmj->bmij', b0 * (v0 - v_pred), k0)
+        r = torch.einsum('bmij,bmj->bmi', Sn, q0)[:, None]
+        return r, Sn
     if USE_FLA and q.is_cuda and q.shape[1] >= 64:
         from fla.ops.gated_delta_rule import chunk_gated_delta_rule
         dt = q.dtype

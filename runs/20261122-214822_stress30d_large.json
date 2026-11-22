@@ -1,0 +1,73 @@
+{
+ "model": "Qwen/Qwen2.5-1.5B-Instruct",
+ "N": 512,
+ "timeline": [
+  {
+   "day": 3,
+   "active_slots": 6,
+   "total_rules": 10,
+   "b1_retention": "3/10",
+   "latest_batch": "3/10",
+   "old_nll_delta": {
+    "en": 0.0172,
+    "zh": 0.0005,
+    "code": -0.0,
+    "math": -0.0004
+   },
+   "peak_vram_mb": 4919.7,
+   "db_kb": 4.0
+  },
+  {
+   "day": 10,
+   "active_slots": 12,
+   "total_rules": 30,
+   "b1_retention": "8/10",
+   "latest_batch": "6/10",
+   "old_nll_delta": {
+    "en": 0.0347,
+    "zh": -0.0051,
+    "code": 0.0006,
+    "math": -0.0004
+   },
+   "peak_vram_mb": 5059.0,
+   "db_kb": 4.0
+  },
+  {
+   "day": 20,
+   "active_slots": 11,
+   "total_rules": 60,
+   "b1_retention": "1/10",
+   "latest_batch": "4/10",
+   "old_nll_delta": {
+    "en": 0.0976,
+    "zh": -0.0001,
+    "code": -0.0011,
+    "math": -0.0004
+   },
+   "peak_vram_mb": 5078.0,
+   "db_kb": 88.0
+  },
+  {
+   "day": 30,
+   "active_slots": 11,
+   "total_rules": 100,
+   "b1_retention": "7/10",
+   "latest_batch": "9/10",
+   "old_nll_delta": {
+    "en": 0.0195,
+    "zh": 0.0002,
+    "code": 0.0035,
+    "math": -0.0044
+   },
+   "peak_vram_mb": 5078.0,
+   "db_kb": 152.0
+  }
+ ],
+ "day30_hippo": {
+  "recall@3": "7/9",
+  "ans_acc": "7/9",
+  "no_old_leak": "7/9",
+  "privacy_deleted": true
+ },
+ "elapsed_s": 922.8
+}

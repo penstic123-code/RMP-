@@ -1,0 +1,26 @@
+{
+ "model": "Qwen/Qwen2.5-0.5B-Instruct",
+ "backbone_params": 494032768,
+ "sidecar_params": 2837648,
+ "init_identity_diff": 0.0,
+ "new_before": 4.09375,
+ "new_online": 0.609375,
+ "new_sleep": 0.59375,
+ "old_before": {
+  "en_general": 2.671875,
+  "zh_general": 1.9296875,
+  "code": 0.42578125
+ },
+ "old_rises_online": {
+  "en_general": 0.03125,
+  "zh_general": 0.21094,
+  "code": 0.0293
+ },
+ "old_rises_sleep": {
+  "en_general": 0.04688,
+  "zh_general": 0.21094,
+  "code": 0.02539
+ },
+ "hippo_slots": 4,
+ "peak_vram_mb": 1207.9
+}

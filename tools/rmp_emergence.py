@@ -28,7 +28,7 @@ torch.manual_seed(0)
 m = D.build('dspn', a.size, **extra).to(D.DEV).eval()
 if not a.random:
     r = m.load_state_dict(torch.load(ROOT / f'runs/dspn-{a.size}{a.tag}.pt', map_location=D.DEV), strict=False)
-    assert not r.unexpected_keys and all(k.endswith(('.moved', '.active', '.ogain')) for k in r.missing_keys), r
+    assert not r.unexpected_keys and all(k.endswith(('.moved', '.active', '.ogain', '.is_shared')) for k in r.missing_keys), r
 pool = m.layers[1]
 
 val = D.load_bytes(a.data)[1]
@@ -73,7 +73,8 @@ res = {'tag': a.tag, 'random': a.random, 'waves': []}
 tot_w, sel_byte, sel_ctx, load_ent, sel_src = 0.0, 0.0, 0.0, 0.0, 0.0
 for w, sel, wt, _ in caps:
     wt = wt.cpu().numpy()                                               # (b, T, N)
-    mods = np.where(np.asarray(pool.wave.cpu()) == w)[0]
+    is_sh = np.asarray(pool.is_shared.cpu()) > 0 if hasattr(pool, 'is_shared') else np.zeros(pool.N, dtype=bool)
+    mods = np.where((np.asarray(pool.wave.cpu()) == w) & (~is_sh))[0]
     if len(mods) == 0:
         continue
     W = wt[..., mods]                                                   # (b, T, n)
@@ -93,7 +94,7 @@ for w, sel, wt, _ in caps:
     le = H(load) / math.log(n) if n > 1 else 1.0
     src_sel = 0.0
     if src is not None:
-        js = np.stack([W[src == c].sum(0) for c in range(4)], 1)
+        js = np.stack([W[src == c].sum(0) for c in range(int(src.max()) + 1)], 1)
         src_sel = mi(js) / max(H(js.sum(0) / js.sum()), 1e-9)
     res['waves'].append({'wave': int(w), 'modules': n, 'byte_sel': round(byte_sel, 4), 'ctx_sel_given_byte': round(ctx_sel, 4),
                          'src_sel': round(src_sel, 4), 'load_entropy': round(le, 3)})

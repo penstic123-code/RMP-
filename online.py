@@ -215,7 +215,10 @@ class OnlineLearner:
         for _, sel, _, _ in caps:
             cur += sel.sum((0, 1))
         cur = cur / max(ticks, 1)
-        score = (cur / (self.bg_freq + self.smf_eps)).masked_fill(pool.active == 0, -1e9)
+        inact = pool.active == 0
+        if hasattr(pool, 'is_shared'):
+            inact = inact | (pool.is_shared > 0)           # 常驻共享模块永久冻结，不参与 SMF 更新
+        score = (cur / (self.bg_freq + self.smf_eps)).masked_fill(inact, -1e9)
         top = score.topk(min(self.smf_k, pool.N)).indices
         keep = torch.zeros(pool.N, device=pool.addr.device)
         keep[top] = 1.0
@@ -358,14 +361,18 @@ class OnlineLearner:
             else:
                 total.backward()
             keep_mask, zero_ps = None, ()
-            if self.allocate and _pools(self.model):
+            pools_cur = _pools(self.model)
+            if self.allocate and pools_cur:
                 keep_mask, zero_ps = self._compute_alloc_mask()
             if smf:
                 smf_keep = self._compute_smf_mask(caps)
                 keep_mask = smf_keep if keep_mask is None else (keep_mask * smf_keep)
+            if pools_cur and hasattr(pools_cur[0], 'is_shared') and (pools_cur[0].is_shared > 0).any():
+                sh_keep = (pools_cur[0].is_shared == 0).float()   # 常驻共享模块白天永久冻结（即便未开 SMF）
+                keep_mask = sh_keep if keep_mask is None else (keep_mask * sh_keep)
             if gate > 0:
                 if keep_mask is not None or zero_ps:
-                    _masked_step(self.opt, self._pool_masked_params(), keep_mask if keep_mask is not None else torch.ones(_pools(self.model)[0].N, device=ids.device), zero_ps)
+                    _masked_step(self.opt, self._pool_masked_params(), keep_mask if keep_mask is not None else torch.ones(pools_cur[0].N, device=ids.device), zero_ps)
                 else:
                     self.opt.step()
             if alloc:                                      # 分配放在更新之后：它原地改 ogain、地址等，反传前改会破坏计算图
@@ -437,14 +444,21 @@ class OnlineLearner:
             steps = 0
         opt = torch.optim.Adam(slow, lr=lr) if slow else None
         sleep_keep, pool_slow = None, []
-        if smf_sleep and self.smf_k > 0 and pools:
+        if pools:
             pool = pools[0]
-            sleep_keep = torch.zeros(pool.N, device=pool.addr.device)
-            if self.smf_hits is not None and self.smf_hits.sum() > 0:
-                k_act = min(self.smf_k, int((self.smf_hits > 0).sum().item()))
-                sleep_keep[self.smf_hits.topk(k_act).indices] = 1.0
-            pool_ids = {id(p) for p in list(pool.core.parameters()) + [pool.ogain]}
-            pool_slow = [p for p in slow if id(p) in pool_ids and p.shape[:1] == (pool.N,)]
+            has_sh = hasattr(pool, 'is_shared') and (pool.is_shared > 0).any()
+            if (smf_sleep and self.smf_k > 0) or has_sh:
+                if smf_sleep and self.smf_k > 0:
+                    sleep_keep = torch.zeros(pool.N, device=pool.addr.device)
+                    if self.smf_hits is not None and self.smf_hits.sum() > 0:
+                        k_act = min(self.smf_k, int((self.smf_hits > 0).sum().item()))
+                        sleep_keep[self.smf_hits.topk(k_act).indices] = 1.0
+                else:
+                    sleep_keep = torch.ones(pool.N, device=pool.addr.device)
+                if has_sh:
+                    sleep_keep = sleep_keep * (pool.is_shared == 0).float()   # 常驻共享模块睡眠时同样永久冻结
+                pool_ids = {id(p) for p in list(pool.core.parameters()) + [pool.ogain]}
+                pool_slow = [p for p in slow if id(p) in pool_ids and p.shape[:1] == (pool.N,)]
         plastic = [(pl, pl.plastic) for pl in pools]
         for pl, _ in plastic:                              # RMP：地址与均衡偏置只在睡眠中更新（第 23.3 节）；rewire=False 时睡眠也不动
             pl.plastic = rewire
