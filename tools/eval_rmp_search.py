@@ -134,6 +134,8 @@ def measure_cross_tick_routing(
 def train_model(
     name: str,
     max_think: int,
+    G: int,
+    N: int,
     tr: np.ndarray,
     device: torch.device,
     steps: int,
@@ -147,7 +149,7 @@ def train_model(
     rng = np.random.default_rng(seed)
     model = LatentSearchWaveNet(
         vocab=256, D=128, M=2, d=96, m=16, hidden=192, q=64,
-        N=48, k=4, G=4, pd=96, pm=16, phidden=192, qr=32,
+        N=N, k=4, G=G, pd=96, pm=16, phidden=192, qr=32,
         beta_max=2.0, sep_id=30, max_think=max_think,
     ).to(device)
     opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=0.05, betas=(0.9, 0.95))
@@ -270,29 +272,35 @@ def _detach(st):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--steps", type=int, default=1500)
+    ap.add_argument("--steps", type=int, default=1000)
     ap.add_argument("--batch", type=int, default=16)
     ap.add_argument("--seq_len", type=int, default=256)
     ap.add_argument("--lr", type=float, default=1.5e-3)
     ap.add_argument("--ponder_w", type=float, default=0.005)
-    ap.add_argument("--seeds", type=int, nargs="+", default=[42, 43])
-    ap.add_argument("--online_bytes", type=int, default=65536)
+    ap.add_argument("--seeds", type=int, nargs="+", default=[42, 43, 44])
     args = ap.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    tr, va, va_src, soda = load_task3_and_soda()
+    tr, va, va_src, _ = load_task3_and_soda()
     old_probes = build_old_probes(va, va_src, probe_bytes=8192)
     print(f"Device: {device} | task3 train={len(tr)/1e6:.1f}MB | probes={list(old_probes.keys())}", flush=True)
 
-    arms = [("lockstep_k1", 1), ("latent_search_k3", 3)]
-    results = {name: [] for name, _ in arms}
-    smf_results = []
+    # 严格三臂最小对照：(名称, max_think, G, N)
+    # - k1_iso_param:   4 波 × 1 拍 = 4 波次算力，48 模块（1× 参数，1× FLOPs）
+    # - k1_iso_flops:  12 波 × 1 拍 = 12 波次算力，144 模块（同算力普通加深，无权重共享）
+    # - k3_weight_tied: 4 波 × 3 拍 = 12 波次算力，48 模块（1× 参数，3× FLOPs 权重共享加深）
+    arms = [
+        ("k1_iso_param", 1, 4, 48),
+        ("k1_iso_flops", 1, 12, 144),
+        ("k3_weight_tied", 3, 4, 48),
+    ]
+    results = {name: [] for name, _, _, _ in arms}
 
-    for name, max_think in arms:
+    for name, max_think, G, N in arms:
         for s in args.seeds:
-            print(f"\n=== Arm: {name} (max_think={max_think}, seed={s}) ===", flush=True)
+            print(f"\n=== Arm: {name} (max_think={max_think}, G={G}, N={N}, seed={s}) ===", flush=True)
             model, info = train_model(
-                name, max_think, tr, device,
+                name, max_think, G, N, tr, device,
                 steps=args.steps, batch_size=args.batch, seq_len=args.seq_len,
                 lr=args.lr, ponder_w=args.ponder_w, seed=s,
             )
@@ -310,39 +318,31 @@ def main():
             results[name].append(rec)
             print(
                 f"  -> VAL mean_bpc={mean_bpc:.4f} (src0={ev['src0']['bpc']:.4f} src1={ev['src1']['bpc']:.4f} src2={ev['src2']['bpc']:.4f}) | "
-                f"steps={mean_steps:.2f} corr(ent)={mean_corr_ent:+.3f} corr(nll)={mean_corr_sur:+.3f} routing={routing}",
+                f"params={info['params']/1e6:.2f}M sec={info['train_sec']:.1f}s steps={mean_steps:.2f} "
+                f"corr(ent)={mean_corr_ent:+.3f} routing={routing}",
                 flush=True,
             )
-            if name == "latent_search_k3":
-                print(f"  -> Running real-text SODA OOD continual learning (seed={s})...", flush=True)
-                smf_res = run_real_smf_continual(model, tr, old_probes, soda, device, seq_bytes=args.online_bytes)
-                smf_results.append({"seed": s, **smf_res})
-                for mname in ("smf_mlp", "full_ft"):
-                    last = smf_res[mname][-1]
-                    print(
-                        f"     [{mname} @64KB] chat_drop={last['chat_drop']:+.4f} | "
-                        f"worst_old_rise={last['worst_old_rise']:+.4f} mean_old_rise={last['mean_old_rise']:+.4f}",
-                        flush=True,
-                    )
 
     summary = {}
     for name, recs in results.items():
+        bpcs = [r["mean_bpc"] for r in recs]
         summary[name] = {
             "params": recs[0]["params"],
-            "mean_bpc": round(sum(r["mean_bpc"] for r in recs) / len(recs), 4),
-            "mean_steps": round(sum(r["mean_steps"] for r in recs) / len(recs), 3),
-            "corr_entropy": round(sum(r["corr_entropy"] for r in recs) / len(recs), 4),
-            "corr_surprisal": round(sum(r["corr_surprisal"] for r in recs) / len(recs), 4),
-            "tick01_jaccard": round(sum(r["cross_tick_routing"]["tick01_jaccard"] for r in recs) / len(recs), 4),
+            "mean_bpc": round(float(np.mean(bpcs)), 4),
+            "std_bpc": round(float(np.std(bpcs)), 4),
+            "mean_train_sec": round(float(np.mean([r["train_sec"] for r in recs])), 1),
+            "mean_steps": round(float(np.mean([r["mean_steps"] for r in recs])), 3),
+            "corr_entropy": round(float(np.mean([r["corr_entropy"] for r in recs])), 4),
+            "tick01_jaccard": round(float(np.mean([r["cross_tick_routing"]["tick01_jaccard"] for r in recs])), 4),
         }
 
     ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    out_path = ROOT / "runs" / f"{ts}_rmp_search.json"
+    out_path = ROOT / "runs" / f"{ts}_rmp_isoflops.json"
     out_path.write_text(
-        json.dumps({"args": vars(args), "summary": summary, "runs": results, "smf_continual": smf_results}, indent=2),
+        json.dumps({"args": vars(args), "summary": summary, "runs": results}, indent=2),
         encoding="utf-8",
     )
-    print(f"\nSaved E127 results to {out_path}", flush=True)
+    print(f"\nSaved E127 iso-FLOPs results to {out_path}", flush=True)
     print(json.dumps(summary, indent=2), flush=True)
 
 

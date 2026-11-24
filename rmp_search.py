@@ -192,15 +192,11 @@ class LatentSearchWaveNet(nn.Module):
         halt_probs = info["halt_probs"]  # (K, B, T)
 
         if self.max_think == 1:
-            task_loss = F.cross_entropy(info["tick_logits"][0].float().reshape(-1, self.vocab), targets.reshape(-1))
+            marginal_nll = F.cross_entropy(info["tick_logits"][0].float().reshape(-1, self.vocab), targets.reshape(-1))
             kl_loss = torch.tensor(0.0, device=idx.device)
         else:
-            B, T = targets.shape
-            nll_list = [
-                F.cross_entropy(lg.float().reshape(-1, self.vocab), targets.reshape(-1), reduction="none").view(B, T)
-                for lg in info["tick_logits"]
-            ]
-            task_loss = (halt_probs * torch.stack(nll_list, dim=0)).sum(dim=0).mean()
+            # 训练与推理严格对齐：直接最小化边际对数概率 NLL（与评测 bpc 完全一致）
+            marginal_nll = F.nll_loss(marginal_lp.reshape(-1, self.vocab), targets.reshape(-1))
             if ponder_w > 0.0:
                 K = self.max_think
                 prior = []
@@ -215,12 +211,10 @@ class LatentSearchWaveNet(nn.Module):
             else:
                 kl_loss = torch.tensor(0.0, device=idx.device)
 
-        # 同时计算边际 bpc（推理真实指标）
-        marginal_nll = F.nll_loss(marginal_lp.reshape(-1, self.vocab), targets.reshape(-1))
-        total = task_loss + ponder_w * kl_loss
+        total = marginal_nll + ponder_w * kl_loss
         metrics = {
             "loss": float(total.item()),
-            "task_loss": float(task_loss.item()),
+            "task_loss": float(marginal_nll.item()),
             "bpc": float(marginal_nll.item() / math.log(2)),
             "exp_steps": float(info["exp_steps"].mean().item()),
         }

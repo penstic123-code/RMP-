@@ -1,0 +1,519 @@
+{
+  "args": {
+    "steps": 1000,
+    "batch": 16,
+    "seq_len": 256,
+    "lr": 0.0015,
+    "ponder_w": 0.005,
+    "seeds": [
+      42,
+      43,
+      44
+    ]
+  },
+  "summary": {
+    "k1_iso_param": {
+      "params": 4204309,
+      "mean_bpc": 2.5516,
+      "std_bpc": 0.0132,
+      "mean_train_sec": 127.3,
+      "mean_steps": 1.0,
+      "corr_entropy": 0.0,
+      "tick01_jaccard": 1.0
+    },
+    "k1_iso_flops": {
+      "params": 12156981,
+      "mean_bpc": 2.6097,
+      "std_bpc": 0.0533,
+      "mean_train_sec": 369.7,
+      "mean_steps": 1.0,
+      "corr_entropy": 0.0,
+      "tick01_jaccard": 1.0
+    },
+    "k3_weight_tied": {
+      "params": 4204565,
+      "mean_bpc": 2.4941,
+      "std_bpc": 0.0076,
+      "mean_train_sec": 364.5,
+      "mean_steps": 1.82,
+      "corr_entropy": 0.3372,
+      "tick01_jaccard": 0.6031
+    }
+  },
+  "runs": {
+    "k1_iso_param": [
+      {
+        "seed": 42,
+        "params": 4204309,
+        "train_sec": 113.3,
+        "last_train": {
+          "loss": 1.7494089603424072,
+          "task_loss": 1.7494089603424072,
+          "bpc": 2.5238636315727083,
+          "exp_steps": 1.0
+        },
+        "pool_dead": 0.0,
+        "pool_sizes": [
+          12,
+          12,
+          12,
+          12
+        ],
+        "mean_bpc": 2.5685,
+        "mean_steps": 1.0,
+        "corr_entropy": 0.0,
+        "corr_surprisal": 0.0,
+        "cross_tick_routing": {
+          "tick01_jaccard": 1.0,
+          "tick02_jaccard": 1.0
+        },
+        "per_source": {
+          "src0": {
+            "bpc": 2.1374,
+            "exp_steps": 1.0,
+            "steps_std": 0.0,
+            "corr_entropy": 0.0,
+            "corr_surprisal": 0.0
+          },
+          "src1": {
+            "bpc": 2.5631,
+            "exp_steps": 1.0,
+            "steps_std": 0.0,
+            "corr_entropy": 0.0,
+            "corr_surprisal": 0.0
+          },
+          "src2": {
+            "bpc": 3.005,
+            "exp_steps": 1.0,
+            "steps_std": 0.0,
+            "corr_entropy": 0.0,
+            "corr_surprisal": 0.0
+          }
+        }
+      },
+      {
+        "seed": 43,
+        "params": 4204309,
+        "train_sec": 125.3,
+        "last_train": {
+          "loss": 1.5433876514434814,
+          "task_loss": 1.5433876514434814,
+          "bpc": 2.2266377109067745,
+          "exp_steps": 1.0
+        },
+        "pool_dead": 0.0,
+        "pool_sizes": [
+          12,
+          12,
+          12,
+          12
+        ],
+        "mean_bpc": 2.55,
+        "mean_steps": 1.0,
+        "corr_entropy": 0.0,
+        "corr_surprisal": 0.0,
+        "cross_tick_routing": {
+          "tick01_jaccard": 1.0,
+          "tick02_jaccard": 1.0
+        },
+        "per_source": {
+          "src0": {
+            "bpc": 2.1232,
+            "exp_steps": 1.0,
+            "steps_std": 0.0,
+            "corr_entropy": 0.0,
+            "corr_surprisal": 0.0
+          },
+          "src1": {
+            "bpc": 2.5367,
+            "exp_steps": 1.0,
+            "steps_std": 0.0,
+            "corr_entropy": 0.0,
+            "corr_surprisal": 0.0
+          },
+          "src2": {
+            "bpc": 2.99,
+            "exp_steps": 1.0,
+            "steps_std": 0.0,
+            "corr_entropy": 0.0,
+            "corr_surprisal": 0.0
+          }
+        }
+      },
+      {
+        "seed": 44,
+        "params": 4204309,
+        "train_sec": 143.4,
+        "last_train": {
+          "loss": 1.661792516708374,
+          "task_loss": 1.661792516708374,
+          "bpc": 2.397459822841561,
+          "exp_steps": 1.0
+        },
+        "pool_dead": 0.0,
+        "pool_sizes": [
+          12,
+          12,
+          12,
+          12
+        ],
+        "mean_bpc": 2.5364,
+        "mean_steps": 1.0,
+        "corr_entropy": 0.0,
+        "corr_surprisal": 0.0,
+        "cross_tick_routing": {
+          "tick01_jaccard": 1.0,
+          "tick02_jaccard": 1.0
+        },
+        "per_source": {
+          "src0": {
+            "bpc": 2.0685,
+            "exp_steps": 1.0,
+            "steps_std": 0.0,
+            "corr_entropy": 0.0,
+            "corr_surprisal": 0.0
+          },
+          "src1": {
+            "bpc": 2.5396,
+            "exp_steps": 1.0,
+            "steps_std": 0.0,
+            "corr_entropy": 0.0,
+            "corr_surprisal": 0.0
+          },
+          "src2": {
+            "bpc": 3.0012,
+            "exp_steps": 1.0,
+            "steps_std": 0.0,
+            "corr_entropy": 0.0,
+            "corr_surprisal": 0.0
+          }
+        }
+      }
+    ],
+    "k1_iso_flops": [
+      {
+        "seed": 42,
+        "params": 12156981,
+        "train_sec": 430.4,
+        "last_train": {
+          "loss": 1.7010095119476318,
+          "task_loss": 1.7010095119476318,
+          "bpc": 2.4540379873918043,
+          "exp_steps": 1.0
+        },
+        "pool_dead": 0.0,
+        "pool_sizes": [
+          12,
+          12,
+          12,
+          12,
+          12,
+          12,
+          12,
+          12,
+          12,
+          12,
+          12,
+          12
+        ],
+        "mean_bpc": 2.6821,
+        "mean_steps": 1.0,
+        "corr_entropy": 0.0,
+        "corr_surprisal": 0.0,
+        "cross_tick_routing": {
+          "tick01_jaccard": 1.0,
+          "tick02_jaccard": 1.0
+        },
+        "per_source": {
+          "src0": {
+            "bpc": 2.4962,
+            "exp_steps": 1.0,
+            "steps_std": 0.0,
+            "corr_entropy": 0.0,
+            "corr_surprisal": 0.0
+          },
+          "src1": {
+            "bpc": 2.5404,
+            "exp_steps": 1.0,
+            "steps_std": 0.0,
+            "corr_entropy": 0.0,
+            "corr_surprisal": 0.0
+          },
+          "src2": {
+            "bpc": 3.0098,
+            "exp_steps": 1.0,
+            "steps_std": 0.0,
+            "corr_entropy": 0.0,
+            "corr_surprisal": 0.0
+          }
+        }
+      },
+      {
+        "seed": 43,
+        "params": 12156981,
+        "train_sec": 301.9,
+        "last_train": {
+          "loss": 1.4984619617462158,
+          "task_loss": 1.4984619617462158,
+          "bpc": 2.1618236411720133,
+          "exp_steps": 1.0
+        },
+        "pool_dead": 0.0,
+        "pool_sizes": [
+          12,
+          12,
+          12,
+          12,
+          12,
+          12,
+          12,
+          12,
+          12,
+          12,
+          12,
+          12
+        ],
+        "mean_bpc": 2.5552,
+        "mean_steps": 1.0,
+        "corr_entropy": 0.0,
+        "corr_surprisal": 0.0,
+        "cross_tick_routing": {
+          "tick01_jaccard": 1.0,
+          "tick02_jaccard": 1.0
+        },
+        "per_source": {
+          "src0": {
+            "bpc": 2.1505,
+            "exp_steps": 1.0,
+            "steps_std": 0.0,
+            "corr_entropy": 0.0,
+            "corr_surprisal": 0.0
+          },
+          "src1": {
+            "bpc": 2.5498,
+            "exp_steps": 1.0,
+            "steps_std": 0.0,
+            "corr_entropy": 0.0,
+            "corr_surprisal": 0.0
+          },
+          "src2": {
+            "bpc": 2.9652,
+            "exp_steps": 1.0,
+            "steps_std": 0.0,
+            "corr_entropy": 0.0,
+            "corr_surprisal": 0.0
+          }
+        }
+      },
+      {
+        "seed": 44,
+        "params": 12156981,
+        "train_sec": 376.8,
+        "last_train": {
+          "loss": 1.6107711791992188,
+          "task_loss": 1.6107711791992188,
+          "bpc": 2.3238515922375806,
+          "exp_steps": 1.0
+        },
+        "pool_dead": 0.0,
+        "pool_sizes": [
+          12,
+          12,
+          12,
+          12,
+          12,
+          12,
+          12,
+          12,
+          12,
+          12,
+          12,
+          12
+        ],
+        "mean_bpc": 2.5919,
+        "mean_steps": 1.0,
+        "corr_entropy": 0.0,
+        "corr_surprisal": 0.0,
+        "cross_tick_routing": {
+          "tick01_jaccard": 1.0,
+          "tick02_jaccard": 1.0
+        },
+        "per_source": {
+          "src0": {
+            "bpc": 2.2707,
+            "exp_steps": 1.0,
+            "steps_std": 0.0,
+            "corr_entropy": 0.0,
+            "corr_surprisal": 0.0
+          },
+          "src1": {
+            "bpc": 2.5044,
+            "exp_steps": 1.0,
+            "steps_std": 0.0,
+            "corr_entropy": 0.0,
+            "corr_surprisal": 0.0
+          },
+          "src2": {
+            "bpc": 3.0007,
+            "exp_steps": 1.0,
+            "steps_std": 0.0,
+            "corr_entropy": 0.0,
+            "corr_surprisal": 0.0
+          }
+        }
+      }
+    ],
+    "k3_weight_tied": [
+      {
+        "seed": 42,
+        "params": 4204565,
+        "train_sec": 382.5,
+        "last_train": {
+          "loss": 1.7218191623687744,
+          "task_loss": 1.7189931869506836,
+          "bpc": 2.479982946135666,
+          "exp_steps": 1.503882646560669
+        },
+        "pool_dead": 0.0,
+        "pool_sizes": [
+          12,
+          12,
+          12,
+          12
+        ],
+        "mean_bpc": 2.4946,
+        "mean_steps": 1.509,
+        "corr_entropy": 0.6326,
+        "corr_surprisal": 0.3772,
+        "cross_tick_routing": {
+          "tick01_jaccard": 0.7045,
+          "tick02_jaccard": 0.5598,
+          "tick12_jaccard": 0.7581
+        },
+        "per_source": {
+          "src0": {
+            "bpc": 2.002,
+            "exp_steps": 1.516,
+            "steps_std": 0.7219,
+            "corr_entropy": 0.5867,
+            "corr_surprisal": 0.3754
+          },
+          "src1": {
+            "bpc": 2.5068,
+            "exp_steps": 1.455,
+            "steps_std": 0.6754,
+            "corr_entropy": 0.6115,
+            "corr_surprisal": 0.3397
+          },
+          "src2": {
+            "bpc": 2.975,
+            "exp_steps": 1.556,
+            "steps_std": 0.6461,
+            "corr_entropy": 0.6997,
+            "corr_surprisal": 0.4165
+          }
+        }
+      },
+      {
+        "seed": 43,
+        "params": 4204565,
+        "train_sec": 253.5,
+        "last_train": {
+          "loss": 1.5064724683761597,
+          "task_loss": 1.5048563480377197,
+          "bpc": 2.1710487905642943,
+          "exp_steps": 2.055224895477295
+        },
+        "pool_dead": 0.0,
+        "pool_sizes": [
+          12,
+          12,
+          12,
+          12
+        ],
+        "mean_bpc": 2.4846,
+        "mean_steps": 2.044,
+        "corr_entropy": 0.2522,
+        "corr_surprisal": 0.1456,
+        "cross_tick_routing": {
+          "tick01_jaccard": 0.6296,
+          "tick02_jaccard": 0.4402,
+          "tick12_jaccard": 0.6444
+        },
+        "per_source": {
+          "src0": {
+            "bpc": 2.0375,
+            "exp_steps": 2.101,
+            "steps_std": 0.513,
+            "corr_entropy": 0.2615,
+            "corr_surprisal": 0.1547
+          },
+          "src1": {
+            "bpc": 2.4671,
+            "exp_steps": 2.033,
+            "steps_std": 0.5678,
+            "corr_entropy": 0.0923,
+            "corr_surprisal": 0.0495
+          },
+          "src2": {
+            "bpc": 2.9493,
+            "exp_steps": 1.999,
+            "steps_std": 0.5051,
+            "corr_entropy": 0.4028,
+            "corr_surprisal": 0.2326
+          }
+        }
+      },
+      {
+        "seed": 44,
+        "params": 4204565,
+        "train_sec": 457.4,
+        "last_train": {
+          "loss": 1.6311321258544922,
+          "task_loss": 1.6298513412475586,
+          "bpc": 2.3513784474040786,
+          "exp_steps": 1.8913019895553589
+        },
+        "pool_dead": 0.0,
+        "pool_sizes": [
+          12,
+          12,
+          12,
+          12
+        ],
+        "mean_bpc": 2.5031,
+        "mean_steps": 1.906,
+        "corr_entropy": 0.1268,
+        "corr_surprisal": 0.0847,
+        "cross_tick_routing": {
+          "tick01_jaccard": 0.4753,
+          "tick02_jaccard": 0.3128,
+          "tick12_jaccard": 0.5882
+        },
+        "per_source": {
+          "src0": {
+            "bpc": 2.0827,
+            "exp_steps": 1.958,
+            "steps_std": 0.5143,
+            "corr_entropy": 0.0048,
+            "corr_surprisal": 0.0192
+          },
+          "src1": {
+            "bpc": 2.4705,
+            "exp_steps": 1.891,
+            "steps_std": 0.4965,
+            "corr_entropy": 0.1138,
+            "corr_surprisal": 0.0866
+          },
+          "src2": {
+            "bpc": 2.9562,
+            "exp_steps": 1.868,
+            "steps_std": 0.4372,
+            "corr_entropy": 0.2619,
+            "corr_surprisal": 0.1484
+          }
+        }
+      }
+    ]
+  }
+}
