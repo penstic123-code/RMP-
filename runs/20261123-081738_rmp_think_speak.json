@@ -1,0 +1,736 @@
+{
+  "experiment": "rmp_think_speak_v1",
+  "steps": 480,
+  "seeds": [
+    42,
+    43
+  ],
+  "D": 192,
+  "elapsed_s": 552.1,
+  "summary_mean": {
+    "lockstep": {
+      "fact_flip_both": 0.0,
+      "fact_old_leak": 0.0,
+      "two_hop_recall": 0.0,
+      "two_hop_ans": 0.0,
+      "mid_pause_triggered": 0.0,
+      "mid_pause_recall": 0.0,
+      "mid_pause_ans": 0.0,
+      "abstain_acc": 0.375
+    },
+    "no_mid_pause": {
+      "fact_flip_both": 0.0,
+      "fact_old_leak": 0.0,
+      "two_hop_recall": 0.0625,
+      "two_hop_ans": 0.0,
+      "mid_pause_triggered": 0.0,
+      "mid_pause_recall": 0.0,
+      "mid_pause_ans": 0.0,
+      "abstain_acc": 0.875
+    },
+    "think_speak": {
+      "fact_flip_both": 0.0,
+      "fact_old_leak": 0.0,
+      "two_hop_recall": 0.0625,
+      "two_hop_ans": 0.0,
+      "mid_pause_triggered": 0.0938,
+      "mid_pause_recall": 0.0312,
+      "mid_pause_ans": 0.0,
+      "abstain_acc": 0.875
+    }
+  },
+  "seed_runs": [
+    {
+      "seed": 42,
+      "params": 5213672,
+      "losses": {
+        "lockstep": {
+          "mem": 0.0,
+          "gate": 0.0,
+          "lm": 1.0716
+        },
+        "think_speak": {
+          "mem": 1.4336,
+          "gate": 0.1445,
+          "lm": 1.2372
+        }
+      },
+      "lockstep": {
+        "fact_flip_before": 0.0,
+        "fact_flip_after": 0.0,
+        "fact_flip_both": 0.0,
+        "fact_old_leak": 0.0,
+        "two_hop_recall": 0.0,
+        "two_hop_ans": 0.0,
+        "mid_pause_triggered": 0.0,
+        "mid_pause_recall": 0.0,
+        "mid_pause_ans": 0.0,
+        "abstain_acc": 0.75,
+        "samples": {
+          "t1": [
+            {
+              "q": "我现在该找谁拿大门钥匙？",
+              "p1": "沈姐",
+              "out1": "拒答：记忆不足",
+              "p2": "陈阿姨",
+              "out2": "拒答：记忆不足",
+              "both": false
+            },
+            {
+              "q": "我现在该找谁拿过敏药盒？",
+              "p1": "张医生",
+              "out1": "拒答：记忆不足",
+              "p2": "沈姐",
+              "out2": "拒答：记忆不足",
+              "both": false
+            },
+            {
+              "q": "我现在该找谁拿胶片相机？",
+              "p1": "张医生",
+              "out1": "答复：先找姐",
+              "p2": "沈姐",
+              "out2": "答复：先找姐",
+              "both": false
+            }
+          ],
+          "t2": [
+            {
+              "q": "我现在要去哪里才能拿到备忘录？",
+              "gold": "枫叶诊所",
+              "out": "答复：先找姨",
+              "thinks": 0,
+              "recalled": []
+            },
+            {
+              "q": "我现在要去哪里才能拿到胶片相机？",
+              "gold": "锦绣物业",
+              "out": "答复：先找姨",
+              "thinks": 0,
+              "recalled": []
+            }
+          ],
+          "t3": [
+            {
+              "q": "拿备忘录找谁，如果暴雨打雷又该找谁？",
+              "gold": [
+                "阿远",
+                "老周"
+              ],
+              "out": "答复：先找，再",
+              "pre_t": 0,
+              "mid_t": 0,
+              "trace": []
+            },
+            {
+              "q": "拿大门钥匙找谁，如果聚餐过敏又该找谁？",
+              "gold": [
+                "小李",
+                "老周"
+              ],
+              "out": "答复：先找，再",
+              "pre_t": 0,
+              "mid_t": 0,
+              "trace": []
+            },
+            {
+              "q": "拿过敏药盒找谁，如果暴雨打雷又该找谁？",
+              "gold": [
+                "张医生",
+                "沈姐"
+              ],
+              "out": "答复：先找姐",
+              "pre_t": 0,
+              "mid_t": 0,
+              "trace": []
+            }
+          ]
+        }
+      },
+      "think_speak": {
+        "fact_flip_before": 0.0,
+        "fact_flip_after": 0.0,
+        "fact_flip_both": 0.0,
+        "fact_old_leak": 0.0,
+        "two_hop_recall": 0.125,
+        "two_hop_ans": 0.0,
+        "mid_pause_triggered": 0.0,
+        "mid_pause_recall": 0.0,
+        "mid_pause_ans": 0.0,
+        "abstain_acc": 1.0,
+        "samples": {
+          "t1": [
+            {
+              "q": "我现在该找谁拿大门钥匙？",
+              "p1": "沈姐",
+              "out1": "拒答：记忆不足",
+              "p2": "陈阿姨",
+              "out2": "拒答：记忆不足",
+              "both": false
+            },
+            {
+              "q": "我现在该找谁拿过敏药盒？",
+              "p1": "张医生",
+              "out1": "拒答：记忆不足",
+              "p2": "沈姐",
+              "out2": "拒答：记忆不足",
+              "both": false
+            },
+            {
+              "q": "我现在该找谁拿胶片相机？",
+              "p1": "张医生",
+              "out1": "拒答：记忆不足",
+              "p2": "沈姐",
+              "out2": "拒答：记忆不足",
+              "both": false
+            }
+          ],
+          "t2": [
+            {
+              "q": "我现在要去哪里才能拿到备忘录？",
+              "gold": "枫叶诊所",
+              "out": "答复：姐：",
+              "thinks": 2,
+              "recalled": [
+                "m_a",
+                "m_b"
+              ]
+            },
+            {
+              "q": "我现在要去哪里才能拿到胶片相机？",
+              "gold": "锦绣物业",
+              "out": "答复：姐",
+              "thinks": 2,
+              "recalled": [
+                "d_0",
+                "m_b"
+              ]
+            }
+          ],
+          "t3": [
+            {
+              "q": "拿备忘录找谁，如果暴雨打雷又该找谁？",
+              "gold": [
+                "阿远",
+                "老周"
+              ],
+              "out": "答复：耡：耡耡",
+              "pre_t": 1,
+              "mid_t": 0,
+              "trace": [
+                {
+                  "action": "THINK",
+                  "after_chars": 0,
+                  "p_emit": 0.004,
+                  "recalled": "d_0"
+                }
+              ]
+            },
+            {
+              "q": "拿大门钥匙找谁，如果聚餐过敏又该找谁？",
+              "gold": [
+                "小李",
+                "老周"
+              ],
+              "out": "答复：姐",
+              "pre_t": 1,
+              "mid_t": 0,
+              "trace": [
+                {
+                  "action": "THINK",
+                  "after_chars": 0,
+                  "p_emit": 0.011,
+                  "recalled": "d_0"
+                }
+              ]
+            },
+            {
+              "q": "拿过敏药盒找谁，如果暴雨打雷又该找谁？",
+              "gold": [
+                "张医生",
+                "沈姐"
+              ],
+              "out": "答复：耡：耡耡",
+              "pre_t": 1,
+              "mid_t": 0,
+              "trace": [
+                {
+                  "action": "THINK",
+                  "after_chars": 0,
+                  "p_emit": 0.004,
+                  "recalled": "m_1"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "no_mid_pause": {
+        "fact_flip_before": 0.0,
+        "fact_flip_after": 0.0,
+        "fact_flip_both": 0.0,
+        "fact_old_leak": 0.0,
+        "two_hop_recall": 0.125,
+        "two_hop_ans": 0.0,
+        "mid_pause_triggered": 0.0,
+        "mid_pause_recall": 0.0,
+        "mid_pause_ans": 0.0,
+        "abstain_acc": 1.0,
+        "samples": {
+          "t1": [
+            {
+              "q": "我现在该找谁拿大门钥匙？",
+              "p1": "沈姐",
+              "out1": "拒答：记忆不足",
+              "p2": "陈阿姨",
+              "out2": "拒答：记忆不足",
+              "both": false
+            },
+            {
+              "q": "我现在该找谁拿过敏药盒？",
+              "p1": "张医生",
+              "out1": "拒答：记忆不足",
+              "p2": "沈姐",
+              "out2": "拒答：记忆不足",
+              "both": false
+            },
+            {
+              "q": "我现在该找谁拿胶片相机？",
+              "p1": "张医生",
+              "out1": "拒答：记忆不足",
+              "p2": "沈姐",
+              "out2": "拒答：记忆不足",
+              "both": false
+            }
+          ],
+          "t2": [
+            {
+              "q": "我现在要去哪里才能拿到备忘录？",
+              "gold": "枫叶诊所",
+              "out": "答复：姐：",
+              "thinks": 2,
+              "recalled": [
+                "m_a",
+                "m_b"
+              ]
+            },
+            {
+              "q": "我现在要去哪里才能拿到胶片相机？",
+              "gold": "锦绣物业",
+              "out": "答复：姐",
+              "thinks": 2,
+              "recalled": [
+                "d_0",
+                "m_b"
+              ]
+            }
+          ],
+          "t3": [
+            {
+              "q": "拿备忘录找谁，如果暴雨打雷又该找谁？",
+              "gold": [
+                "阿远",
+                "老周"
+              ],
+              "out": "答复：耡：耡耡",
+              "pre_t": 1,
+              "mid_t": 0,
+              "trace": [
+                {
+                  "action": "THINK",
+                  "after_chars": 0,
+                  "p_emit": 0.004,
+                  "recalled": "d_0"
+                }
+              ]
+            },
+            {
+              "q": "拿大门钥匙找谁，如果聚餐过敏又该找谁？",
+              "gold": [
+                "小李",
+                "老周"
+              ],
+              "out": "答复：姐",
+              "pre_t": 1,
+              "mid_t": 0,
+              "trace": [
+                {
+                  "action": "THINK",
+                  "after_chars": 0,
+                  "p_emit": 0.011,
+                  "recalled": "d_0"
+                }
+              ]
+            },
+            {
+              "q": "拿过敏药盒找谁，如果暴雨打雷又该找谁？",
+              "gold": [
+                "张医生",
+                "沈姐"
+              ],
+              "out": "答复：耡：耡耡",
+              "pre_t": 1,
+              "mid_t": 0,
+              "trace": [
+                {
+                  "action": "THINK",
+                  "after_chars": 0,
+                  "p_emit": 0.004,
+                  "recalled": "m_1"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "seed": 43,
+      "params": 5213672,
+      "losses": {
+        "lockstep": {
+          "mem": 0.0,
+          "gate": 0.0,
+          "lm": 1.1013
+        },
+        "think_speak": {
+          "mem": 1.4025,
+          "gate": 0.1873,
+          "lm": 1.1981
+        }
+      },
+      "lockstep": {
+        "fact_flip_before": 0.0,
+        "fact_flip_after": 0.0,
+        "fact_flip_both": 0.0,
+        "fact_old_leak": 0.0,
+        "two_hop_recall": 0.0,
+        "two_hop_ans": 0.0,
+        "mid_pause_triggered": 0.0,
+        "mid_pause_recall": 0.0,
+        "mid_pause_ans": 0.0,
+        "abstain_acc": 0.0,
+        "samples": {
+          "t1": [
+            {
+              "q": "我现在该找谁拿大门钥匙？",
+              "p1": "林师傅",
+              "out1": "答复：先找",
+              "p2": "老周",
+              "out2": "答复：先找",
+              "both": false
+            },
+            {
+              "q": "我现在该找谁拿过敏药盒？",
+              "p1": "顾叔",
+              "out1": "答复：姐",
+              "p2": "阿远",
+              "out2": "答复：姐",
+              "both": false
+            },
+            {
+              "q": "我现在该找谁拿胶片相机？",
+              "p1": "张医生",
+              "out1": "答复：姨",
+              "p2": "小李",
+              "out2": "答复：姨",
+              "both": false
+            }
+          ],
+          "t2": [
+            {
+              "q": "我现在要去哪里才能拿到社保卡？",
+              "gold": "蓝鲸咖啡",
+              "out": "答复：先找",
+              "thinks": 0,
+              "recalled": []
+            },
+            {
+              "q": "我现在要去哪里才能拿到社保卡？",
+              "gold": "翠湖门卫",
+              "out": "答复：先找",
+              "thinks": 0,
+              "recalled": []
+            }
+          ],
+          "t3": [
+            {
+              "q": "拿大门钥匙找谁，如果深夜加班又该找谁？",
+              "gold": [
+                "沈姐",
+                "林师傅"
+              ],
+              "out": "答复：先找",
+              "pre_t": 0,
+              "mid_t": 0,
+              "trace": []
+            },
+            {
+              "q": "拿过敏药盒找谁，如果临时出差又该找谁？",
+              "gold": [
+                "小李",
+                "林师傅"
+              ],
+              "out": "找",
+              "pre_t": 0,
+              "mid_t": 0,
+              "trace": []
+            },
+            {
+              "q": "拿备忘录找谁，如果临时出差又该找谁？",
+              "gold": [
+                "阿远",
+                "张医生"
+              ],
+              "out": "答复：先找",
+              "pre_t": 0,
+              "mid_t": 0,
+              "trace": []
+            }
+          ]
+        }
+      },
+      "think_speak": {
+        "fact_flip_before": 0.0,
+        "fact_flip_after": 0.0,
+        "fact_flip_both": 0.0,
+        "fact_old_leak": 0.0,
+        "two_hop_recall": 0.0,
+        "two_hop_ans": 0.0,
+        "mid_pause_triggered": 0.1875,
+        "mid_pause_recall": 0.0625,
+        "mid_pause_ans": 0.0,
+        "abstain_acc": 0.75,
+        "samples": {
+          "t1": [
+            {
+              "q": "我现在该找谁拿大门钥匙？",
+              "p1": "林师傅",
+              "out1": "拒答：记忆不足",
+              "p2": "老周",
+              "out2": "拒答：记忆不足",
+              "both": false
+            },
+            {
+              "q": "我现在该找谁拿过敏药盒？",
+              "p1": "顾叔",
+              "out1": "拒答：记忆不足",
+              "p2": "阿远",
+              "out2": "拒答：记忆不足",
+              "both": false
+            },
+            {
+              "q": "我现在该找谁拿胶片相机？",
+              "p1": "张医生",
+              "out1": "拒答：足",
+              "p2": "小李",
+              "out2": "拒答：足",
+              "both": false
+            }
+          ],
+          "t2": [
+            {
+              "q": "我现在要去哪里才能拿到社保卡？",
+              "gold": "蓝鲸咖啡",
+              "out": "答复：",
+              "thinks": 2,
+              "recalled": [
+                "m_a",
+                "d_1"
+              ]
+            },
+            {
+              "q": "我现在要去哪里才能拿到社保卡？",
+              "gold": "翠湖门卫",
+              "out": "答复：",
+              "thinks": 2,
+              "recalled": [
+                "m_a",
+                "d_1"
+              ]
+            }
+          ],
+          "t3": [
+            {
+              "q": "拿大门钥匙找谁，如果深夜加班又该找谁？",
+              "gold": [
+                "沈姐",
+                "林师傅"
+              ],
+              "out": "答复：不足",
+              "pre_t": 1,
+              "mid_t": 0,
+              "trace": [
+                {
+                  "action": "THINK",
+                  "after_chars": 0,
+                  "p_emit": 0.001,
+                  "recalled": "d_0"
+                }
+              ]
+            },
+            {
+              "q": "拿过敏药盒找谁，如果临时出差又该找谁？",
+              "gold": [
+                "小李",
+                "林师傅"
+              ],
+              "out": "答复：不足再足再找忆，再找再找再找再找再找再找再找再",
+              "pre_t": 1,
+              "mid_t": 1,
+              "trace": [
+                {
+                  "action": "THINK",
+                  "after_chars": 0,
+                  "p_emit": 0.0,
+                  "recalled": "d_3"
+                },
+                {
+                  "action": "THINK",
+                  "after_chars": 11,
+                  "p_emit": 0.0,
+                  "recalled": "m_2"
+                }
+              ]
+            },
+            {
+              "q": "拿备忘录找谁，如果临时出差又该找谁？",
+              "gold": [
+                "阿远",
+                "张医生"
+              ],
+              "out": "答复：不足再找再足再找再找再找再找再找再找",
+              "pre_t": 1,
+              "mid_t": 0,
+              "trace": [
+                {
+                  "action": "THINK",
+                  "after_chars": 0,
+                  "p_emit": 0.0,
+                  "recalled": "d_0"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "no_mid_pause": {
+        "fact_flip_before": 0.0,
+        "fact_flip_after": 0.0,
+        "fact_flip_both": 0.0,
+        "fact_old_leak": 0.0,
+        "two_hop_recall": 0.0,
+        "two_hop_ans": 0.0,
+        "mid_pause_triggered": 0.0,
+        "mid_pause_recall": 0.0,
+        "mid_pause_ans": 0.0,
+        "abstain_acc": 0.75,
+        "samples": {
+          "t1": [
+            {
+              "q": "我现在该找谁拿大门钥匙？",
+              "p1": "林师傅",
+              "out1": "拒答：记忆不足",
+              "p2": "老周",
+              "out2": "拒答：记忆不足",
+              "both": false
+            },
+            {
+              "q": "我现在该找谁拿过敏药盒？",
+              "p1": "顾叔",
+              "out1": "拒答：记忆不足",
+              "p2": "阿远",
+              "out2": "拒答：记忆不足",
+              "both": false
+            },
+            {
+              "q": "我现在该找谁拿胶片相机？",
+              "p1": "张医生",
+              "out1": "拒答：足",
+              "p2": "小李",
+              "out2": "拒答：足",
+              "both": false
+            }
+          ],
+          "t2": [
+            {
+              "q": "我现在要去哪里才能拿到社保卡？",
+              "gold": "蓝鲸咖啡",
+              "out": "答复：",
+              "thinks": 2,
+              "recalled": [
+                "m_a",
+                "d_1"
+              ]
+            },
+            {
+              "q": "我现在要去哪里才能拿到社保卡？",
+              "gold": "翠湖门卫",
+              "out": "答复：",
+              "thinks": 2,
+              "recalled": [
+                "m_a",
+                "d_1"
+              ]
+            }
+          ],
+          "t3": [
+            {
+              "q": "拿大门钥匙找谁，如果深夜加班又该找谁？",
+              "gold": [
+                "沈姐",
+                "林师傅"
+              ],
+              "out": "答复：不足",
+              "pre_t": 1,
+              "mid_t": 0,
+              "trace": [
+                {
+                  "action": "THINK",
+                  "after_chars": 0,
+                  "p_emit": 0.001,
+                  "recalled": "d_0"
+                }
+              ]
+            },
+            {
+              "q": "拿过敏药盒找谁，如果临时出差又该找谁？",
+              "gold": [
+                "小李",
+                "林师傅"
+              ],
+              "out": "答复：不足再足再找忆，忆足再足再足再足再找再足",
+              "pre_t": 1,
+              "mid_t": 0,
+              "trace": [
+                {
+                  "action": "THINK",
+                  "after_chars": 0,
+                  "p_emit": 0.0,
+                  "recalled": "d_3"
+                }
+              ]
+            },
+            {
+              "q": "拿备忘录找谁，如果临时出差又该找谁？",
+              "gold": [
+                "阿远",
+                "张医生"
+              ],
+              "out": "答复：不足再找再足再找再找再找再找再找再找",
+              "pre_t": 1,
+              "mid_t": 0,
+              "trace": [
+                {
+                  "action": "THINK",
+                  "after_chars": 0,
+                  "p_emit": 0.0,
+                  "recalled": "d_0"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
