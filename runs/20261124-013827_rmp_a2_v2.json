@@ -1,0 +1,436 @@
+{
+  "args": {
+    "steps": 600,
+    "batch": 32,
+    "lr": 0.002,
+    "ponder_w": 0.01,
+    "seeds": [
+      42,
+      43
+    ],
+    "eval_n": 24,
+    "online_steps": 80,
+    "arms": [
+      "A2_hippo_k1",
+      "A2_hippo_k3"
+    ],
+    "tag": "rmp_a2_v2"
+  },
+  "vocab_size": 259,
+  "summary": {
+    "A2_hippo_k1": {
+      "params": 2243110,
+      "overall_exact": 0.3646,
+      "dynamic_switch": 0.1875,
+      "T1_single": 0.3125,
+      "T2_two_hop": 0.2916,
+      "T3_dual": 0.0209,
+      "T4_abstain": 0.8334,
+      "steps_T1": 1.0,
+      "steps_T2_2hop": 1.0,
+      "steps_T4_abs": 1.0
+    },
+    "A2_hippo_k3": {
+      "params": 2243366,
+      "overall_exact": 0.3177,
+      "dynamic_switch": 0.0417,
+      "T1_single": 0.1041,
+      "T2_two_hop": 0.2917,
+      "T3_dual": 0.0416,
+      "T4_abstain": 0.8334,
+      "steps_T1": 1.255,
+      "steps_T2_2hop": 1.452,
+      "steps_T4_abs": 1.261
+    }
+  },
+  "runs": {
+    "A2_hippo_k1": [
+      {
+        "seed": 42,
+        "params": 2243110,
+        "train_sec": 166.4,
+        "last_train": {
+          "loss": 0.0892808735370636,
+          "task_loss": 0.0892808735370636,
+          "kl_loss": 0.0,
+          "exp_steps": 1.0,
+          "tok_acc": 0.9285714030265808
+        },
+        "eval": {
+          "T1_single": {
+            "exact": 0.2917,
+            "key_acc": 0.4167,
+            "nll": 1.682,
+            "exp_steps": 1.0
+          },
+          "T2_two_hop": {
+            "exact": 0.25,
+            "key_acc": 0.25,
+            "nll": 0.3365,
+            "exp_steps": 1.0
+          },
+          "T3_dual": {
+            "exact": 0.0417,
+            "key_acc": 0.0833,
+            "nll": 0.9674,
+            "exp_steps": 1.0
+          },
+          "T4_abstain": {
+            "exact": 1.0,
+            "key_acc": 1.0,
+            "nll": 0.0006,
+            "exp_steps": 1.0
+          }
+        },
+        "dynamic_switch": 0.0833,
+        "overall_exact": 0.3959
+      },
+      {
+        "seed": 43,
+        "params": 2243110,
+        "train_sec": 92.1,
+        "last_train": {
+          "loss": 0.09203515201807022,
+          "task_loss": 0.09203515201807022,
+          "kl_loss": 0.0,
+          "exp_steps": 1.0,
+          "tok_acc": 0.9430605173110962
+        },
+        "eval": {
+          "T1_single": {
+            "exact": 0.3333,
+            "key_acc": 0.3333,
+            "nll": 1.0999,
+            "exp_steps": 1.0
+          },
+          "T2_two_hop": {
+            "exact": 0.3333,
+            "key_acc": 0.3333,
+            "nll": 0.2161,
+            "exp_steps": 1.0
+          },
+          "T3_dual": {
+            "exact": 0.0,
+            "key_acc": 0.0,
+            "nll": 0.6521,
+            "exp_steps": 1.0
+          },
+          "T4_abstain": {
+            "exact": 0.6667,
+            "key_acc": 1.0,
+            "nll": 0.1821,
+            "exp_steps": 1.0
+          }
+        },
+        "dynamic_switch": 0.2917,
+        "overall_exact": 0.3333
+      }
+    ],
+    "A2_hippo_k3": [
+      {
+        "seed": 42,
+        "params": 2243366,
+        "train_sec": 181.7,
+        "last_train": {
+          "loss": 0.10066691786050797,
+          "task_loss": 0.0972173660993576,
+          "kl_loss": 0.3449554443359375,
+          "exp_steps": 1.3058432340621948,
+          "tok_acc": 0.9321428537368774
+        },
+        "eval": {
+          "T1_single": {
+            "exact": 0.125,
+            "key_acc": 0.125,
+            "nll": 2.398,
+            "exp_steps": 1.214
+          },
+          "T2_two_hop": {
+            "exact": 0.0417,
+            "key_acc": 0.0417,
+            "nll": 1.03,
+            "exp_steps": 1.328
+          },
+          "T3_dual": {
+            "exact": 0.0,
+            "key_acc": 0.0,
+            "nll": 2.4902,
+            "exp_steps": 1.119
+          },
+          "T4_abstain": {
+            "exact": 1.0,
+            "key_acc": 1.0,
+            "nll": 0.0026,
+            "exp_steps": 1.261
+          }
+        },
+        "dynamic_switch": 0.0417,
+        "overall_exact": 0.2917
+      },
+      {
+        "seed": 43,
+        "params": 2243366,
+        "train_sec": 158.7,
+        "last_train": {
+          "loss": 0.07053182274103165,
+          "task_loss": 0.06695041060447693,
+          "kl_loss": 0.35814109444618225,
+          "exp_steps": 1.335763692855835,
+          "tok_acc": 0.9750889539718628
+        },
+        "eval": {
+          "T1_single": {
+            "exact": 0.0833,
+            "key_acc": 0.25,
+            "nll": 3.0757,
+            "exp_steps": 1.296
+          },
+          "T2_two_hop": {
+            "exact": 0.5417,
+            "key_acc": 0.5417,
+            "nll": 0.5096,
+            "exp_steps": 1.575
+          },
+          "T3_dual": {
+            "exact": 0.0833,
+            "key_acc": 0.0833,
+            "nll": 1.0311,
+            "exp_steps": 1.254
+          },
+          "T4_abstain": {
+            "exact": 0.6667,
+            "key_acc": 1.0,
+            "nll": 0.4109,
+            "exp_steps": 1.261
+          }
+        },
+        "dynamic_switch": 0.0417,
+        "overall_exact": 0.3438
+      }
+    ]
+  },
+  "smf_continual": [
+    {
+      "seed": 42,
+      "old_before": {
+        "T1_single": {
+          "exact": 0.125,
+          "key_acc": 0.125,
+          "nll": 2.398,
+          "exp_steps": 1.214
+        },
+        "T2_two_hop": {
+          "exact": 0.0417,
+          "key_acc": 0.0417,
+          "nll": 1.03,
+          "exp_steps": 1.328
+        },
+        "T3_dual": {
+          "exact": 0.0,
+          "key_acc": 0.0,
+          "nll": 2.4902,
+          "exp_steps": 1.119
+        },
+        "T4_abstain": {
+          "exact": 1.0,
+          "key_acc": 1.0,
+          "nll": 0.0026,
+          "exp_steps": 1.261
+        }
+      },
+      "ood_before": {
+        "exact": 0.0,
+        "key_acc": 0.0,
+        "nll": 7.8517,
+        "exp_steps": 1.258
+      },
+      "smf_mlp": {
+        "ood_after": {
+          "exact": 0.0,
+          "key_acc": 0.0,
+          "nll": 4.7671,
+          "exp_steps": 1.472
+        },
+        "old_after": {
+          "T1_single": {
+            "exact": 0.0,
+            "key_acc": 0.0,
+            "nll": 3.0032,
+            "exp_steps": 1.291
+          },
+          "T2_two_hop": {
+            "exact": 0.0417,
+            "key_acc": 0.0833,
+            "nll": 0.8957,
+            "exp_steps": 1.37
+          },
+          "T3_dual": {
+            "exact": 0.0,
+            "key_acc": 0.0,
+            "nll": 2.5309,
+            "exp_steps": 1.147
+          },
+          "T4_abstain": {
+            "exact": 0.2917,
+            "key_acc": 0.2917,
+            "nll": 0.3894,
+            "exp_steps": 1.367
+          }
+        },
+        "worst_old_nll_rise": 0.6052,
+        "mean_old_nll_rise": 0.2246,
+        "worst_old_exact_drop": 0.7083,
+        "ood_nll_drop": 3.0846
+      },
+      "full_ft": {
+        "ood_after": {
+          "exact": 0.0,
+          "key_acc": 0.0,
+          "nll": 0.8987,
+          "exp_steps": 1.876
+        },
+        "old_after": {
+          "T1_single": {
+            "exact": 0.0,
+            "key_acc": 0.0,
+            "nll": 6.9274,
+            "exp_steps": 1.933
+          },
+          "T2_two_hop": {
+            "exact": 0.0,
+            "key_acc": 0.0,
+            "nll": 4.9835,
+            "exp_steps": 1.977
+          },
+          "T3_dual": {
+            "exact": 0.0,
+            "key_acc": 0.0,
+            "nll": 7.238,
+            "exp_steps": 1.749
+          },
+          "T4_abstain": {
+            "exact": 0.0,
+            "key_acc": 0.0,
+            "nll": 7.8268,
+            "exp_steps": 1.868
+          }
+        },
+        "worst_old_nll_rise": 7.8242,
+        "mean_old_nll_rise": 5.2637,
+        "worst_old_exact_drop": 1.0,
+        "ood_nll_drop": 6.953
+      }
+    },
+    {
+      "seed": 43,
+      "old_before": {
+        "T1_single": {
+          "exact": 0.0833,
+          "key_acc": 0.25,
+          "nll": 3.0757,
+          "exp_steps": 1.296
+        },
+        "T2_two_hop": {
+          "exact": 0.5417,
+          "key_acc": 0.5417,
+          "nll": 0.5096,
+          "exp_steps": 1.575
+        },
+        "T3_dual": {
+          "exact": 0.0833,
+          "key_acc": 0.0833,
+          "nll": 1.0311,
+          "exp_steps": 1.254
+        },
+        "T4_abstain": {
+          "exact": 0.6667,
+          "key_acc": 1.0,
+          "nll": 0.4109,
+          "exp_steps": 1.261
+        }
+      },
+      "ood_before": {
+        "exact": 0.0,
+        "key_acc": 0.0,
+        "nll": 8.8186,
+        "exp_steps": 1.415
+      },
+      "smf_mlp": {
+        "ood_after": {
+          "exact": 0.0,
+          "key_acc": 0.0,
+          "nll": 3.4877,
+          "exp_steps": 1.296
+        },
+        "old_after": {
+          "T1_single": {
+            "exact": 0.0833,
+            "key_acc": 0.25,
+            "nll": 3.2605,
+            "exp_steps": 1.308
+          },
+          "T2_two_hop": {
+            "exact": 0.375,
+            "key_acc": 0.4167,
+            "nll": 0.638,
+            "exp_steps": 1.528
+          },
+          "T3_dual": {
+            "exact": 0.0,
+            "key_acc": 0.0,
+            "nll": 2.672,
+            "exp_steps": 1.268
+          },
+          "T4_abstain": {
+            "exact": 0.6667,
+            "key_acc": 1.0,
+            "nll": 0.3123,
+            "exp_steps": 1.274
+          }
+        },
+        "worst_old_nll_rise": 1.6409,
+        "mean_old_nll_rise": 0.4639,
+        "worst_old_exact_drop": 0.1667,
+        "ood_nll_drop": 5.3309
+      },
+      "full_ft": {
+        "ood_after": {
+          "exact": 0.0,
+          "key_acc": 0.0,
+          "nll": 0.8606,
+          "exp_steps": 1.246
+        },
+        "old_after": {
+          "T1_single": {
+            "exact": 0.0,
+            "key_acc": 0.0,
+            "nll": 4.4684,
+            "exp_steps": 1.255
+          },
+          "T2_two_hop": {
+            "exact": 0.0,
+            "key_acc": 0.2083,
+            "nll": 3.0596,
+            "exp_steps": 1.342
+          },
+          "T3_dual": {
+            "exact": 0.0,
+            "key_acc": 0.0,
+            "nll": 3.9489,
+            "exp_steps": 1.174
+          },
+          "T4_abstain": {
+            "exact": 0.0,
+            "key_acc": 0.0,
+            "nll": 2.3644,
+            "exp_steps": 1.244
+          }
+        },
+        "worst_old_nll_rise": 2.9178,
+        "mean_old_nll_rise": 2.2035,
+        "worst_old_exact_drop": 0.6667,
+        "ood_nll_drop": 7.958
+      }
+    }
+  ]
+}

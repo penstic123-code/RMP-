@@ -329,8 +329,9 @@ def train_arm(
     model = LatentThinkHippoRMP(
         vocab=vocab.size, D=128, M=2, d=64, m=16, hidden=128, q=64,
         N=24, k=2, G=4, pd=96, pm=16, phidden=192, qr=32,
-        beta_max=2.0, pad_id=PAD_ID, sep_id=None,
-        max_think=max_think, use_hippo=use_hippo, hippo_dim=96,
+        beta_max=2.0, pad_id=PAD_ID, sep_id=None, mem_sep_id=SEP_ID,
+        max_think=max_think, use_hippo=use_hippo, hippo_dim=128,
+        n_hippo_heads=4, sym_dim=64, resample_sym=True,
     ).to(device)
     opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-2)
     task_types = ["T1_single", "T2_two_hop", "T3_dual", "T4_abstain"]
@@ -436,6 +437,8 @@ def main():
     ap.add_argument("--seeds", type=int, nargs="+", default=[42, 43])
     ap.add_argument("--eval_n", type=int, default=24)
     ap.add_argument("--online_steps", type=int, default=80)
+    ap.add_argument("--arms", type=str, nargs="+", default=["lockstep_no_hippo", "A1_latent_no_hippo", "A2_hippo_k1", "A2_hippo_k3"])
+    ap.add_argument("--tag", type=str, default="rmp_a2")
     args = ap.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -449,12 +452,13 @@ def main():
         for t in ("T1_single", "T2_two_hop", "T3_dual", "T4_abstain")
     }
 
-    arms = [
-        ("lockstep_no_hippo", 1, False),
-        ("A1_latent_no_hippo", 3, False),
-        ("A2_hippo_k1", 1, True),
-        ("A2_hippo_k3", 3, True),
-    ]
+    arm_specs = {
+        "lockstep_no_hippo": (1, False),
+        "A1_latent_no_hippo": (3, False),
+        "A2_hippo_k1": (1, True),
+        "A2_hippo_k3": (3, True),
+    }
+    arms = [(name, *arm_specs[name]) for name in args.arms]
 
     all_runs = {}
     smf_runs = []
@@ -509,7 +513,7 @@ def main():
         }
 
     ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    out_path = ROOT / "runs" / f"{ts}_rmp_a2.json"
+    out_path = ROOT / "runs" / f"{ts}_{args.tag}.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "args": vars(args),
