@@ -283,7 +283,7 @@ def cmd_train(args):
     if device == 'cuda':
         torch.backends.cuda.matmul.allow_tf32 = True
         torch.backends.cudnn.allow_tf32 = True
-    use_bf16 = (device == 'cuda') and torch.cuda.is_bf16_supported()
+    use_bf16 = (device == 'cuda') and torch.cuda.is_bf16_supported() and (torch.cuda.get_device_capability()[0] >= 8)
     amp_dtype = torch.bfloat16 if use_bf16 else torch.float16
     scaler = torch.amp.GradScaler('cuda', enabled=(device == 'cuda' and not use_bf16))
 
