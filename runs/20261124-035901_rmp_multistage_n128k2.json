@@ -1,0 +1,157 @@
+{
+  "args": {
+    "N": 128,
+    "k": 2,
+    "G": 8,
+    "steps": 1500,
+    "batch": 16,
+    "seq_len": 256,
+    "lr": 0.0015,
+    "online_lr": 0.001,
+    "smf_k": 16,
+    "anchor_wd": 0.05,
+    "stage_bytes": 65536,
+    "seeds": [
+      42,
+      43
+    ],
+    "modes": [
+      "full_ft",
+      "smf_static_bg",
+      "smf_anchor"
+    ],
+    "tag": "rmp_multistage_n128k2"
+  },
+  "summary": {
+    "full_ft": {
+      "stage1_soda_drop": 0.2081,
+      "stage1_worst_old_rise": 1.4586,
+      "stage2_khan_drop": -0.0062,
+      "stage2_soda_forget": 0.6889,
+      "stage2_soda_net_drop": -0.4808,
+      "stage2_worst_old_rise": 1.2635,
+      "stage2_mean_old_rise": 1.0793,
+      "stage12_module_jaccard": 0.0
+    },
+    "smf_static_bg": {
+      "stage1_soda_drop": 0.3421,
+      "stage1_worst_old_rise": 0.1169,
+      "stage2_khan_drop": 0.1145,
+      "stage2_soda_forget": 0.0678,
+      "stage2_soda_net_drop": 0.2742,
+      "stage2_worst_old_rise": 0.1114,
+      "stage2_mean_old_rise": 0.0657,
+      "stage12_module_jaccard": 0.7976
+    },
+    "smf_anchor": {
+      "stage1_soda_drop": 0.3462,
+      "stage1_worst_old_rise": 0.1215,
+      "stage2_khan_drop": 0.1148,
+      "stage2_soda_forget": 0.0626,
+      "stage2_soda_net_drop": 0.2836,
+      "stage2_worst_old_rise": 0.1099,
+      "stage2_mean_old_rise": 0.0625,
+      "stage12_module_jaccard": 0.8017
+    }
+  },
+  "seeds": [
+    {
+      "seed": 42,
+      "pretrain": {
+        "params": 10795140,
+        "train_sec": 387.3,
+        "dead": 0.016
+      },
+      "base": {
+        "old": {
+          "src0": 1.9743,
+          "src1": 2.3237,
+          "src2": 2.8305
+        },
+        "soda": 2.494,
+        "khan": 2.4031
+      },
+      "modes": {
+        "full_ft": {
+          "stage1_soda_drop": 0.1968,
+          "stage1_worst_old_rise": 1.3733,
+          "stage2_khan_drop": -0.0004,
+          "stage2_soda_forget": 0.6793,
+          "stage2_soda_net_drop": -0.4825,
+          "stage2_worst_old_rise": 1.2287,
+          "stage2_mean_old_rise": 1.0666,
+          "stage12_module_jaccard": 0.0
+        },
+        "smf_static_bg": {
+          "stage1_soda_drop": 0.34,
+          "stage1_worst_old_rise": 0.0947,
+          "stage2_khan_drop": 0.1059,
+          "stage2_soda_forget": 0.0672,
+          "stage2_soda_net_drop": 0.2728,
+          "stage2_worst_old_rise": 0.0963,
+          "stage2_mean_old_rise": 0.0536,
+          "stage12_module_jaccard": 0.8306
+        },
+        "smf_anchor": {
+          "stage1_soda_drop": 0.3432,
+          "stage1_worst_old_rise": 0.0932,
+          "stage2_khan_drop": 0.0973,
+          "stage2_soda_forget": 0.0617,
+          "stage2_soda_net_drop": 0.2815,
+          "stage2_worst_old_rise": 0.0965,
+          "stage2_mean_old_rise": 0.0517,
+          "stage12_module_jaccard": 0.8387
+        }
+      }
+    },
+    {
+      "seed": 43,
+      "pretrain": {
+        "params": 10795140,
+        "train_sec": 472.0,
+        "dead": 0.008
+      },
+      "base": {
+        "old": {
+          "src0": 1.9624,
+          "src1": 2.2947,
+          "src2": 2.8061
+        },
+        "soda": 2.5076,
+        "khan": 2.3987
+      },
+      "modes": {
+        "full_ft": {
+          "stage1_soda_drop": 0.2193,
+          "stage1_worst_old_rise": 1.5439,
+          "stage2_khan_drop": -0.0121,
+          "stage2_soda_forget": 0.6985,
+          "stage2_soda_net_drop": -0.4792,
+          "stage2_worst_old_rise": 1.2983,
+          "stage2_mean_old_rise": 1.092,
+          "stage12_module_jaccard": 0.0
+        },
+        "smf_static_bg": {
+          "stage1_soda_drop": 0.3441,
+          "stage1_worst_old_rise": 0.1392,
+          "stage2_khan_drop": 0.1232,
+          "stage2_soda_forget": 0.0684,
+          "stage2_soda_net_drop": 0.2757,
+          "stage2_worst_old_rise": 0.1266,
+          "stage2_mean_old_rise": 0.0777,
+          "stage12_module_jaccard": 0.7647
+        },
+        "smf_anchor": {
+          "stage1_soda_drop": 0.3492,
+          "stage1_worst_old_rise": 0.1497,
+          "stage2_khan_drop": 0.1322,
+          "stage2_soda_forget": 0.0635,
+          "stage2_soda_net_drop": 0.2857,
+          "stage2_worst_old_rise": 0.1233,
+          "stage2_mean_old_rise": 0.0733,
+          "stage12_module_jaccard": 0.7647
+        }
+      }
+    }
+  ]
+}

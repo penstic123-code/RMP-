@@ -34,7 +34,7 @@ def _make_decays(G, lo=0.5, hi=0.992):
 
 
 PRESETS = {
-    # 主力档（~138M 总参数 / ~61M 激活参数）：A100 40GB / L4 24GB 推荐
+    # 主力档（~138M 总参数 / ~61M 激活参数，每波 8 选 2）：A100 40GB / L4 24GB
     'main': dict(
         vocab=VOCAB_SIZE, sep_id=EOT_ID, emb=640, D=640,
         M=2, d=320, m=32, hidden=640, q=320,
@@ -44,11 +44,31 @@ PRESETS = {
         bottleneck=False, read_stream=True, tie_emb=True, grad_ckpt=True,
         lora_rank=4,
     ),
-    # 轻量档（~38M 总参数 / ~19M 激活参数）：快速冒烟 / T4 / 低预算验证
+    # 高竞争细粒度主力档（对齐 E129 每波 16 选 2 = 12.5% 激活；~242M 总参 / ~61M 激活）：A100 40GB 推荐
+    'main_fine': dict(
+        vocab=VOCAB_SIZE, sep_id=EOT_ID, emb=640, D=640,
+        M=2, d=320, m=32, hidden=640, q=320,
+        G=12, N=192, k=2, pd=320, pm=32, phidden=640, qr=64,
+        temp=0.1, init='spread', rule='ctx', wave_query=True, wave_ctx=True,
+        ctx_decay=_make_decays(12, 0.5, 0.992), beta_max=2.0,
+        bottleneck=False, read_stream=True, tie_emb=True, grad_ckpt=True,
+        lora_rank=4,
+    ),
+    # 轻量档（~38M 总参数 / ~19M 激活参数，每波 8 选 2）：快速冒烟 / T4 / 低预算验证
     'small': dict(
         vocab=VOCAB_SIZE, sep_id=EOT_ID, emb=320, D=320,
         M=2, d=160, m=32, hidden=320, q=160,
         G=8, N=64, k=2, pd=160, pm=32, phidden=320, qr=32,
+        temp=0.1, init='spread', rule='ctx', wave_query=True, wave_ctx=True,
+        ctx_decay=_make_decays(8, 0.5, 0.99), beta_max=2.0,
+        bottleneck=False, read_stream=True, tie_emb=True, grad_ckpt=True,
+        lora_rank=4,
+    ),
+    # 高竞争细粒度轻量档（对齐 E129 每波 16 选 2；~58M 总参 / ~19M 激活）：本地 8GB 冒烟 & 断点续训验证
+    'small_fine': dict(
+        vocab=VOCAB_SIZE, sep_id=EOT_ID, emb=320, D=320,
+        M=2, d=160, m=32, hidden=320, q=160,
+        G=8, N=128, k=2, pd=160, pm=32, phidden=320, qr=32,
         temp=0.1, init='spread', rule='ctx', wave_query=True, wave_ctx=True,
         ctx_decay=_make_decays(8, 0.5, 0.99), beta_max=2.0,
         bottleneck=False, read_stream=True, tie_emb=True, grad_ckpt=True,
@@ -95,7 +115,7 @@ def get_lr(step, total_steps, max_lr, warmup_steps=500, min_lr_ratio=0.1, sched=
 
 
 class StreamingPacker:
-    """后台线程流式拉取 HuggingFace 数据集，GPT-2 BPE 分词并打包成定长 (B, T+1) 批次。"""
+    """后台线程流式拉取 HuggingFace 数据集，GPT-2 BPE 分词并打包成定长 (B, T+1) 批次（精确记录 docs_seen 支持无重复续训）。"""
     def __init__(self, dataset_name, dataset_config, batch_size, seq_len, val_tokens=200_000, seed=42, skip_docs=0):
         import tiktoken
         from datasets import load_dataset
@@ -103,6 +123,7 @@ class StreamingPacker:
         self.B, self.T = batch_size, seq_len
         self.dataset_name, self.dataset_config = dataset_name, dataset_config
         self.seed, self.skip_docs = seed, skip_docs
+        self.docs_seen = skip_docs
         self._stop = threading.Event()
         self._q = queue.Queue(maxsize=8)
 
@@ -128,6 +149,7 @@ class StreamingPacker:
         epoch = 0
         need = self.B * (self.T + 1)
         buf = []
+        docs_consumed = self.skip_docs
         while not self._stop.is_set():
             ds = load_dataset(self.dataset_name, self.dataset_config, split='train', streaming=True)
             if epoch == 0:
@@ -142,23 +164,51 @@ class StreamingPacker:
                     continue
                 buf.extend(self.enc.encode_ordinary(text))
                 buf.append(EOT_ID)
+                docs_consumed += 1
                 while len(buf) >= need:
                     chunk = torch.tensor(buf[:need], dtype=torch.long).view(self.B, self.T + 1)
                     buf = buf[need:]
                     while not self._stop.is_set():
                         try:
-                            self._q.put(chunk, timeout=0.5)
+                            self._q.put((chunk, docs_consumed), timeout=0.5)
                             break
                         except queue.Full:
                             continue
             epoch += 1
 
     def next_batch(self, device):
-        xy = self._q.get()
+        xy, d_seen = self._q.get()
+        self.docs_seen = d_seen
         return xy[:, :-1].to(device, non_blocking=True), xy[:, 1:].to(device, non_blocking=True)
 
     def close(self):
         self._stop.set()
+
+
+class LocalFilePacker:
+    """本地文本文件打包器（用于本地 8GB 卡离线冒烟与精确断点续训验证，无需联网/tiktoken）。"""
+    def __init__(self, path, batch_size, seq_len, val_tokens=32_768, skip_tokens=0):
+        import numpy as np
+        self._np = np
+        raw = np.fromfile(path, dtype=np.uint8)
+        self.B, self.T = batch_size, seq_len
+        self.val_ids = torch.from_numpy(raw[:val_tokens].astype(np.int64))
+        self.val_docs = 0
+        self.train_data = raw[val_tokens:]
+        self.pos = int(skip_tokens % max(1, len(self.train_data) - batch_size * (seq_len + 1)))
+        self.docs_seen = int(skip_tokens)
+
+    def next_batch(self, device):
+        need = self.B * (self.T + 1)
+        if self.pos + need > len(self.train_data):
+            self.pos = 0
+        chunk = torch.from_numpy(self.train_data[self.pos : self.pos + need].astype(self._np.int64)).view(self.B, self.T + 1)
+        self.pos += need
+        self.docs_seen += need
+        return chunk[:, :-1].to(device, non_blocking=True), chunk[:, 1:].to(device, non_blocking=True)
+
+    def close(self):
+        pass
 
 
 @torch.no_grad()
@@ -212,7 +262,7 @@ def generate_text(model, prompt, max_new_tokens=120, temperature=0.8, top_k=50, 
     return enc.decode([t for t in out if t < 50257])
 
 
-def save_ckpt(path, model, opt, cfg, step, tokens_seen, best_val):
+def save_ckpt(path, model, opt, cfg, step, tokens_seen, best_val, docs_seen=0):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix('.tmp')
@@ -222,6 +272,7 @@ def save_ckpt(path, model, opt, cfg, step, tokens_seen, best_val):
         'cfg': cfg,
         'step': step,
         'tokens_seen': tokens_seen,
+        'docs_seen': docs_seen,
         'best_val': best_val,
     }, tmp)
     os.replace(tmp, path)
@@ -239,6 +290,8 @@ def cmd_train(args):
     cfg = dict(PRESETS[args.preset])
     if args.no_ckpt:
         cfg['grad_ckpt'] = False
+    if args.shared > 0:
+        cfg['shared'] = args.shared
     model = WaveNet(**cfg).to(device)
     total_p, active_p = count_params(model)
     tokens_per_step = args.batch * args.T * args.grad_accum
@@ -248,7 +301,7 @@ def cmd_train(args):
     out_dir.mkdir(parents=True, exist_ok=True)
     opt = build_optimizer(model, args.lr, weight_decay=args.wd)
 
-    start_step, tokens_seen, best_val = 0, 0, float('inf')
+    start_step, tokens_seen, docs_seen, best_val = 0, 0, 0, float('inf')
     latest_path = out_dir / 'latest.pt'
     if args.resume and latest_path.exists():
         ck = torch.load(latest_path, map_location=device, weights_only=False)
@@ -256,17 +309,21 @@ def cmd_train(args):
         opt.load_state_dict(ck['opt'])
         start_step = int(ck['step'])
         tokens_seen = int(ck['tokens_seen'])
+        docs_seen = int(ck.get('docs_seen', tokens_seen // 800))
         best_val = float(ck.get('best_val', float('inf')))
-        print(f'[Resume] 从 {latest_path} 恢复：step={start_step}, tokens={tokens_seen/1e6:.1f}M, best_val={best_val:.4f}')
+        print(f'[Resume] 从 {latest_path} 恢复：step={start_step}, tokens={tokens_seen/1e6:.2f}M, docs_seen={docs_seen}, best_val={best_val:.4f}')
 
     gpu_name = torch.cuda.get_device_name(0) if device == 'cuda' else 'CPU'
     print(f'[Model] preset={args.preset} | total={total_p/1e6:.2f}M | active={active_p/1e6:.2f}M | device={gpu_name} | dtype={amp_dtype}')
     print(f'[Train] batch={args.batch} x T={args.T} x accum={args.grad_accum} = {tokens_per_step:,} tok/step | total_steps={total_steps:,} ({total_steps*tokens_per_step/1e9:.2f}B tok)')
 
-    # 按已见 token 估算跳过文档数（假设平均每篇 800 tokens），避免续训重复开头语料
-    skip_docs = int(tokens_seen // 800) if start_step > 0 else 0
-    packer = StreamingPacker(args.dataset, args.dataset_config or None, args.batch, args.T, seed=args.seed, skip_docs=skip_docs)
-    print(f'[Data] {args.dataset} ({args.dataset_config}) 就绪，验证集 {len(packer.val_ids):,} tokens ({packer.val_docs} docs)')
+    if args.local_file:
+        packer = LocalFilePacker(args.local_file, args.batch, args.T, skip_tokens=docs_seen)
+        print(f'[Data] 本地离线文件 {args.local_file} 就绪，验证集 {len(packer.val_ids):,} tokens (skip={docs_seen})')
+    else:
+        skip_docs = docs_seen if start_step > 0 else 0
+        packer = StreamingPacker(args.dataset, args.dataset_config or None, args.batch, args.T, seed=args.seed, skip_docs=skip_docs)
+        print(f'[Data] {args.dataset} ({args.dataset_config}) 就绪，验证集 {len(packer.val_ids):,} tokens ({packer.val_docs} docs, skip={skip_docs})')
 
     t_start = time.time()
     t_log = time.time()
@@ -325,20 +382,21 @@ def cmd_train(args):
                 val_loss, val_ppl = evaluate(model, packer.val_ids, args.batch, args.T, device, amp_dtype)
                 elapsed_h = (time.time() - t_start) / 3600
                 print(f'>>> [Eval @ step {step+1}] val_loss={val_loss:.4f} | val_ppl={val_ppl:.2f} | elapsed={elapsed_h:.2f}h')
-                sample = generate_text(model, 'The most important discovery in science is', max_new_tokens=80, device=device)
-                print(f'>>> [Sample] {sample!r}')
+                if not args.local_file:
+                    sample = generate_text(model, 'The most important discovery in science is', max_new_tokens=80, device=device)
+                    print(f'>>> [Sample] {sample!r}')
                 if val_loss < best_val:
                     best_val = val_loss
-                    save_ckpt(out_dir / 'best.pt', model, opt, cfg, step + 1, tokens_seen, best_val)
+                    save_ckpt(out_dir / 'best.pt', model, opt, cfg, step + 1, tokens_seen, best_val, docs_seen=packer.docs_seen)
                 with open(out_dir / 'metrics.jsonl', 'a', encoding='utf-8') as f:
                     f.write(json.dumps({
-                        'step': step + 1, 'tokens': tokens_seen, 'val_loss': round(val_loss, 4),
-                        'val_ppl': round(val_ppl, 2), 'elapsed_h': round(elapsed_h, 3),
+                        'step': step + 1, 'tokens': tokens_seen, 'docs_seen': packer.docs_seen,
+                        'val_loss': round(val_loss, 4), 'val_ppl': round(val_ppl, 2), 'elapsed_h': round(elapsed_h, 3),
                     }) + '\n')
 
             if (step + 1) % args.save_every == 0 or (step + 1) == total_steps:
-                save_ckpt(latest_path, model, opt, cfg, step + 1, tokens_seen, best_val)
-                print(f'[Save] 已保存断点 → {latest_path}')
+                save_ckpt(latest_path, model, opt, cfg, step + 1, tokens_seen, best_val, docs_seen=packer.docs_seen)
+                print(f'[Save] 已保存断点 → {latest_path} (docs_seen={packer.docs_seen})')
     finally:
         packer.close()
 
@@ -376,6 +434,8 @@ def main():
     tr.add_argument('--seed', type=int, default=42)
     tr.add_argument('--resume', action='store_true')
     tr.add_argument('--no_ckpt', action='store_true', help='关闭按波 gradient checkpointing')
+    tr.add_argument('--shared', type=int, default=0, help='每波常驻共享模块数（预训练正常训，持续学习时冻结）')
+    tr.add_argument('--local_file', default='', help='本地离线文本路径（用于 8GB 本地冒烟与断点续训验证）')
 
     sp = sub.add_parser('sample')
     sp.add_argument('ckpt')

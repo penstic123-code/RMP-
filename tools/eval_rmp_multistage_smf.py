@@ -72,6 +72,9 @@ def eval_bpc(model: WaveNet, data_bytes: bytes, device: torch.device, chunk: int
 def pretrain_wavenet(
     tr: np.ndarray,
     device: torch.device,
+    N: int = 64,
+    k: int = 4,
+    G: int = 8,
     steps: int = 2500,
     batch_size: int = 16,
     seq_len: int = 256,
@@ -83,9 +86,9 @@ def pretrain_wavenet(
     model = WaveNet(
         vocab=256, sep_id=30, emb=128, D=128,
         M=2, d=96, m=16, hidden=192, q=64,
-        G=8, N=64, k=4, pd=96, pm=16, phidden=192, qr=32,
+        G=G, N=N, k=k, pd=96, pm=16, phidden=192, qr=32,
         temp=0.1, init="spread", rule="ctx", wave_query=True, wave_ctx=True,
-        ctx_decay=make_decays(8, 0.5, 0.99), beta_max=2.0,
+        ctx_decay=make_decays(G, 0.5, 0.99), beta_max=2.0,
         bottleneck=False, read_stream=True, tie_emb=True,
     ).to(device)
     opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=0.05, betas=(0.9, 0.95))
@@ -151,6 +154,8 @@ def run_online_stage(
     smf_eps: float = 1e-2,
     chunk: int = 128,
     bg_ema: float = 0.01,
+    anchor_params: List[torch.Tensor] | None = None,
+    anchor_wd: float = 0.0,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     pool = model.layers[1]
     core = pool.core
@@ -191,6 +196,10 @@ def run_online_stage(
             try:
                 lg, st_new = model(blk[:, :-1], st)
                 loss = F.cross_entropy(lg.float().reshape(-1, 256), blk[:, 1:].reshape(-1))
+                if anchor_wd > 0.0 and anchor_params is not None:
+                    # 良性遗忘锚定（突触稳态下调）：温和拉回基座权重，防止局部漂移累积过拟合
+                    reg = sum(((p - p0) ** 2).mean() for p, p0 in zip(mlp_params, anchor_params))
+                    loss = loss + anchor_wd * reg
                 loss.backward()
                 cur = torch.zeros(pool.N, device=device)
                 for _, sel, _, _ in pool.capture:
@@ -213,14 +222,20 @@ def run_online_stage(
 
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--N", type=int, default=64)
+    ap.add_argument("--k", type=int, default=4)
+    ap.add_argument("--G", type=int, default=8)
     ap.add_argument("--steps", type=int, default=2000)
     ap.add_argument("--batch", type=int, default=16)
     ap.add_argument("--seq_len", type=int, default=256)
     ap.add_argument("--lr", type=float, default=1.5e-3)
     ap.add_argument("--online_lr", type=float, default=1e-3)
     ap.add_argument("--smf_k", type=int, default=16)
+    ap.add_argument("--anchor_wd", type=float, default=0.05)
     ap.add_argument("--stage_bytes", type=int, default=65536)
     ap.add_argument("--seeds", type=int, nargs="+", default=[42, 43])
+    ap.add_argument("--modes", type=str, nargs="+", default=["full_ft", "smf_static_bg", "smf_anchor"])
+    ap.add_argument("--tag", type=str, default="rmp_multistage_smf")
     args = ap.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -239,28 +254,38 @@ def main():
 
     all_seeds = []
     for seed in args.seeds:
-        print(f"\n=== Seed {seed}: Pretraining E110-style WaveNet on task3 ===", flush=True)
-        base, pinfo = pretrain_wavenet(tr, device, steps=args.steps, batch_size=args.batch, seq_len=args.seq_len, lr=args.lr, seed=seed)
+        print(f"\n=== Seed {seed}: Pretraining WaveNet (N={args.N}, G={args.G}, k={args.k}) on task3 ===", flush=True)
+        base, pinfo = pretrain_wavenet(
+            tr, device, N=args.N, k=args.k, G=args.G,
+            steps=args.steps, batch_size=args.batch, seq_len=args.seq_len, lr=args.lr, seed=seed,
+        )
         bg0 = calibrate_bg(base, bg_bytes, device)
         old_0 = {k: eval_bpc(base, v, device) for k, v in old_probes.items()}
         soda_0 = eval_bpc(base, soda_probe, device)
         khan_0 = eval_bpc(base, khan_probe, device)
-        print(f"  Base bpc: old={old_0} | soda={soda_0} | khan={khan_0}", flush=True)
+        print(f"  Base bpc ({pinfo['params']/1e6:.2f}M, dead={pinfo['dead']}): old={old_0} | soda={soda_0} | khan={khan_0}", flush=True)
 
+        base_mlp = [p.detach().clone() for p in (base.layers[1].core.W1, base.layers[1].core.b1, base.layers[1].core.W2)]
         seed_res = {"seed": seed, "pretrain": pinfo, "base": {"old": old_0, "soda": soda_0, "khan": khan_0}, "modes": {}}
-        for mode in ("full_ft", "smf_static_bg", "smf_cumulative_bg"):
+        for mode in args.modes:
             m = copy.deepcopy(base).to(device)
+            awd = args.anchor_wd if mode == "smf_anchor" else 0.0
             # Stage 1: SODA
-            bg1, u1 = run_online_stage(m, mode, soda_stream, bg0, device, lr=args.online_lr, smf_k=args.smf_k)
+            bg1, u1 = run_online_stage(
+                m, mode, soda_stream, bg0, device, lr=args.online_lr, smf_k=args.smf_k,
+                anchor_params=base_mlp, anchor_wd=awd,
+            )
             old_1 = {k: eval_bpc(m, v, device) for k, v in old_probes.items()}
             soda_1 = eval_bpc(m, soda_probe, device)
             # Stage 2: Khan
-            bg2, u2 = run_online_stage(m, mode, khan_stream, bg1, device, lr=args.online_lr, smf_k=args.smf_k)
+            bg2, u2 = run_online_stage(
+                m, mode, khan_stream, bg1, device, lr=args.online_lr, smf_k=args.smf_k,
+                anchor_params=base_mlp, anchor_wd=awd,
+            )
             old_2 = {k: eval_bpc(m, v, device) for k, v in old_probes.items()}
             soda_2 = eval_bpc(m, soda_probe, device)
             khan_2 = eval_bpc(m, khan_probe, device)
 
-            # 统计两阶段模块重叠度（Jaccard）
             jacc = 0.0
             if mode != "full_ft":
                 s1 = u1 > 0
@@ -289,16 +314,16 @@ def main():
         all_seeds.append(seed_res)
 
     summary = {}
-    for mode in ("full_ft", "smf_static_bg", "smf_cumulative_bg"):
+    for mode in args.modes:
         summary[mode] = {
             k: round(float(np.mean([s["modes"][mode][k] for s in all_seeds])), 4)
             for k in all_seeds[0]["modes"][mode]
         }
 
     ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    out_path = ROOT / "runs" / f"{ts}_rmp_multistage_smf.json"
+    out_path = ROOT / "runs" / f"{ts}_{args.tag}.json"
     out_path.write_text(json.dumps({"args": vars(args), "summary": summary, "seeds": all_seeds}, indent=2), encoding="utf-8")
-    print(f"\nSaved E128 multi-stage SMF results to {out_path}", flush=True)
+    print(f"\nSaved {args.tag} results to {out_path}", flush=True)
     print(json.dumps(summary, indent=2), flush=True)
 
 
