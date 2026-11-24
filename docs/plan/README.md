@@ -12,7 +12,18 @@
 | [v2.md](v2.md) | demo 之后：删什么、加什么、改什么，放大到 3000 万参数的路线与过关条件 |
 | [fast-clean.md](fast-clean.md) | **现行**：训练提速与部件去重（重复部件清单、阶段 A / B、执行顺序） |
 
-## RMP 线当前状态（2026-11-22 更新；代码已解耦并修复关键漏洞，提交 `03f400f`）
+## RMP 线当前状态（2026-11-23 更新；已切入 RMP-First A2 路线，设计见 [rmp-think-speak.md](../design/rmp-think-speak.md)）
+
+- **已完成里程碑**：
+  - **138M 独立放大（E110）**：零 Attention `WaveNet` 无痛放大至 138M，纯白天 `smf_mlp` 在 OOD `chat` `drop=0.6` 下最差旧域遗忘仅 `+0.0185`（守住 `≤ 0.05` 红线）。
+  - **外部联想记忆线（E111–E123，存档于 `ca870a2`）**：验证了纯神经端到端方法优于手工特征，但因退化为标准 Transformer+RAG 而存档放弃。
+  - **E124（存档于 `eced04b`）**：验证了 `WavePool` 思说双时钟机制可行，但也暴露了手工 `k_top=9` MaxSim、脚本化思考监督与单条串行字节训练的局限。
+- **当前实施（A2 路线，避免苦涩的教训 & 避免退化成 Transformer）**：
+  1. 实现 `rmp_a2.py`（`LatentThinkHippoRMP`）：100% 零 Self-Attention `WavePool` 主干 + PonderNet 端到端潜空间自适应思考（零脚本监督）+ 极简端到端海马读取（零手工特征、遵循 Jelassi et al. 2024 信息论边界）+ 原生 `smf_mlp` 持续学习接口。
+  2. 完成单测（并行训练与流式推理数值等价、梯度贯通、SMF 掩码更新不碰未选模块）。
+  3. 跑可证伪四臂消融（`lockstep` / `A1_latent_only` / `A2_hippo_k1` / `A2_hippo_k3`）与 `A2 + SMF` 在线持续学习实验，结果登记进 [e110-.md](../experiments/e110-.md)。
+
+### 历史阶段表（E63–E109 基准线，供回溯）
 
 路由模块池 RMP（[第 23 章](../design/candidates/23-routed-pool.md)）：测试该结构能否涌现层级与分工、抗遗忘与在线学习、随规模变强、好训练。**不和 DSPN 比**，只和 RMP 变体比并设绝对门槛。代码 [pool.py](../../pool.py)（`WaveNet`）、[online.py](../../online.py)、[tools/rmp_online.py](../../tools/rmp_online.py)。
 

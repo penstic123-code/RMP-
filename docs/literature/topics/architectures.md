@@ -14,6 +14,7 @@
 - [LRU](https://arxiv.org/abs/2303.06349)（Orvieto 等，DeepMind，2023-03，已核实）：线性化 + 对角化 + 稳定参数化与初始化 + 前向归一化的普通 RNN 即可匹配深层 SSM（LRA）。S5（Smith 等，ICLR 2023，未核实）是 MIMO 对角 SSM + 并行扫描。含义：初始化、归一化比 SSM 理论更重要。
 - [Hyena](https://arxiv.org/abs/2302.10866)（Poli 等，2023-02，已核实）：隐式长卷积 + 数据门控，2K 长度下训练算力省 20%。[StripedHyena 7B](https://huggingface.co/togethercomputer/StripedHyena-Nous-7B)（Together，2023-12，未核实）：Hyena + GQA 混合。含义：纯卷积族召回弱（见下文 Zoology），不考虑。
 - Liquid S4（Hasani 等，2022，未核实）属 2023 前；后继 LFM2 见 fast-memory。
+- [Repeat After Me: Transformers are Better than State Space Models at Copying](https://arxiv.org/abs/2402.01032)（Jelassi 等，ICML 2024，未核实）：**信息论硬上限（鸽笼原理）**——任何固定常数维状态的模型（SSM / Mamba / 纯循环 / 纯 RMP），只要需精确回忆的不可压缩信息量超过其状态容量，必然发生碰撞覆写，无法做到任意长度的精确复制与召回（Transformer 靠 $O(T)$ 线性膨胀 KV-cache 绕过该上限）。【主线 RMP】指导 A2 架构边界：主干保持 100% 零 Self-Attention 的 RMP（管思考、潜空间多步推理、SMF 持续学习与有界快记忆），超状态容量的精确原文召回交给按需稀疏读取的外部海马接口，而不退化成全上下文 Self-Attention Transformer。
 
 ### 线性注意力 / RNN 复兴
 
