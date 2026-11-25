@@ -121,10 +121,10 @@ class WavePool(nn.Module):
     深度生长（grow_every=P > 0）：每 P 个训练步，模块可移到相邻波。init='flat' 全在第 0 波，'spread' 均分到 G 波。"""
     def __init__(self, N, k, G, D, d, m, hidden, qr=32, beta_max=1.0, temp=0.1, eta_a=0.01, eta_b=1e-3,
                  init='flat', grow_every=0, margin=0.02, spare=0, rule='addr', grow_until=0, ctx_decay=0.97, tau_prior=0.0,
-                 bottleneck=False, wave_query=False, wave_ctx=None, lora_rank=2, shared=0, grad_ckpt=False):
+                 bottleneck=False, wave_query=False, wave_ctx=None, lora_rank=2, shared=0, inhib=0, grad_ckpt=False):
         super().__init__()
         self.N, self.k, self.G, self.temp, self.eta_a, self.eta_b = N, k, G, temp, eta_a, eta_b
-        self.grow_every, self.margin, self.shared, self.grad_ckpt = grow_every, margin, shared, grad_ckpt
+        self.grow_every, self.margin, self.shared, self.inhib, self.grad_ckpt = grow_every, margin, shared, inhib, grad_ckpt
         self.bottleneck, self.wave_query = bottleneck, wave_query
         # rule='ctx' 且 wave_query=True 时默认开启逐波独立语境 EMA（wave_ctx=True）：第 w 波对实际流入本波的 x 做 EMA；
         # 显式传 wave_ctx=False 可兼容旧版共享编码层 EMA 检查点。ctx_decay 支持单浮点数或长度为 G 的列表（逐波多尺度衰减）。
@@ -154,17 +154,27 @@ class WavePool(nn.Module):
                 a1 = 1 - 1 / tau
                 self.core.b_a.copy_(torch.log(a1 / (1 - a1)))
         # 空闲模块（第 23.3 节 O2）：每波留 spare 个，预训练时不参与选择与均衡（active = 0）；
-        # 常驻共享模块（shared > 0）：每波前 shared 个模块每拍必选，预训练扛通用语法、在线与睡眠永久冻结。
+        # 常驻共享模块（shared > 0）：每波前 shared 个模块每拍必选，预训练扛通用语法、在线与睡眠永久冻结；
+        # 抑制性模块（inhib > 0）：每波紧接 shared 后的 inhib 个模块，执行分流乘法擦除（A）+ 跨波路由侧抑制（B），端到端可微。
         act = torch.ones(N)
         sh = torch.zeros(N)
+        inh = torch.zeros(N)
         for w in range(G):
             idx = (w0 == w).nonzero()[:, 0]
             if shared and len(idx):
                 sh[idx[:shared]] = 1.0
+            if inhib and len(idx):
+                inh[idx[shared:shared + inhib]] = 1.0
             if spare and len(idx):
                 act[idx[-spare:]] = 0
         self.register_buffer('active', act)
         self.register_buffer('is_shared', sh)
+        if inhib > 0:
+            self.register_buffer('is_inhib', inh)
+            self.inh_a = nn.Parameter(torch.full((G, D), 0.1))
+            self.inh_b = nn.Parameter(torch.full((G, D), -4.0))
+            self.W_inh_r = nn.Parameter(torch.randn(G, D, qr) / math.sqrt(D))
+            self.inh_r_scale = nn.Parameter(torch.full((G,), -4.0))
         self.register_buffer('aff', torch.zeros(N, G))           # 各模块与各波查询的平均余弦（EMA）
         self.register_buffer('step', torch.zeros((), dtype=torch.long))
         self.capture = None                                          # 设成列表时每波追加 (波号, sel, 混合权重, 查询 r)：分析与在线分配用
@@ -184,7 +194,7 @@ class WavePool(nn.Module):
             start = pos
             while pos < self.N and w[pos] == wi:
                 pos += 1
-            if pos - start < self.k + self.shared:
+            if pos - start < self.k + self.shared + self.inhib:
                 return None
             slices.append(slice(start, pos))
         return slices if pos == self.N else None
@@ -218,9 +228,10 @@ class WavePool(nn.Module):
             return F.normalize(shared_xq.to(x.dtype) @ Wr_w, dim=-1), None
         return F.normalize(F.rms_norm(x, (D,)) @ Wr_w, dim=-1), None
 
-    def _route_wave(self, w, x, r, addr, idx, sl=None):
+    def _route_wave(self, w, x, r, addr, idx, sl=None, inh_r=None):
         """计算第 w 波（全池或切片 sl）的余弦/门分数、选中掩码 sel 与混合权重 wt。
-        若 shared > 0，常驻共享模块必选（不参与 top-k 竞争），按 shared/(shared+k) 与 k/(shared+k) 保持输出尺度不变。"""
+        若 shared > 0，常驻共享模块必选；若 inhib > 0，抑制性模块必选执行（不占兴奋性 top-k 与残差加法权重），
+        并接收上一波抑制向量 inh_r 施加非正路由侧抑制（端到端可微）。"""
         D = x.shape[-1]
         if sl is not None:
             if self.rule == 'gate':
@@ -230,8 +241,12 @@ class WavePool(nn.Module):
             else:
                 cos = (r @ addr[sl].t().to(r.dtype)).float()
             sh_m = self.is_shared[sl] > 0
+            inh_m = (self.is_inhib[sl] > 0) if self.inhib > 0 else None
             cand = (self.active[sl] > 0) & (~sh_m)
+            if inh_m is not None:
+                cand = cand & (~inh_m)
             bias = self.bias[sl]
+            a_tgt = addr[sl]
         else:
             if self.rule == 'gate':
                 cos = torch.tanh((F.rms_norm(x, (D,)) @ self.Wg).float())
@@ -240,11 +255,19 @@ class WavePool(nn.Module):
             else:
                 cos = (r @ addr.t().to(r.dtype)).float()
             sh_m = (self.wave == w) & (self.is_shared > 0)
+            inh_m = ((self.wave == w) & (self.is_inhib > 0)) if self.inhib > 0 else None
             cand = (self.wave == w) & (self.active > 0) & (~sh_m)
+            if inh_m is not None:
+                cand = cand & (~inh_m)
             bias = self.bias
-        top = (cos + bias).masked_fill(~cand, -1e9).topk(self.k, -1).indices
+            a_tgt = addr
+        cos_eff = cos
+        if inh_r is not None and self.inhib > 0 and w > 0:
+            inh_pen = -F.softplus(self.inh_r_scale[w - 1]) * torch.sigmoid((inh_r @ a_tgt.t().to(inh_r.dtype)).float())
+            cos_eff = cos + inh_pen
+        top = (cos_eff + bias).masked_fill(~cand, -1e9).topk(self.k, -1).indices
         sel_r = torch.zeros_like(cos).scatter_(-1, top, 1.0) * cand.float()
-        wt_r = torch.softmax((cos / self.temp).masked_fill(sel_r == 0, -1e9), -1) * sel_r
+        wt_r = torch.softmax((cos_eff / self.temp).masked_fill(sel_r == 0, -1e9), -1) * sel_r
         if self.rule == 'hash':
             wt_r = sel_r / sel_r.sum(-1, keepdim=True).clamp(min=1)
         if self.shared > 0:
@@ -252,8 +275,11 @@ class WavePool(nn.Module):
             alpha = self.shared / (self.shared + self.k)
             sel = sel_r + sh_f
             wt = (1.0 - alpha) * wt_r + (alpha / self.shared) * sh_f
-            return cos, sel, wt
-        return cos, sel_r, wt_r
+        else:
+            sel, wt = sel_r, wt_r
+        if inh_m is not None:
+            sel = sel + inh_m.float()
+        return cos, sel, wt
 
     def forward(self, x, state, reset=None, idx=None):
         """x: (b, T, D) 残差流起点；idx: (b, T) 当前字节（hash 规则用）。返回各波混合 h 的列表（每个 (b, T, d)）、最终残差流、新状态。"""
@@ -276,13 +302,14 @@ class WavePool(nn.Module):
         cTs, Ss = ([], []) if (slices is not None and not use_sparse) else (None, None)
         if use_sparse:
             cT_full, S_full = state[0].clone(), state[1].clone()
+        inh_r = None
         for w in range(self.G):
             ec_in = ec[:, w] if (self.rule == 'ctx' and self.wave_ctx) else None
             r, ec_new = self._wave_query(w, x, ec_in, reset, shared_xq)
             if ec_new is not None:
                 ec_list.append(ec_new)
             sl = slices[w] if slices is not None else None
-            cos, sel, wt = self._route_wave(w, x, r, addr, idx, sl)
+            cos, sel, wt = self._route_wave(w, x, r, addr, idx, sl, inh_r)
             if self.capture is not None:
                 if sl is not None:
                     sel_full = x.new_zeros(b, T, self.N, dtype=torch.float32); sel_full[..., sl] = sel
@@ -290,8 +317,9 @@ class WavePool(nn.Module):
                     self.capture.append((w, sel_full.detach(), wt_full.detach(), r.detach()))
                 else:
                     self.capture.append((w, sel.detach(), wt.detach(), r.detach()))
+            z_inh = None
             if use_sparse:
-                if b == 1 and T == 1 and self.shared == 0:
+                if b == 1 and T == 1 and self.shared == 0 and self.inhib == 0:
                     act_local = sel[0, 0].topk(self.k).indices               # 单拍自回归解码：纯 GPU topk，零 CPU-GPU 同步
                 else:
                     act_local = (sel.sum((0, 1)) > 0).nonzero(as_tuple=False)[:, 0]
@@ -307,6 +335,10 @@ class WavePool(nn.Module):
                 hw = (wt_a * self.ogain[act_global].float()).to(h_a.dtype)[..., None]
                 out_z = (hw * z_a).sum(2)
                 hs.append((hw * h_a).sum(2))
+                if self.inhib > 0:
+                    im = self.is_inhib[act_global] > 0
+                    if im.any():
+                        z_inh = z_a[:, :, im].mean(2)
             elif sl is not None:
                 nw = sl.stop - sl.start
                 u_w = x[:, :, None].expand(b, T, nw, D)
@@ -322,13 +354,27 @@ class WavePool(nn.Module):
                 hw = (wt * self.ogain[sl].float()).to(h.dtype)[..., None]
                 out_z = (hw * z).sum(2)
                 hs.append((hw * h).sum(2))
+                if self.inhib > 0:
+                    im = self.is_inhib[sl] > 0
+                    if im.any():
+                        z_inh = z[:, :, im].mean(2)
             else:
                 rw = None if reset is None else reset[..., None] & (self.wave == w)   # 只重置本波模块：每个模块在自己的波里清一次
                 h, z, state = self.core(x[:, :, None].expand(b, T, self.N, D), state, rw, sel)
                 hw = (wt * self.ogain.float()).to(h.dtype)[..., None]
                 out_z = (hw * z).sum(2)
                 hs.append((hw * h).sum(2))
-            x = out_z if self.bottleneck else (x + out_z)
+                if self.inhib > 0:
+                    im = (self.wave == w) & (self.is_inhib > 0)
+                    if im.any():
+                        z_inh = z[:, :, im].mean(2)
+            if z_inh is not None:
+                g_inh = torch.sigmoid(z_inh.float() * self.inh_a[w] + self.inh_b[w]).to(x.dtype)
+                x = out_z if self.bottleneck else (x * (1.0 - g_inh) + out_z)
+                inh_r = F.normalize(z_inh @ self.W_inh_r[w], dim=-1, eps=1e-6)
+            else:
+                x = out_z if self.bottleneck else (x + out_z)
+                inh_r = None
             if learn:
                 with torch.no_grad():
                     rd = r.detach().float()
@@ -351,7 +397,7 @@ class WavePool(nn.Module):
 
     @torch.no_grad()
     def _adapt(self, cnt, sum_r, aff, ticks):
-        routed = (self.active > 0) & (self.is_shared == 0)
+        routed = (self.active > 0) & (self.is_shared == 0) & ((self.is_inhib == 0) if self.inhib > 0 else True)
         mean_r = sum_r / cnt.clamp(min=1)[:, None]
         self.addr.copy_(F.normalize(self.addr + self.eta_a * ((cnt > 0) & routed).float()[:, None] * (mean_r - self.addr), dim=-1))
         size = (F.one_hot(self.wave, self.G).float() * routed.float()[:, None]).sum(0)   # 各波参与路由的模块数
@@ -385,7 +431,7 @@ class WavePool(nn.Module):
     def stats(self):
         """（深度 = 非空波数，死模块比例 = 相对负载 < 0.1，各波模块数）。"""
         size = F.one_hot(self.wave, self.G).sum(0)
-        on = (self.active > 0) & (self.is_shared == 0)
+        on = (self.active > 0) & (self.is_shared == 0) & ((self.is_inhib == 0) if self.inhib > 0 else True)
         return int((size > 0).sum()), round(float((self.load_ema[on] < 0.1).float().mean()), 3), tuple(int(s) for s in size)
 
     def compile_parts(self):
@@ -405,16 +451,16 @@ class WaveNet(nn.Module):
     R3（fb=W > 0）：序列按 W 拍分块依次算；每块开头把上一块最后一拍的各波 h 经零初始投影加到残差流起点（按块延迟的自上而下反馈）。"""
     def __init__(self, M=2, d=90, m=16, hidden=180, q=16, emb=32, vocab=256, beta_max=1.0,
                  N=48, k=4, G=0, D=32, pd=64, pm=16, phidden=128, qr=32, temp=0.1, init='flat', grow_every=0, margin=0.02, fb=0, spare=0, rule='addr', grow_until=0, ctx_decay=0.97, tau_prior=0.0, pred_w=0.0,
-                 bottleneck=False, read_last=False, read_stream=False, wave_query=False, wave_ctx=None, lora_rank=2, shared=0, sep_id=30, grad_ckpt=False, tie_emb=False, **_):
+                 bottleneck=False, read_last=False, read_stream=False, wave_query=False, wave_ctx=None, lora_rank=2, shared=0, inhib=0, sep_id=30, grad_ckpt=False, tie_emb=False, **_):
         super().__init__()
         self.M, self.fb, self.chunk, self.pool = M, fb, 0, N
         self.read_last, self.read_stream, self.sep_id = read_last, read_stream, sep_id
-        G = G or N // (k + shared)                         # 不另设深度上限：最多 N/(k+shared) 波
+        G = G or N // (k + shared + inhib)                 # 不另设深度上限：最多 N/(k+shared+inhib) 波
         self.emb = nn.Embedding(vocab, emb)
         if tie_emb:
             nn.init.normal_(self.emb.weight, std=0.02)     # 大词表/大维度下避免 N(0,1) 导致初始 logits 爆炸
         enc = Layer(M, emb, d, m, hidden, q, rank=lora_rank, beta_max=beta_max)
-        self.layers = nn.ModuleList([enc, WavePool(N, k, G, D, pd, pm, phidden, qr, beta_max, temp, init=init, grow_every=grow_every, margin=margin, spare=spare, rule=rule, grow_until=grow_until, ctx_decay=ctx_decay, tau_prior=tau_prior, bottleneck=bottleneck, wave_query=wave_query, wave_ctx=wave_ctx, lora_rank=lora_rank, shared=shared, grad_ckpt=grad_ckpt)])
+        self.layers = nn.ModuleList([enc, WavePool(N, k, G, D, pd, pm, phidden, qr, beta_max, temp, init=init, grow_every=grow_every, margin=margin, spare=spare, rule=rule, grow_until=grow_until, ctx_decay=ctx_decay, tau_prior=tau_prior, bottleneck=bottleneck, wave_query=wave_query, wave_ctx=wave_ctx, lora_rank=lora_rank, shared=shared, inhib=inhib, grad_ckpt=grad_ckpt)])
         # 分层预测（第 23 章 23.11）：第 w 波另有一个头，预测此后 2·4^w 个字节的分布（越深看得越远、越粗），权重 pred_w
         self.pred_w, self.pred_H = pred_w, [2 * 4 ** w for w in range(G)]
         if pred_w:

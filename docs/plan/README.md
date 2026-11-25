@@ -12,20 +12,24 @@
 | [v2.md](v2.md) | demo 之后：删什么、加什么、改什么，放大到 3000 万参数的路线与过关条件 |
 | [fast-clean.md](fast-clean.md) | **现行**：训练提速与部件去重（重复部件清单、阶段 A / B、执行顺序） |
 
-## RMP 线当前状态（2026-11-24 更新；E129 完成，上云训练与 BPE 多阶段评测已全部就绪）
+## RMP 线当前状态（2026-11-25 交接；E130 本地 53M BPE 全流程验证大胜，A+B 抑制性模块已合入待跑对照）
 
-- **真正站得住的核心资产**：
-  - **138M 独立放大（E110）**：零 Attention `WaveNet` 无痛放大至 138M，纯白天 `smf_mlp` 在 OOD `chat` `drop=0.6` 下最差旧域遗忘仅 `+0.0185`（守住 `≤ 0.05` 红线）。
-  - **多阶段真实持续学习（E128 → E129，2 种子）**：纯 `WaveNet + smf_mlp` 在 `task3 → SODA → Khan` 两阶段零重放顺序学习中，仅靠细粒度高竞争（`N=64, k=4` → `N=128, G=8, k=2`，每波 16 选 2 = 12.5% 激活）就将两阶段旧域最差遗忘砍半至 **`+0.1099`**（均值 **`+0.0625`**，比全参少忘 **17.3×**），阶段 1 对话净保留 **82%**；`smf_anchor`（`anchor_wd=0.05`）在 2/2 种子上温和胜出。
-- **上云前工程清单（全部就绪 ✅）**：
-  - [tools/train_rmp_lm.py](../../tools/train_rmp_lm.py)：已新增对齐 E129 12.5% 竞争比例的 `main_fine`（`G=12, N=192, k=2`，~242M 总参 / 61M 激活）与 `small_fine`（`G=8, N=128, k=2`，53.26M / 21.40M）；精确保存并恢复 `docs_seen` 防断线重复数据；本地 8GB 卡已跑通 `small_fine` 40→60 步冒烟与 `--resume` 断点续训（显存 2.1GB）。
-  - [tools/eval_rmp_bpe_multistage.py](../../tools/eval_rmp_bpe_multistage.py)：已支持直接加载 `latest.pt` / `best.pt`（含 `shared > 0` 冻结）跑 `chat → code` 两阶段 SMF 评测，离线全流程自检通过。
-- **已测完的旁路与可选增强（不绑死主线）**：
-  - **E125–E126（A2 合成题 + 海马）**：方差大（4.2% vs 54.2%）、未训稳、离真实持续学习目标较远，暂停。
-  - **E127（A3 权重共享加深 `max_think=3`，3 种子同算力对照）**：在 4.2M 真实 `task3` 上 3/3 种子胜过 `k1_iso_param`（`-0.058 bpc`）与 `k1_iso_flops`（`-0.116 bpc`），并复现熵相关停机（`+0.337`）与跨拍动态招募不同专家（`tick01_jaccard=0.603`）；留作可选增强，不混入首轮大训练。
-- **下一步（上 Colab A100 / L4 / 4090 执行路 A）**：
-  1. 拉取当前干净 commit，先跑 2 分钟测实测吞吐与 CU 消耗，再按预算定 `--tokens`（100 CU 约 8 亿 token；250–300 CU 约 20–25 亿 token）训 `main_fine`（GPT-2 BPE + FineWeb-Edu）。
-  2. 训完后跑 `tools/eval_rmp_138m.py`（四合一）与 `tools/eval_rmp_bpe_multistage.py`（`chat → code` 多阶段持续学习）。
+- **最新核心实证（E130，2026-11-25，本机 RTX 5060 8GB）**：
+  - `small_fine`（53.26M 总参 / 21.40M 激活，`G=8, N=128, k=2`，每波 16 选 2 = 12.5% 激活，GPT-2 BPE）在离线 4 域交错语料上训满 **50M tokens（1,525 步）**：`val_ppl = 46.30`，全程 `dead = 0.00`，显存 `4.9 GB`，稳态 `5,300~5,500 tok/s`。
+  - **四合一诊断**（[eval_4in1.json](../../runs/rmp_small_fine_local/eval_4in1.json)）：负载熵 `0.9293`、地址余弦 `0.392`、**`mean_src_sel = 0.3244`（最大波 `0.5067`，几乎是 E110 8 选 2 的 2 倍）**、深浅驻留比 **`9.17×`**；单阶段 `chat` 同收益 `@drop=0.6`：`smf_mlp` 最坏旧域遗忘 `+0.0213` 完胜 `full_ft`（`+0.0337`）与 `dense_lora`（`+0.0509`）。
+  - **两阶段真实持续学习 `chat → code`**（[eval_multistage.json](../../runs/rmp_small_fine_local/eval_multistage.json)）：`smf_mlp`（16/128 模块）全程**零遗忘**（`chat_forget = -0.0035`，`worst_old = -0.0037`，`chat` 净保留 `0.3589` 为 `full_ft` 的 **2.84×**，两阶段模块重叠 `jaccard = 0.1231`）。
+- **本轮新增代码与环境状态（工作区已改、尚未 git commit）**：
+  - [pool.py](../../pool.py)：新增端到端可微 **A+B 抑制性模块**（`inhib=0` 默认 100% 兼容旧权重；已过 `spread`/`flat` 梯度与 `sparse_active=True` 单测）——A 为通道级分流乘法残差擦除 $x \odot (1 - g_{\text{inh}}) + \Delta x_E$，B 为语义地址空间 $q_r$ 跨波非正路由侧抑制。
+  - [tools/train_rmp_lm.py](../../tools/train_rmp_lm.py)：新增 `LocalBPEPacker`（`--local_bpe`，多文件按 32KB 块轮询交错 + 后台 GPT-2 BPE 打包 + 均衡多域验证集 + 字节偏移 `--resume`），新增 `--inhib` 参数、启动打印 `USE_FLA` 及 `flush=True`。
+  - **环境与产物**：本机 `Z:\miniconda\envs\dspn`（PyTorch 2.11+cu128, BF16, `USE_FLA=True`）已补装 `tiktoken`、`datasets`；Colab L4 配额已耗尽（此前测得 `main_fine` L4 最快配置 `--batch 8 --T 512 --grad_accum 8 --no_ckpt` 为 `3,713 tok/s` / `20.5GB`）；E130 产物在 `runs/rmp_small_fine_local/{latest.pt, best.pt, metrics.jsonl, eval_4in1.json, eval_multistage.json}`。
+- **既有核心资产（E110 / E127–E129）**：
+  - **E110（138M 8 选 2，A100 163.8M tok）**：`val_ppl=86.45`，`mean_src_sel=0.1711`，`smf_mlp @0.6` 最差旧域遗忘 `+0.0185`。
+  - **E128–E129（字节级多阶段，2 种子）**：`N=128, k=2` + `smf_anchor` 两阶段旧域遗忘比全参少忘 `17.3×`。
+  - **E127（A3 `max_think=3`）**：3/3 种子胜过等参/等算力基线，留作可选增强。
+- **交接后下一步（按投入产出比排序）**：
+  1. **真稀疏训练内核（最大工程杠杆，最符合苦涩的教训）**：目前 `Layer.forward_slice` 训练期全算每波 16 模块再乘掩码（白烧 87.5% 算力）；利用未选模块状态不变的性质，将各模块被选 token 按序压紧 + `fla` 原生 `cu_seqlens` 变长打包内核，可将池体训练算力与显存直降 **5~8×**。
+  2. **A+B 抑制性模块对照实验（代码已就绪）**：用 E130 同命令加 `--inhib 2 --out runs/rmp_small_fine_inhib2` 跑 50M tokens + 两套评测，直接与 E130 对比 `val_ppl`、`src_sel`、`dwell_ratio` 与 `chat → code` 抗遗忘。
+  3. **照妖镜硬基线与能力上限**：补跑同参数（53M）同数据（50M tok）标准 Transformer（GPT-2）硬对照；基于 E130 权重探索拉高 `smf_mlp` 新任务收益上限（`smf_k` / 解冻快记忆投影 / 启用 `spare` 新生模块）及 5~8 阶段连续学习压测。
 
 ### 历史阶段表（E63–E109 基准线，供回溯）
 

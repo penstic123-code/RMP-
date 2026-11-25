@@ -81,7 +81,7 @@ def count_params(model):
     total = sum(p.numel() for p in model.parameters())
     pool_p = sum(p.numel() for p in model.layers[1].core.parameters())
     wp = model.layers[1]
-    frac = (wp.k + wp.shared) / (wp.N / wp.G)
+    frac = (wp.k + wp.shared + wp.inhib) / (wp.N / wp.G)
     active = int(total - pool_p * (1.0 - frac))
     return total, active
 
@@ -179,6 +179,93 @@ class StreamingPacker:
     def next_batch(self, device):
         xy, d_seen = self._q.get()
         self.docs_seen = d_seen
+        return xy[:, :-1].to(device, non_blocking=True), xy[:, 1:].to(device, non_blocking=True)
+
+    def close(self):
+        self._stop.set()
+
+
+class LocalBPEPacker:
+    """本地多文件后台 BPE 交错流式打包器（按 32KB 块轮询交错读取各文件，促进多领域分工，零网络依赖，完全兼容 BPE 评测脚本）。"""
+    def __init__(self, paths, batch_size, seq_len, val_tokens=200_000, skip_bytes=0):
+        import tiktoken
+        self.enc = tiktoken.get_encoding('gpt2')
+        self.B, self.T = batch_size, seq_len
+        self.paths = [p.strip() for p in paths.split(',') if p.strip()]
+        self.skip_bytes = int(skip_bytes)
+        self.docs_seen = self.skip_bytes
+        self._stop = threading.Event()
+        self._q = queue.Queue(maxsize=16)
+
+        # 从每个文件开头均衡抽取验证集（各 val_tokens // n_files）
+        per_file_val = max(10_000, val_tokens // max(1, len(self.paths)))
+        val_buf = []
+        self.val_bytes = []
+        for p in self.paths:
+            fb, vb = [], 0
+            with open(p, 'rb') as f:
+                while len(fb) < per_file_val:
+                    raw = f.read(131_072)
+                    if not raw:
+                        break
+                    vb += len(raw)
+                    txt = raw.decode('utf-8', errors='ignore')
+                    for doc in txt.split('\x1e'):
+                        if doc:
+                            fb.extend(self.enc.encode_ordinary(doc))
+                            fb.append(EOT_ID)
+            val_buf.extend(fb[:per_file_val])
+            self.val_bytes.append(vb)
+        self.val_ids = torch.tensor(val_buf[:val_tokens], dtype=torch.long)
+        self._thread = threading.Thread(target=self._worker, daemon=True)
+        self._thread.start()
+
+    def _worker(self):
+        need = self.B * (self.T + 1)
+        buf = []
+        bytes_consumed = self.skip_bytes
+        n = len(self.paths)
+        per_skip = self.skip_bytes // max(1, n)
+        fhs = []
+        for i, p in enumerate(self.paths):
+            f = open(p, 'rb')
+            fsize = os.path.getsize(p)
+            avail = max(1, fsize - self.val_bytes[i])
+            f.seek(self.val_bytes[i] + (per_skip % avail))
+            fhs.append(f)
+        try:
+            while not self._stop.is_set():
+                for i, f in enumerate(fhs):
+                    if self._stop.is_set():
+                        return
+                    raw = f.read(32_768)
+                    if not raw:
+                        f.seek(self.val_bytes[i])
+                        raw = f.read(32_768)
+                    if not raw:
+                        continue
+                    bytes_consumed += len(raw)
+                    txt = raw.decode('utf-8', errors='ignore')
+                    for doc in txt.split('\x1e'):
+                        if doc:
+                            buf.extend(self.enc.encode_ordinary(doc))
+                            buf.append(EOT_ID)
+                    while len(buf) >= need:
+                        chunk = torch.tensor(buf[:need], dtype=torch.long).view(self.B, self.T + 1)
+                        buf = buf[need:]
+                        while not self._stop.is_set():
+                            try:
+                                self._q.put((chunk, bytes_consumed), timeout=0.5)
+                                break
+                            except queue.Full:
+                                continue
+        finally:
+            for f in fhs:
+                f.close()
+
+    def next_batch(self, device):
+        xy, b_seen = self._q.get()
+        self.docs_seen = b_seen
         return xy[:, :-1].to(device, non_blocking=True), xy[:, 1:].to(device, non_blocking=True)
 
     def close(self):
@@ -292,6 +379,8 @@ def cmd_train(args):
         cfg['grad_ckpt'] = False
     if args.shared > 0:
         cfg['shared'] = args.shared
+    if args.inhib > 0:
+        cfg['inhib'] = args.inhib
     model = WaveNet(**cfg).to(device)
     total_p, active_p = count_params(model)
     tokens_per_step = args.batch * args.T * args.grad_accum
@@ -313,17 +402,22 @@ def cmd_train(args):
         best_val = float(ck.get('best_val', float('inf')))
         print(f'[Resume] 从 {latest_path} 恢复：step={start_step}, tokens={tokens_seen/1e6:.2f}M, docs_seen={docs_seen}, best_val={best_val:.4f}')
 
+    import dspn_text
     gpu_name = torch.cuda.get_device_name(0) if device == 'cuda' else 'CPU'
-    print(f'[Model] preset={args.preset} | total={total_p/1e6:.2f}M | active={active_p/1e6:.2f}M | device={gpu_name} | dtype={amp_dtype}')
-    print(f'[Train] batch={args.batch} x T={args.T} x accum={args.grad_accum} = {tokens_per_step:,} tok/step | total_steps={total_steps:,} ({total_steps*tokens_per_step/1e9:.2f}B tok)')
+    print(f'[Model] preset={args.preset} | total={total_p/1e6:.2f}M | active={active_p/1e6:.2f}M | device={gpu_name} | dtype={amp_dtype} | USE_FLA={dspn_text.USE_FLA}', flush=True)
+    print(f'[Train] batch={args.batch} x T={args.T} x accum={args.grad_accum} = {tokens_per_step:,} tok/step | total_steps={total_steps:,} ({total_steps*tokens_per_step/1e9:.2f}B tok)', flush=True)
 
-    if args.local_file:
+    if args.local_bpe:
+        skip_bytes = docs_seen if start_step > 0 else 0
+        packer = LocalBPEPacker(args.local_bpe, args.batch, args.T, skip_bytes=skip_bytes)
+        print(f'[Data] 本地 BPE 语料 {args.local_bpe} 就绪，验证集 {len(packer.val_ids):,} tokens (skip_bytes={skip_bytes})', flush=True)
+    elif args.local_file:
         packer = LocalFilePacker(args.local_file, args.batch, args.T, skip_tokens=docs_seen)
-        print(f'[Data] 本地离线文件 {args.local_file} 就绪，验证集 {len(packer.val_ids):,} tokens (skip={docs_seen})')
+        print(f'[Data] 本地离线文件 {args.local_file} 就绪，验证集 {len(packer.val_ids):,} tokens (skip={docs_seen})', flush=True)
     else:
         skip_docs = docs_seen if start_step > 0 else 0
         packer = StreamingPacker(args.dataset, args.dataset_config or None, args.batch, args.T, seed=args.seed, skip_docs=skip_docs)
-        print(f'[Data] {args.dataset} ({args.dataset_config}) 就绪，验证集 {len(packer.val_ids):,} tokens ({packer.val_docs} docs, skip={skip_docs})')
+        print(f'[Data] {args.dataset} ({args.dataset_config}) 就绪，验证集 {len(packer.val_ids):,} tokens ({packer.val_docs} docs, skip={skip_docs})', flush=True)
 
     t_start = time.time()
     t_log = time.time()
@@ -435,7 +529,9 @@ def main():
     tr.add_argument('--resume', action='store_true')
     tr.add_argument('--no_ckpt', action='store_true', help='关闭按波 gradient checkpointing')
     tr.add_argument('--shared', type=int, default=0, help='每波常驻共享模块数（预训练正常训，持续学习时冻结）')
-    tr.add_argument('--local_file', default='', help='本地离线文本路径（用于 8GB 本地冒烟与断点续训验证）')
+    tr.add_argument('--inhib', type=int, default=0, help='每波抑制性模块数（分流乘法擦除 A + 跨波路由侧抑制 B）')
+    tr.add_argument('--local_file', default='', help='本地离线字节文件路径（用于 8GB 本地冒烟与断点续训验证）')
+    tr.add_argument('--local_bpe', default='', help='本地离线文本文件路径（逗号分隔），后台 GPT-2 BPE 流式打包，零网络依赖')
 
     sp = sub.add_parser('sample')
     sp.add_argument('ckpt')

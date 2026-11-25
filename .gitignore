@@ -1,6 +1,8 @@
 # 数据与大文件不入库
 data/
 runs/*.pt
+runs/**/*.pt
+runs/**/*.tmp
 runs/*.pt.bak
 runs/*.db
 runs/*.db-shm

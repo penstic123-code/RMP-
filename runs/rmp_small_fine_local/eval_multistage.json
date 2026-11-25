@@ -1,0 +1,71 @@
+{
+  "ckpt": "runs/rmp_small_fine_local/latest.pt",
+  "cfg": {
+    "vocab": 50304,
+    "sep_id": 50256,
+    "emb": 320,
+    "D": 320,
+    "M": 2,
+    "d": 160,
+    "m": 32,
+    "hidden": 320,
+    "q": 160,
+    "G": 8,
+    "N": 128,
+    "k": 2,
+    "pd": 160,
+    "pm": 32,
+    "phidden": 320,
+    "qr": 32,
+    "temp": 0.1,
+    "init": "spread",
+    "rule": "ctx",
+    "wave_query": true,
+    "wave_ctx": true,
+    "ctx_decay": [
+      0.5,
+      0.71407,
+      0.83649,
+      0.90649,
+      0.94653,
+      0.96942,
+      0.98251,
+      0.99
+    ],
+    "beta_max": 2.0,
+    "bottleneck": false,
+    "read_stream": true,
+    "tie_emb": true,
+    "grad_ckpt": true,
+    "lora_rank": 4
+  },
+  "smf_k": 16,
+  "base": {
+    "old": {
+      "edu": 5.6544,
+      "story": 3.9719
+    },
+    "chat": 4.9932,
+    "code": 5.4979
+  },
+  "modes": {
+    "full_ft": {
+      "stage1_chat_drop": 1.5417,
+      "stage1_worst_old_rise": 0.8961,
+      "stage2_code_drop": 0.9553,
+      "stage2_chat_forget": 1.4155,
+      "stage2_chat_net_drop": 0.1262,
+      "stage2_worst_old_rise": 1.2519,
+      "stage12_module_jaccard": 0.0
+    },
+    "smf_mlp": {
+      "stage1_chat_drop": 0.3554,
+      "stage1_worst_old_rise": -0.0028,
+      "stage2_code_drop": 0.2628,
+      "stage2_chat_forget": -0.0035,
+      "stage2_chat_net_drop": 0.3589,
+      "stage2_worst_old_rise": -0.0037,
+      "stage12_module_jaccard": 0.1231
+    }
+  }
+}

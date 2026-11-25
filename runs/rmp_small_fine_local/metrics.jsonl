@@ -1,0 +1,7 @@
+{"step": 250, "tokens": 8192000, "docs_seen": 31981568, "val_loss": 5.347, "val_ppl": 209.98, "elapsed_h": 0.769}
+{"step": 500, "tokens": 16384000, "docs_seen": 66060288, "val_loss": 4.6292, "val_ppl": 102.43, "elapsed_h": 1.929}
+{"step": 750, "tokens": 24576000, "docs_seen": 103869455, "val_loss": 5.4623, "val_ppl": 235.64, "elapsed_h": 2.602}
+{"step": 1000, "tokens": 32768000, "docs_seen": 140078095, "val_loss": 4.3583, "val_ppl": 78.12, "elapsed_h": 0.414}
+{"step": 1250, "tokens": 40960000, "docs_seen": 176679951, "val_loss": 4.1083, "val_ppl": 60.85, "elapsed_h": 0.43}
+{"step": 1500, "tokens": 49152000, "docs_seen": 213511183, "val_loss": 3.8352, "val_ppl": 46.3, "elapsed_h": 0.861}
+{"step": 1525, "tokens": 49971200, "docs_seen": 217082895, "val_loss": 3.8381, "val_ppl": 46.43, "elapsed_h": 0.911}

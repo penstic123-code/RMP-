@@ -1,0 +1,628 @@
+{
+  "ckpt": "runs/rmp_small_fine_local/latest.pt",
+  "step": 1525,
+  "tokens_seen": 49971200,
+  "elapsed_s": 455.3,
+  "diag": {
+    "domain_val_loss": {
+      "edu": 5.8631,
+      "story": 3.938,
+      "code": 5.1555,
+      "chat": 4.9252
+    },
+    "mean_load_ent": 0.9293,
+    "mean_addr_cos": 0.392,
+    "mean_src_sel": 0.3244,
+    "max_src_sel": 0.5067,
+    "dwell_ratio_deep_vs_shallow": 9.17,
+    "tau_ratio_deep_vs_shallow": 1.01,
+    "waves": [
+      {
+        "wave": 0,
+        "ctx_decay": 0.5,
+        "load_ent": 0.995,
+        "dead": 0.0,
+        "addr_cos": 0.1027,
+        "top1_wt": 0.523,
+        "src_sel": 0.0761,
+        "tau_med": 39.5,
+        "dwell_tok": 1.33
+      },
+      {
+        "wave": 1,
+        "ctx_decay": 0.71407,
+        "load_ent": 0.984,
+        "dead": 0.0,
+        "addr_cos": 0.2372,
+        "top1_wt": 0.586,
+        "src_sel": 0.1245,
+        "tau_med": 39.21,
+        "dwell_tok": 1.89
+      },
+      {
+        "wave": 2,
+        "ctx_decay": 0.83649,
+        "load_ent": 0.967,
+        "dead": 0.0,
+        "addr_cos": 0.4317,
+        "top1_wt": 0.554,
+        "src_sel": 0.2506,
+        "tau_med": 39.05,
+        "dwell_tok": 3.01
+      },
+      {
+        "wave": 3,
+        "ctx_decay": 0.90649,
+        "load_ent": 0.934,
+        "dead": 0.0,
+        "addr_cos": 0.485,
+        "top1_wt": 0.58,
+        "src_sel": 0.4082,
+        "tau_med": 39.43,
+        "dwell_tok": 5.32
+      },
+      {
+        "wave": 4,
+        "ctx_decay": 0.94653,
+        "load_ent": 0.909,
+        "dead": 0.062,
+        "addr_cos": 0.5057,
+        "top1_wt": 0.576,
+        "src_sel": 0.5067,
+        "tau_med": 39.39,
+        "dwell_tok": 9.58
+      },
+      {
+        "wave": 5,
+        "ctx_decay": 0.96942,
+        "load_ent": 0.961,
+        "dead": 0.0,
+        "addr_cos": 0.3539,
+        "top1_wt": 0.613,
+        "src_sel": 0.4556,
+        "tau_med": 39.03,
+        "dwell_tok": 14.18
+      },
+      {
+        "wave": 6,
+        "ctx_decay": 0.98251,
+        "load_ent": 0.877,
+        "dead": 0.0,
+        "addr_cos": 0.4593,
+        "top1_wt": 0.611,
+        "src_sel": 0.4644,
+        "tau_med": 39.77,
+        "dwell_tok": 22.9
+      },
+      {
+        "wave": 7,
+        "ctx_decay": 0.99,
+        "load_ent": 0.806,
+        "dead": 0.125,
+        "addr_cos": 0.5607,
+        "top1_wt": 0.585,
+        "src_sel": 0.3093,
+        "tau_med": 39.77,
+        "dwell_tok": 20.09
+      }
+    ]
+  },
+  "smf_selected_mods": [
+    3,
+    10,
+    25,
+    17,
+    39,
+    45,
+    48,
+    49,
+    79,
+    74,
+    94,
+    93,
+    108,
+    106,
+    114,
+    126
+  ],
+  "anti_forgetting_curves": {
+    "full_ft": [
+      {
+        "step": 0,
+        "new_loss": 4.985,
+        "new_drop": 0.0,
+        "old_rise": {
+          "edu": 0.0,
+          "story": 0.0,
+          "code": 0.0
+        },
+        "worst_old_rise": 0.0,
+        "mean_old_rise": 0.0
+      },
+      {
+        "step": 5,
+        "new_loss": 4.3772,
+        "new_drop": 0.6077,
+        "old_rise": {
+          "edu": 0.0341,
+          "story": -0.0185,
+          "code": 0.0191
+        },
+        "worst_old_rise": 0.0341,
+        "mean_old_rise": 0.0116
+      },
+      {
+        "step": 10,
+        "new_loss": 4.1086,
+        "new_drop": 0.8763,
+        "old_rise": {
+          "edu": 0.07,
+          "story": 0.0447,
+          "code": 0.0918
+        },
+        "worst_old_rise": 0.0918,
+        "mean_old_rise": 0.0688
+      },
+      {
+        "step": 15,
+        "new_loss": 3.911,
+        "new_drop": 1.074,
+        "old_rise": {
+          "edu": 0.0782,
+          "story": 0.0698,
+          "code": 0.1155
+        },
+        "worst_old_rise": 0.1155,
+        "mean_old_rise": 0.0878
+      },
+      {
+        "step": 20,
+        "new_loss": 3.7623,
+        "new_drop": 1.2227,
+        "old_rise": {
+          "edu": 0.0904,
+          "story": 0.0807,
+          "code": 0.123
+        },
+        "worst_old_rise": 0.123,
+        "mean_old_rise": 0.098
+      },
+      {
+        "step": 25,
+        "new_loss": 3.6457,
+        "new_drop": 1.3393,
+        "old_rise": {
+          "edu": 0.1016,
+          "story": 0.1129,
+          "code": 0.1363
+        },
+        "worst_old_rise": 0.1363,
+        "mean_old_rise": 0.1169
+      },
+      {
+        "step": 30,
+        "new_loss": 3.548,
+        "new_drop": 1.4369,
+        "old_rise": {
+          "edu": 0.1181,
+          "story": 0.1357,
+          "code": 0.1753
+        },
+        "worst_old_rise": 0.1753,
+        "mean_old_rise": 0.143
+      },
+      {
+        "step": 35,
+        "new_loss": 3.4828,
+        "new_drop": 1.5022,
+        "old_rise": {
+          "edu": 0.1393,
+          "story": 0.1588,
+          "code": 0.1875
+        },
+        "worst_old_rise": 0.1875,
+        "mean_old_rise": 0.1619
+      },
+      {
+        "step": 40,
+        "new_loss": 3.4403,
+        "new_drop": 1.5446,
+        "old_rise": {
+          "edu": 0.1586,
+          "story": 0.1862,
+          "code": 0.2085
+        },
+        "worst_old_rise": 0.2085,
+        "mean_old_rise": 0.1844
+      }
+    ],
+    "dense_lora": [
+      {
+        "step": 0,
+        "new_loss": 4.985,
+        "new_drop": 0.0,
+        "old_rise": {
+          "edu": 0.0,
+          "story": 0.0,
+          "code": 0.0
+        },
+        "worst_old_rise": 0.0,
+        "mean_old_rise": 0.0
+      },
+      {
+        "step": 5,
+        "new_loss": 4.9229,
+        "new_drop": 0.062,
+        "old_rise": {
+          "edu": -0.0032,
+          "story": -0.002,
+          "code": -0.0026
+        },
+        "worst_old_rise": -0.002,
+        "mean_old_rise": -0.0026
+      },
+      {
+        "step": 10,
+        "new_loss": 4.82,
+        "new_drop": 0.165,
+        "old_rise": {
+          "edu": -0.0078,
+          "story": -0.005,
+          "code": -0.0063
+        },
+        "worst_old_rise": -0.005,
+        "mean_old_rise": -0.0064
+      },
+      {
+        "step": 15,
+        "new_loss": 4.694,
+        "new_drop": 0.291,
+        "old_rise": {
+          "edu": -0.0105,
+          "story": -0.0079,
+          "code": -0.0091
+        },
+        "worst_old_rise": -0.0079,
+        "mean_old_rise": -0.0092
+      },
+      {
+        "step": 20,
+        "new_loss": 4.5742,
+        "new_drop": 0.4108,
+        "old_rise": {
+          "edu": -0.0057,
+          "story": -0.0105,
+          "code": -0.003
+        },
+        "worst_old_rise": -0.003,
+        "mean_old_rise": -0.0064
+      },
+      {
+        "step": 25,
+        "new_loss": 4.4788,
+        "new_drop": 0.5062,
+        "old_rise": {
+          "edu": 0.0077,
+          "story": -0.0038,
+          "code": 0.0155
+        },
+        "worst_old_rise": 0.0155,
+        "mean_old_rise": 0.0065
+      },
+      {
+        "step": 30,
+        "new_loss": 4.3984,
+        "new_drop": 0.5866,
+        "old_rise": {
+          "edu": 0.0216,
+          "story": 0.0105,
+          "code": 0.0451
+        },
+        "worst_old_rise": 0.0451,
+        "mean_old_rise": 0.0257
+      },
+      {
+        "step": 35,
+        "new_loss": 4.3282,
+        "new_drop": 0.6567,
+        "old_rise": {
+          "edu": 0.0319,
+          "story": 0.0255,
+          "code": 0.0756
+        },
+        "worst_old_rise": 0.0756,
+        "mean_old_rise": 0.0443
+      },
+      {
+        "step": 40,
+        "new_loss": 4.2659,
+        "new_drop": 0.7191,
+        "old_rise": {
+          "edu": 0.0403,
+          "story": 0.0378,
+          "code": 0.0926
+        },
+        "worst_old_rise": 0.0926,
+        "mean_old_rise": 0.0569
+      }
+    ],
+    "smf_lora": [
+      {
+        "step": 0,
+        "new_loss": 4.9848,
+        "new_drop": 0.0,
+        "old_rise": {
+          "edu": 0.0,
+          "story": 0.0,
+          "code": 0.0
+        },
+        "worst_old_rise": 0.0,
+        "mean_old_rise": 0.0
+      },
+      {
+        "step": 5,
+        "new_loss": 4.9188,
+        "new_drop": 0.066,
+        "old_rise": {
+          "edu": -0.0063,
+          "story": -0.0014,
+          "code": -0.0029
+        },
+        "worst_old_rise": -0.0014,
+        "mean_old_rise": -0.0035
+      },
+      {
+        "step": 10,
+        "new_loss": 4.7987,
+        "new_drop": 0.1861,
+        "old_rise": {
+          "edu": -0.0125,
+          "story": -0.0024,
+          "code": -0.0048
+        },
+        "worst_old_rise": -0.0024,
+        "mean_old_rise": -0.0066
+      },
+      {
+        "step": 15,
+        "new_loss": 4.6816,
+        "new_drop": 0.3032,
+        "old_rise": {
+          "edu": -0.0029,
+          "story": 0.0053,
+          "code": 0.0105
+        },
+        "worst_old_rise": 0.0105,
+        "mean_old_rise": 0.0043
+      },
+      {
+        "step": 20,
+        "new_loss": 4.5984,
+        "new_drop": 0.3864,
+        "old_rise": {
+          "edu": 0.0112,
+          "story": 0.0188,
+          "code": 0.0462
+        },
+        "worst_old_rise": 0.0462,
+        "mean_old_rise": 0.0254
+      },
+      {
+        "step": 25,
+        "new_loss": 4.5214,
+        "new_drop": 0.4634,
+        "old_rise": {
+          "edu": 0.0198,
+          "story": 0.0307,
+          "code": 0.0847
+        },
+        "worst_old_rise": 0.0847,
+        "mean_old_rise": 0.0451
+      },
+      {
+        "step": 30,
+        "new_loss": 4.4459,
+        "new_drop": 0.5389,
+        "old_rise": {
+          "edu": 0.0268,
+          "story": 0.039,
+          "code": 0.1024
+        },
+        "worst_old_rise": 0.1024,
+        "mean_old_rise": 0.0561
+      },
+      {
+        "step": 35,
+        "new_loss": 4.387,
+        "new_drop": 0.5977,
+        "old_rise": {
+          "edu": 0.0345,
+          "story": 0.0548,
+          "code": 0.1346
+        },
+        "worst_old_rise": 0.1346,
+        "mean_old_rise": 0.0746
+      },
+      {
+        "step": 40,
+        "new_loss": 4.3265,
+        "new_drop": 0.6583,
+        "old_rise": {
+          "edu": 0.0425,
+          "story": 0.0686,
+          "code": 0.1625
+        },
+        "worst_old_rise": 0.1625,
+        "mean_old_rise": 0.0912
+      }
+    ],
+    "smf_mlp": [
+      {
+        "step": 0,
+        "new_loss": 4.9851,
+        "new_drop": 0.0,
+        "old_rise": {
+          "edu": 0.0,
+          "story": 0.0,
+          "code": 0.0
+        },
+        "worst_old_rise": 0.0,
+        "mean_old_rise": 0.0
+      },
+      {
+        "step": 5,
+        "new_loss": 4.7948,
+        "new_drop": 0.1904,
+        "old_rise": {
+          "edu": -0.0105,
+          "story": -0.0047,
+          "code": -0.0078
+        },
+        "worst_old_rise": -0.0047,
+        "mean_old_rise": -0.0077
+      },
+      {
+        "step": 10,
+        "new_loss": 4.6533,
+        "new_drop": 0.3318,
+        "old_rise": {
+          "edu": -0.0116,
+          "story": -0.0068,
+          "code": -0.0068
+        },
+        "worst_old_rise": -0.0068,
+        "mean_old_rise": -0.0084
+      },
+      {
+        "step": 15,
+        "new_loss": 4.5391,
+        "new_drop": 0.446,
+        "old_rise": {
+          "edu": -0.0086,
+          "story": -0.005,
+          "code": 0.0007
+        },
+        "worst_old_rise": 0.0007,
+        "mean_old_rise": -0.0043
+      },
+      {
+        "step": 20,
+        "new_loss": 4.4391,
+        "new_drop": 0.5461,
+        "old_rise": {
+          "edu": -0.0041,
+          "story": 0.0005,
+          "code": 0.0129
+        },
+        "worst_old_rise": 0.0129,
+        "mean_old_rise": 0.0031
+      },
+      {
+        "step": 25,
+        "new_loss": 4.3495,
+        "new_drop": 0.6356,
+        "old_rise": {
+          "edu": 0.0005,
+          "story": 0.0043,
+          "code": 0.0269
+        },
+        "worst_old_rise": 0.0269,
+        "mean_old_rise": 0.0106
+      },
+      {
+        "step": 30,
+        "new_loss": 4.2647,
+        "new_drop": 0.7204,
+        "old_rise": {
+          "edu": 0.0039,
+          "story": 0.0082,
+          "code": 0.0391
+        },
+        "worst_old_rise": 0.0391,
+        "mean_old_rise": 0.0171
+      },
+      {
+        "step": 35,
+        "new_loss": 4.1891,
+        "new_drop": 0.796,
+        "old_rise": {
+          "edu": 0.0088,
+          "story": 0.0117,
+          "code": 0.0489
+        },
+        "worst_old_rise": 0.0489,
+        "mean_old_rise": 0.0231
+      },
+      {
+        "step": 40,
+        "new_loss": 4.1203,
+        "new_drop": 0.8649,
+        "old_rise": {
+          "edu": 0.0123,
+          "story": 0.0171,
+          "code": 0.0595
+        },
+        "worst_old_rise": 0.0595,
+        "mean_old_rise": 0.0296
+      }
+    ]
+  },
+  "anti_forgetting_table": {
+    "full_ft": {
+      "0.2": {
+        "worst": 0.0112,
+        "mean": 0.0038
+      },
+      "0.4": {
+        "worst": 0.0224,
+        "mean": 0.0076
+      },
+      "0.6": {
+        "worst": 0.0337,
+        "mean": 0.0115
+      }
+    },
+    "dense_lora": {
+      "0.2": {
+        "worst": -0.0058,
+        "mean": -0.0072
+      },
+      "0.4": {
+        "worst": -0.0034,
+        "mean": -0.0067
+      },
+      "0.6": {
+        "worst": 0.0509,
+        "mean": 0.0293
+      }
+    },
+    "smf_lora": {
+      "0.2": {
+        "worst": -0.0009,
+        "mean": -0.0053
+      },
+      "0.4": {
+        "worst": 0.053,
+        "mean": 0.0289
+      },
+      "0.6": {
+        "worst": 0.1357,
+        "mean": 0.0752
+      }
+    },
+    "smf_mlp": {
+      "0.2": {
+        "worst": -0.0048,
+        "mean": -0.0077
+      },
+      "0.4": {
+        "worst": -0.0023,
+        "mean": -0.006
+      },
+      "0.6": {
+        "worst": 0.0213,
+        "mean": 0.0076
+      }
+    }
+  }
+}
